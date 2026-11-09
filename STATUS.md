@@ -1,28 +1,33 @@
 # Status
 
-_Last updated: 2026-11-09 (Google sign-in session)_
+_Last updated: 2026-11-09 (end of the Google sign-in session)_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done
-- Repo, branch protection, brand assets, requirements, made-up RoasTime samples.
-- Owner's Mac set up (VS Code + Claude Code, Node.js, GitHub CLI). TypeScript + Vite site live at https://gwiazda.github.io/kraken/.
-- Google Cloud project `kraken` set up by the owner: Sheets, Drive, Picker APIs; consent screen (External, Testing,
-  both owners as test users, `drive.file`); Client ID; Picker API key restricted to Picker + Kraken's addresses.
-- Data safety rules confirmed by the owner and recorded (REQUIREMENTS section 7, `CLAUDE.md`).
+- Repo, branch protection, brand assets, requirements, made-up RoasTime samples, owner's Mac set up.
+- Google Cloud project `kraken` set up (APIs, consent screen in Testing, Client ID, Picker key).
+- Data safety rules confirmed (REQUIREMENTS section 7, `CLAUDE.md`). Code review by reviewer agents is a required PR step.
+- PR #10 merged and live at https://gwiazda.github.io/kraken/: Google sign-in (renew on next click), create or choose
+  the Kraken sheet, `_meta` tab with schema version 1, 90 tests in CI. Owner tested it locally and on the live site.
+- The owner's real Kraken sheet exists (created from Kraken, with `_meta`). It is **not shared with the partner yet**
+  (owner's decision, 2026-11-09).
 
 ## In progress
-- PR "Google sign-in and sheet connection": sign in, create or choose the Kraken sheet, `_meta` tab with
-  schema version 1, renew-on-next-click sign-in (option B), Vitest with 90 tests run in CI; code-review findings fixed; first-sign-in "click again" message. Needs the owner's local test with a real Google sign-in, then merge.
+- Nothing. This PR only records the session.
 
 ## Next steps
-1. Owner tests the sign-in PR locally (steps in the PR), then on the live site after merging.
-2. Owner creates the real Kraken sheet and shares it with the partner; partner signs in and picks it once.
-3. Migration framework (backup copy, migrate, verify, raise version) with tests, built with the first data tab.
-4. Green coffee lots (first tab), then the roasting log and RoasTime import.
+1. Green coffee lots, the first real feature:
+   a. Agree the Lots tab columns with the owner (start from REQUIREMENTS section 1; confirm each column).
+   b. Build the migration framework first (backup copy of the spreadsheet via the Drive API, migrate, check row
+      counts, then raise `schema_version`), with tests. Migration 1 -> 2 adds the Lots tab.
+      The Drive copy call will need `https://www.googleapis.com` in the CSP `connect-src`.
+   c. Lots screen: list, add, edit, soft delete; reading and writing rows by header name; tests for every operation.
+2. Later: share the sheet with the partner (partner signs in and picks it once), when the owner decides.
+3. Then the roasting log and RoasTime import.
 
 ## Open questions for the owners
-- Columns of the Lots tab (confirm when we build it).
+- Columns of the Lots tab (to agree at the start of the next session).
 - A RoasTime roast file that contains a note (to learn the notes field name). Not urgent.
 
 ## Reminders
