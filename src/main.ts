@@ -1,7 +1,7 @@
 // Kraken start screen: sign in, then connect to the Kraken spreadsheet.
 // All text is set with textContent (never innerHTML), so nothing from Google or the sheet can inject code.
 
-import { getToken, initAuth, isSignedIn, signIn, signOut, withFreshToken } from './auth';
+import { getToken, initAuth, isSignedIn, onLateSignIn, signIn, signOut, withFreshToken } from './auth';
 import { NEW_SHEET_TITLE } from './config';
 import { describeMetaProblem, inspectSpreadsheet } from './connect';
 import { pickSpreadsheet } from './picker';
@@ -14,6 +14,9 @@ const app: HTMLElement = appRoot;
 
 const client: SheetsClient = { getToken, fetch: (input, init) => window.fetch(input, init) };
 const store = browserStore();
+
+/** Which screen is showing, so a late sign-in only moves the app forward from the sign-in screen. */
+let onSignInScreen = false;
 
 type Child = Node | string;
 
@@ -31,6 +34,7 @@ function button(label: string, onClick: () => void, variant: 'primary' | 'second
 }
 
 function show(...children: Child[]): void {
+  onSignInScreen = false;
   app.replaceChildren(el('h1', {}, 'Kraken'), ...children);
 }
 
@@ -99,9 +103,13 @@ function showSignIn(note?: string): void {
     button('Sign in with Google', () => {
       signIn()
         .then(afterSignIn)
-        .catch((error: unknown) => showSignIn(errorText(error)));
+        .catch((error: unknown) => {
+          // Google may still deliver the sign-in after reporting an error; onLateSignIn then moves on.
+          if (!isSignedIn()) showSignIn(errorText(error));
+        });
     }),
   );
+  onSignInScreen = true;
 }
 
 function afterSignIn(): void {
@@ -202,6 +210,10 @@ function showConnected(info: SpreadsheetInfo, schemaVersion: number): void {
 }
 
 // ---- Start ----
+
+onLateSignIn(() => {
+  if (onSignInScreen) afterSignIn();
+});
 
 show(message('Loading Google sign-in…'));
 initAuth()

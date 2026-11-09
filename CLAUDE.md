@@ -42,7 +42,7 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
   (owner's choice B, 2026-11-09): every button that talks to Google is wrapped in `withFreshToken`; with under 5 minutes left
   it opens Google's popup first (closes by itself after the first consent), then runs the action. Popups need a click,
   so silent background renewal is impossible without a server. Nothing new is stored (no email hint). Code map: `auth.ts` sign-in, `sheets.ts` Sheets API calls,
-  `session.ts` renew-on-click, `meta.ts` schema version check, `connect.ts` open and check a sheet, `picker.ts` file picker, `main.ts` screens.
+  `signInFlow.ts` sign-in bookkeeping (keeps a token Google delivers late), `session.ts` renew-on-click, `meta.ts` schema version check, `connect.ts` open and check a sheet, `picker.ts` file picker, `main.ts` screens.
 
 ## Commands
 - `npm install`: once after cloning, and after `package.json` changes.

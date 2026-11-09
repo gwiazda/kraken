@@ -5,13 +5,14 @@ import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES } from './config';
 import { loadScript } from './loadScript';
 import { makeGuard } from './session';
 import { SheetsError } from './sheets';
+import { SignInFlow } from './signInFlow';
 import { TokenHolder } from './token';
 
 const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
 
 const tokens = new TokenHolder();
+const flow = new SignInFlow(tokens);
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
-let pending: { resolve: () => void; reject: (error: Error) => void } | null = null;
 
 /** Loads the Google sign-in script. Call once at start-up so the sign-in click opens the popup without delay. */
 export async function initAuth(): Promise<void> {
@@ -20,37 +21,24 @@ export async function initAuth(): Promise<void> {
     client_id: GOOGLE_CLIENT_ID,
     scope: GOOGLE_SCOPES,
     callback: (response) => {
-      const done = pending;
-      pending = null;
-      if (!done) return;
-      if (response.error || !response.access_token) {
-        done.reject(new Error(response.error_description ?? response.error ?? 'Sign-in failed'));
-        return;
-      }
-      if (!google.accounts.oauth2.hasGrantedAllScopes(response, GOOGLE_SCOPES)) {
-        done.reject(new Error('Kraken needs the Google Drive permission to work. Sign in again and tick the box to allow it.'));
-        return;
-      }
-      tokens.set(response.access_token, Number(response.expires_in));
-      done.resolve();
+      const granted = !response.error && google.accounts.oauth2.hasGrantedAllScopes(response, GOOGLE_SCOPES);
+      flow.handleToken(response, granted);
     },
-    error_callback: (error) => {
-      const done = pending;
-      pending = null;
-      done?.reject(new Error(error.type === 'popup_closed' ? 'Sign-in window was closed.' : `Sign-in failed (${error.type}).`));
-    },
+    error_callback: (error) => flow.handlePopupError(error.type),
   });
+}
+
+/** Called when Google delivers a sign-in after it had already reported the popup as closed. */
+export function onLateSignIn(listener: () => void): void {
+  flow.onLateSignIn(listener);
 }
 
 /** Opens the Google sign-in popup. Must be called directly from a click, or the browser blocks the popup. */
 export function signIn(): Promise<void> {
-  if (!tokenClient) return Promise.reject(new Error('Google sign-in is still loading. Try again in a moment.'));
-  pending?.reject(new Error('Sign-in restarted.'));
-  return new Promise<void>((resolve, reject) => {
-    pending = { resolve, reject };
-    // prompt '' = ask for consent only the first time; after that the popup just confirms the account.
-    tokenClient?.requestAccessToken({ prompt: '' });
-  });
+  const client = tokenClient;
+  if (!client) return Promise.reject(new Error('Google sign-in is still loading. Try again in a moment.'));
+  // prompt '' = ask for consent only the first time; after that the popup just confirms the account.
+  return flow.start(() => client.requestAccessToken({ prompt: '' }));
 }
 
 /** The current access token. Throws a 'signed-out' error if there is none or it expired (about 1 hour). */
