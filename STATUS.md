@@ -9,13 +9,13 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - Brand assets, requirements (`docs/REQUIREMENTS.md`) and made-up RoasTime samples (`docs/samples/`) in place.
 - Owner's Mac set up for local work: VS Code + Claude Code, git identity, Homebrew, Node.js, GitHub CLI signed in
   (push works). Repo is at `~/IdeaProjects/Kraken/kraken`.
-- Decided: TypeScript + Vite (no framework); OAuth scope `drive.file`; working process recorded in `CLAUDE.md`.
-- TypeScript + Vite setup merged (PRs #6, #7): placeholder branded page, CI workflow, GitHub Pages deploy workflow.
+- Decided: TypeScript + Vite (no framework); OAuth scope `drive.file`; working process, testing rule and one-step-at-a-time rule recorded in `CLAUDE.md`.
+- TypeScript + Vite setup merged (PRs #6, #7, #8): placeholder branded page, CI workflow, GitHub Pages deploy workflow.
 - Repo renamed from `Kraken` to `kraken`. GitHub Pages is on (Source: GitHub Actions) and the placeholder page is live
   at https://gwiazda.github.io/kraken/.
 
 ## In progress
-- PR #8 (address docs + testing rule + this status) waiting for the owner to merge.
+- Nothing in progress. All PRs are merged.
 
 ## Next steps
 1. Google Cloud setup with the owner, step by step: project, Sheets API, Drive API, Picker API, OAuth consent screen
