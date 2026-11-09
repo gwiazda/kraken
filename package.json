@@ -7,10 +7,13 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "typecheck": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview"
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "vite": "8.3.6"
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
   }
 }
