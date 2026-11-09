@@ -1,33 +1,28 @@
 # Status
 
-_Last updated: 2026-11-06 (end of the first local VS Code session)_
+_Last updated: 2026-11-09 (Google sign-in session)_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done
-- Repo public, `main` protected by a ruleset (PR required, 0 approvals, no force push).
-- Brand assets, requirements (`docs/REQUIREMENTS.md`) and made-up RoasTime samples (`docs/samples/`) in place.
-- Owner's Mac set up for local work: VS Code + Claude Code, git identity, Homebrew, Node.js, GitHub CLI signed in
-  (push works). Repo is at `~/IdeaProjects/Kraken/kraken`.
-- Decided: TypeScript + Vite (no framework); OAuth scope `drive.file`; working process, testing rule and one-step-at-a-time rule recorded in `CLAUDE.md`.
-- TypeScript + Vite setup merged (PRs #6, #7, #8): placeholder branded page, CI workflow, GitHub Pages deploy workflow.
-- Repo renamed from `Kraken` to `kraken`. GitHub Pages is on (Source: GitHub Actions) and the placeholder page is live
-  at https://gwiazda.github.io/kraken/.
+- Repo, branch protection, brand assets, requirements, made-up RoasTime samples.
+- Owner's Mac set up (VS Code + Claude Code, Node.js, GitHub CLI). TypeScript + Vite site live at https://gwiazda.github.io/kraken/.
+- Google Cloud project `kraken` set up by the owner: Sheets, Drive, Picker APIs; consent screen (External, Testing,
+  both owners as test users, `drive.file`); Client ID; Picker API key restricted to Picker + Kraken's addresses.
+- Data safety rules confirmed by the owner and recorded (REQUIREMENTS section 7, `CLAUDE.md`).
 
 ## In progress
-- Nothing in progress. All PRs are merged.
+- PR "Google sign-in and sheet connection": sign in, create or choose the Kraken sheet, `_meta` tab with
+  schema version 1, renew-on-next-click sign-in (option B), Vitest with 90 tests run in CI; code-review findings fixed; first-sign-in "click again" message. Needs the owner's local test with a real Google sign-in, then merge.
 
 ## Next steps
-1. Google Cloud setup with the owner, step by step: project, Sheets API, Drive API, Picker API, OAuth consent screen
-   (Testing mode, both Gmail accounts as test users), OAuth Client ID (web) with JavaScript origins
-   `http://localhost:5173` and `https://gwiazda.github.io`, Picker API key restricted to those origins.
-2. Owner confirms the sheet design in REQUIREMENTS section 7.
-3. Add Vitest and run tests in CI together with the first piece of logic (testing rule in `CLAUDE.md`).
-4. Build: sign-in and sheet connection (create sheet / pick with Picker), then green coffee lots,
-   then the roasting log and RoasTime import.
+1. Owner tests the sign-in PR locally (steps in the PR), then on the live site after merging.
+2. Owner creates the real Kraken sheet and shares it with the partner; partner signs in and picks it once.
+3. Migration framework (backup copy, migrate, verify, raise version) with tests, built with the first data tab.
+4. Green coffee lots (first tab), then the roasting log and RoasTime import.
 
 ## Open questions for the owners
-- Sheet design in REQUIREMENTS section 7 (awaiting confirmation).
+- Columns of the Lots tab (confirm when we build it).
 - A RoasTime roast file that contains a note (to learn the notes field name). Not urgent.
 
 ## Reminders

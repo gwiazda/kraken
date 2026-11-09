@@ -215,19 +215,28 @@ Flexible enough to generate prices for any discount.
 
 **[R]** Everything is stored in a Google Sheet. Requirements will change over time, and **no data may ever be lost** during a schema change.
 
-**[P] Design**
-- **One tab per kind of record** (Lots, Roasts, Packing, Bag sizes, Contractors, Prices,
-  Invoice requests, Invoice lines, Settings), with row 1 as column headers.
-- **The app reads columns by header name, not by position.** Adding or reordering columns never breaks anything.
-- **Every row has a permanent ID** plus `created_at`, `updated_at` and `created_by`.
+**[R] Data safety rules (confirmed by the owner, 2026-11-09).** Everything Kraken builds must be migration-proof:
+- **Structure changes** (new tab, new or renamed column) go through **versioned migrations**. A `_meta` tab holds the
+  schema version. Before a migration the app (1) makes a **full copy of the spreadsheet** in Google Drive as a backup,
+  (2) runs the migration, (3) checks that all data is still there (row counts match), and only then (4) updates the version.
+  If any step fails, the version stays as it was and the backup copy remains.
+- Migrations only **add or rename** columns and tabs. Old columns are kept until the owner confirms they can go.
+- **Everyday edits** (add, change, delete a record) do not make a full copy each time. They are protected by:
+  **no hard deletes** (rows get a `deleted` flag, so a mistake can be undone), `created_at`, `updated_at` and
+  `created_by` on every row, and Google Sheets' own **version history**.
+- **The app reads columns by header name, not by position**, so adding or reordering columns never breaks anything.
+- **Every row has a permanent ID.**
 - **Only inputs are stored.** Stock levels, costs and discounted prices are calculated by the app,
   so changing a formula needs no data migration.
-- **No hard deletes:** rows get a `deleted` flag instead, so a mistake can be undone.
-- **Versioned migrations:** a `_meta` tab holds the schema version. When a new app version needs
-  a different structure, the app (1) makes a **full copy of the spreadsheet** in Google Drive as a backup,
-  (2) runs the migration, (3) checks that row counts still match, and only then (4) updates the version.
-  Migrations only add or rename columns. Old columns are kept until you confirm they can go.
+- An app version that finds a sheet with a **newer** schema version than it knows refuses to write to it
+  (an old open browser tab must not damage data written by a newer Kraken).
+- **Every migration has automated tests** that prove no data is lost.
 - **Why not a new file for each version:** a new file gets a new ID and needs re-sharing, and data
   could be split across files. Updating in place with a backup copy first is safer.
-- Google Sheets' own **version history** is an extra safety net.
+
+**[R] Built (2026-11-09):** Kraken creates the spreadsheet with a `_meta` tab (`app` = `Kraken`, `schema_version` = `1`,
+`created_at`) and checks it every time it opens a sheet.
+
+**[P] Tabs:** one tab per kind of record (Lots, Roasts, Bag sizes, Contractors, Prices, Invoice requests,
+Invoice lines, Settings), with row 1 as column headers. Each tab is added by a migration when its feature is built.
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.

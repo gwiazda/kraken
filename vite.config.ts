@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   // Relative links, so the built site works at https://gwiazda.github.io/kraken/ and in any folder.
@@ -8,5 +8,9 @@ export default defineConfig({
     host: 'localhost',
     port: 5173,
     strictPort: true,
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
 });

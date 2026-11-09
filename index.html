@@ -3,11 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Strict Content Security Policy: only this site's own files may run.
-         Google sign-in and Sheets addresses will be added here when that feature is built. -->
+    <!-- Strict Content Security Policy: only this site's own files and the named Google services may run.
+         accounts.google.com = sign-in, apis.google.com + docs.google.com = file picker, sheets.googleapis.com = data.
+         Inline styles are allowed because the Google Picker adds its own; inline scripts stay blocked. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://sheets.googleapis.com https://accounts.google.com; frame-src https://accounts.google.com https://docs.google.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <meta name="robots" content="noindex, nofollow" />
     <title>Kraken</title>
