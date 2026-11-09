@@ -6,7 +6,7 @@ function setup() {
   const tokens = new TokenHolder();
   const flow = new SignInFlow(tokens);
   const late = vi.fn();
-  flow.onLateSignIn(late);
+  flow.onLateReply(late);
   const request = vi.fn();
   return { tokens, flow, late, request };
 }
@@ -33,11 +33,34 @@ describe('SignInFlow', () => {
     const { flow, tokens, late, request } = setup();
     const result = flow.start(request);
     flow.handlePopupError('popup_closed');
-    await expect(result).rejects.toThrow('closed');
+    await expect(result).rejects.toThrow('second click');
 
     flow.handleToken(goodReply, true); // the token Google delivers a moment later
     expect(tokens.get()).toBe('tok');
-    expect(late).toHaveBeenCalledOnce();
+    expect(late).toHaveBeenCalledWith({ ok: true });
+  });
+
+  it('reports a late reply without the Drive permission, instead of staying silent', async () => {
+    const { flow, tokens, late, request } = setup();
+    const result = flow.start(request);
+    flow.handlePopupError('popup_closed');
+    await expect(result).rejects.toThrow('second click');
+
+    flow.handleToken(goodReply, false);
+    expect(tokens.get()).toBeNull();
+    expect(late).toHaveBeenCalledWith({ ok: false, error: new Error(MISSING_SCOPE_MESSAGE) });
+  });
+
+  it('writes each step to the log, but never the pass itself', async () => {
+    const tokens = new TokenHolder();
+    const log = vi.fn();
+    const flow = new SignInFlow(tokens, log);
+    const result = flow.start(() => {});
+    flow.handleToken({ access_token: 'secret-token-value', expires_in: 3599 }, true);
+    await result;
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines).toEqual(['Kraken asked Google to open the sign-in window', 'Google sent a pass with the Drive permission']);
+    expect(lines.join(' ')).not.toContain('secret-token-value');
   });
 
   it('explains what to do when the Drive permission box was not ticked, and stores nothing', async () => {
@@ -67,7 +90,7 @@ describe('SignInFlow', () => {
   });
 
   it.each([
-    ['popup_closed', 'closed before sign-in finished'],
+    ['popup_closed', 'Google needs a second click'],
     ['popup_failed_to_open', 'blocked'],
     ['unknown', 'unknown'],
   ])('explains popup error %s', async (type, text) => {

@@ -41,7 +41,11 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Sign-in: GIS token client, popup style. The token (about 1 hour) lives only in memory. **Renew on the next click**
   (owner's choice B, 2026-11-09): every button that talks to Google is wrapped in `withFreshToken`; with under 5 minutes left
   it opens Google's popup first (closes by itself after the first consent), then runs the action. Popups need a click,
-  so silent background renewal is impossible without a server. Nothing new is stored (no email hint). Code map: `auth.ts` sign-in, `sheets.ts` Sheets API calls,
+  so silent background renewal is impossible without a server. Nothing new is stored (no email hint).
+- Known Google issue (diagnosed 2026-11-09): on a person's **first** sign-in, GIS reports `popup_closed` during the
+  "unverified app" / allow screens and never delivers the token; the consent is still saved, so the second click works.
+  Owner chose to handle it with a clear "click again" message (option A), not a redirect flow or publishing the app.
+  `npm run dev` shows a sign-in log under the page (`src/devLog.ts`, never in the live build) for diagnosing sign-in. Code map: `auth.ts` sign-in, `sheets.ts` Sheets API calls,
   `signInFlow.ts` sign-in bookkeeping (keeps a token Google delivers late), `session.ts` renew-on-click, `meta.ts` schema version check, `connect.ts` open and check a sheet, `picker.ts` file picker, `main.ts` screens.
 
 ## Commands

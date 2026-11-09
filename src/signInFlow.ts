@@ -18,20 +18,41 @@ export const MISSING_SCOPE_MESSAGE =
   'tick the box that lets Kraken see and edit the Google Drive files you use with it.';
 
 export function popupErrorMessage(type: string): string {
-  if (type === 'popup_closed') return 'The Google sign-in window was closed before sign-in finished. Click "Sign in with Google" to try again.';
+  // Known Google behaviour: on a person's very first sign-in, Google's script loses contact with its own window
+  // during the "allow" screens, reports popup_closed and never sends the pass. Google still saves the "allow",
+  // so the second click works. (Diagnosed with the test-version sign-in log, 2026-11-09.)
+  if (type === 'popup_closed') {
+    return 'First time signing in? Google needs a second click: click "Sign in with Google" again. ' +
+      '(If you closed the Google window yourself, just click it again too.)';
+  }
   if (type === 'popup_failed_to_open') return 'Chrome blocked the Google sign-in window. Allow popups for this site and try again.';
   return `Google sign-in failed (${type}). Try again.`;
 }
 
+/** What a late reply from Google means: signed in after all, or a failure to show to the user. */
+export type LateOutcome = { ok: true } | { ok: false; error: Error };
+
 export class SignInFlow {
   private pending: { resolve: () => void; reject: (error: Error) => void } | null = null;
-  private lateListener: () => void = () => {};
+  private lateListener: (outcome: LateOutcome) => void = () => {};
 
-  constructor(private readonly tokens: TokenHolder) {}
+  /** `log` receives a short description of each step (never the token itself), for the test-version sign-in log. */
+  constructor(
+    private readonly tokens: TokenHolder,
+    private readonly log: (event: string) => void = () => {},
+  ) {}
 
-  /** Called when a token arrives after its sign-in attempt was already reported as failed. */
-  onLateSignIn(listener: () => void): void {
+  /** Called when Google replies after the sign-in attempt was already reported as failed. */
+  onLateReply(listener: (outcome: LateOutcome) => void): void {
     this.lateListener = listener;
+  }
+
+  private fail(waiting: { reject: (error: Error) => void } | null, error: Error): void {
+    if (waiting) {
+      waiting.reject(error);
+    } else {
+      this.lateListener({ ok: false, error });
+    }
   }
 
   /** Starts a sign-in. `request` opens Google's popup and is called synchronously (popups need the click). */
@@ -39,6 +60,7 @@ export class SignInFlow {
     this.pending?.reject(new Error('Sign-in restarted.'));
     return new Promise<void>((resolve, reject) => {
       this.pending = { resolve, reject };
+      this.log('Kraken asked Google to open the sign-in window');
       request();
     });
   }
@@ -47,20 +69,24 @@ export class SignInFlow {
   handleToken(reply: TokenReply, scopesGranted: boolean): void {
     const waiting = this.pending;
     this.pending = null;
+    const when = waiting ? '' : ' (late: after the attempt had ended)';
 
     if (reply.error || !reply.access_token) {
-      waiting?.reject(new Error(reply.error_description ?? reply.error ?? 'Google sign-in failed. Try again.'));
+      this.log(`Google replied with an error: ${reply.error ?? 'no pass'}${when}`);
+      this.fail(waiting, new Error(reply.error_description ?? reply.error ?? 'Google sign-in failed. Try again.'));
       return;
     }
     if (!scopesGranted) {
-      waiting?.reject(new Error(MISSING_SCOPE_MESSAGE));
+      this.log(`Google sent a pass WITHOUT the Drive permission${when}`);
+      this.fail(waiting, new Error(MISSING_SCOPE_MESSAGE));
       return;
     }
+    this.log(`Google sent a pass with the Drive permission${when}`);
     this.tokens.set(reply.access_token, Number(reply.expires_in));
     if (waiting) {
       waiting.resolve();
     } else {
-      this.lateListener();
+      this.lateListener({ ok: true });
     }
   }
 
@@ -68,6 +94,7 @@ export class SignInFlow {
   handlePopupError(type: string): void {
     const waiting = this.pending;
     this.pending = null;
+    this.log(`Google reported a window problem: ${type}${waiting ? '' : ' (after the attempt had ended)'}`);
     waiting?.reject(new Error(popupErrorMessage(type)));
   }
 }

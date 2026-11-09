@@ -13,7 +13,7 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 
 ## In progress
 - PR "Google sign-in and sheet connection": sign in, create or choose the Kraken sheet, `_meta` tab with
-  schema version 1, renew-on-next-click sign-in (option B), Vitest with 70 tests run in CI. Needs the owner's local test with a real Google sign-in, then merge.
+  schema version 1, renew-on-next-click sign-in (option B), Vitest with 72 tests run in CI; first-sign-in "click again" message. Needs the owner's local test with a real Google sign-in, then merge.
 
 ## Next steps
 1. Owner tests the sign-in PR locally (steps in the PR), then on the live site after merging.

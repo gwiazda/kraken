@@ -109,3 +109,17 @@ a {
 .connected {
   font-size: 1.2rem;
 }
+
+.dev-log {
+  max-width: 960px;
+  margin: 2rem auto;
+  padding: 1rem 1.5rem;
+  border: 1px dashed var(--grey);
+  color: var(--grey);
+  font-size: 0.85rem;
+}
+
+.dev-log h2 {
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}

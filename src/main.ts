@@ -1,7 +1,8 @@
 // Kraken start screen: sign in, then connect to the Kraken spreadsheet.
 // All text is set with textContent (never innerHTML), so nothing from Google or the sheet can inject code.
 
-import { getToken, initAuth, isSignedIn, onLateSignIn, signIn, signOut, withFreshToken } from './auth';
+import { getToken, initAuth, isSignedIn, onLateReply, onSignInLog, signIn, signOut, withFreshToken } from './auth';
+import { startDevSignInLog } from './devLog';
 import { NEW_SHEET_TITLE } from './config';
 import { describeMetaProblem, inspectSpreadsheet } from './connect';
 import { pickSpreadsheet } from './picker';
@@ -211,9 +212,17 @@ function showConnected(info: SpreadsheetInfo, schemaVersion: number): void {
 
 // ---- Start ----
 
-onLateSignIn(() => {
-  if (onSignInScreen) afterSignIn();
+onLateReply((outcome) => {
+  if (!onSignInScreen) return;
+  if (outcome.ok) {
+    afterSignIn();
+  } else {
+    showSignIn(errorText(outcome.error));
+  }
 });
+
+// Test version only (npm run dev): show each sign-in step under the page, to diagnose sign-in problems.
+if (import.meta.env.DEV) startDevSignInLog(onSignInLog);
 
 show(message('Loading Google sign-in…'));
 initAuth()

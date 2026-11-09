@@ -5,13 +5,19 @@ import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES } from './config';
 import { loadScript } from './loadScript';
 import { makeGuard } from './session';
 import { SheetsError } from './sheets';
-import { SignInFlow } from './signInFlow';
+import { SignInFlow, type LateOutcome } from './signInFlow';
 import { TokenHolder } from './token';
 
 const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
 
 const tokens = new TokenHolder();
-const flow = new SignInFlow(tokens);
+const logListeners: ((event: string) => void)[] = [];
+const flow = new SignInFlow(tokens, (event) => logListeners.forEach((listener) => listener(event)));
+
+/** Receives each sign-in step as a short sentence (never the pass itself). Used by the test-version sign-in log. */
+export function onSignInLog(listener: (event: string) => void): void {
+  logListeners.push(listener);
+}
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 
 /** Loads the Google sign-in script. Call once at start-up so the sign-in click opens the popup without delay. */
@@ -28,9 +34,9 @@ export async function initAuth(): Promise<void> {
   });
 }
 
-/** Called when Google delivers a sign-in after it had already reported the popup as closed. */
-export function onLateSignIn(listener: () => void): void {
-  flow.onLateSignIn(listener);
+/** Called when Google replies after it had already reported the popup as closed. */
+export function onLateReply(listener: (outcome: LateOutcome) => void): void {
+  flow.onLateReply(listener);
 }
 
 /** Opens the Google sign-in popup. Must be called directly from a click, or the browser blocks the popup. */
