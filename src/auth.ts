@@ -65,9 +65,11 @@ export function isSignedIn(): boolean {
  */
 export const withFreshToken = makeGuard({ status: () => tokens.status(), renew: signIn });
 
-/** Forgets the token and tells Google to revoke it. */
+/**
+ * Forgets the pass in this tab. It deliberately does NOT revoke Kraken's access at Google: revoking would remove
+ * the "allow" (bringing back the first-time sign-in screens) and could make users pick the sheet again.
+ * To remove Kraken's access completely: myaccount.google.com/connections.
+ */
 export function signOut(): void {
-  const token = tokens.peek();
   tokens.clear();
-  if (token && typeof google !== 'undefined') google.accounts.oauth2.revoke(token);
 }

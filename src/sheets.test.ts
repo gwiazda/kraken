@@ -4,7 +4,12 @@ import { SheetsError, createSpreadsheet, errorKindForStatus, getSpreadsheetInfo,
 import { fakeClient } from './testing/fakeGoogle';
 
 const ID = 'sheet-id-made-up-1234567890';
-const resource = { spreadsheetId: ID, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${ID}/edit`, properties: { title: 'Kraken' } };
+const resource = {
+  spreadsheetId: ID,
+  spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${ID}/edit`,
+  properties: { title: 'Kraken' },
+  sheets: [{ properties: { title: '_meta' } }, { properties: { title: 'Lots' } }],
+};
 const created = new Date('2026-01-15T10:00:00.000Z');
 
 describe('createSpreadsheet', () => {
@@ -12,7 +17,7 @@ describe('createSpreadsheet', () => {
     const client = fakeClient([{ body: resource }]);
     const info = await createSpreadsheet(client, 'Kraken', created);
 
-    expect(info).toEqual({ id: ID, title: 'Kraken', url: resource.spreadsheetUrl });
+    expect(info).toEqual({ id: ID, title: 'Kraken', url: resource.spreadsheetUrl, tabs: ['_meta', 'Lots'] });
     expect(client.requests).toHaveLength(1);
     const [request] = client.requests;
     expect(request?.method).toBe('POST');
@@ -33,11 +38,22 @@ describe('createSpreadsheet', () => {
 });
 
 describe('getSpreadsheetInfo', () => {
+  it('returns the tab names', async () => {
+    const info = await getSpreadsheetInfo(fakeClient([{ body: resource }]), ID);
+    expect(info.tabs).toEqual(['_meta', 'Lots']);
+  });
+
+  it('copes with a reply without tabs', async () => {
+    const { sheets: _ignored, ...withoutTabs } = resource;
+    const info = await getSpreadsheetInfo(fakeClient([{ body: withoutTabs }]), ID);
+    expect(info.tabs).toEqual([]);
+  });
+
   it('asks only for the fields it needs, for the right spreadsheet', async () => {
     const client = fakeClient([{ body: resource }]);
     await getSpreadsheetInfo(client, ID);
     expect(client.requests[0]?.url).toBe(
-      `https://sheets.googleapis.com/v4/spreadsheets/${ID}?fields=spreadsheetId,spreadsheetUrl,properties.title`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${ID}?fields=spreadsheetId,spreadsheetUrl,properties.title,sheets.properties.title`,
     );
     expect(client.requests[0]?.method).toBe('GET');
   });
@@ -55,12 +71,12 @@ describe('readMetaRows', () => {
     expect(await readMetaRows(fakeClient([{ body: {} }]), ID)).toEqual([]);
   });
 
-  it('returns undefined when the spreadsheet has no _meta tab', async () => {
-    const client = fakeClient([{ status: 400, body: { error: { message: 'Unable to parse range' } } }]);
-    expect(await readMetaRows(client, ID)).toBeUndefined();
+  it('passes every error on, including 400 (never guesses "not a Kraken sheet" from an error)', async () => {
+    const client = fakeClient([{ status: 400, body: { error: { message: 'Bad request' } } }]);
+    await expect(readMetaRows(client, ID)).rejects.toMatchObject({ status: 400 });
   });
 
-  it('passes other errors on', async () => {
+  it('passes access errors on', async () => {
     const client = fakeClient([{ status: 403, body: { error: { message: 'denied' } } }]);
     await expect(readMetaRows(client, ID)).rejects.toMatchObject({ kind: 'no-access', status: 403 });
   });

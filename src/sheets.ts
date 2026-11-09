@@ -61,16 +61,22 @@ export interface SpreadsheetInfo {
   id: string;
   title: string;
   url: string;
+  /** Names of the tabs, in order. */
+  tabs: string[];
 }
+
+const INFO_FIELDS = 'spreadsheetId,spreadsheetUrl,properties.title,sheets.properties.title';
 
 interface SpreadsheetResource {
   spreadsheetId: string;
   spreadsheetUrl: string;
   properties: { title: string };
+  sheets?: { properties?: { title?: string } }[];
 }
 
 function toInfo(resource: SpreadsheetResource): SpreadsheetInfo {
-  return { id: resource.spreadsheetId, title: resource.properties.title, url: resource.spreadsheetUrl };
+  const tabs = (resource.sheets ?? []).map((sheet) => sheet.properties?.title).filter((t): t is string => typeof t === 'string');
+  return { id: resource.spreadsheetId, title: resource.properties.title, url: resource.spreadsheetUrl, tabs };
 }
 
 /** True only for https addresses on docs.google.com, so a link to the sheet can never point anywhere else. */
@@ -106,7 +112,7 @@ export function newSpreadsheetBody(title: string, createdAt: Date): object {
 
 /** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with `_meta` or not at all. */
 export async function createSpreadsheet(client: SheetsClient, title: string, now = new Date()): Promise<SpreadsheetInfo> {
-  const resource = await call<SpreadsheetResource>(client, `${SHEETS_API}?fields=spreadsheetId,spreadsheetUrl,properties.title`, {
+  const resource = await call<SpreadsheetResource>(client, `${SHEETS_API}?fields=${INFO_FIELDS}`, {
     method: 'POST',
     body: JSON.stringify(newSpreadsheetBody(title, now)),
   });
@@ -116,20 +122,17 @@ export async function createSpreadsheet(client: SheetsClient, title: string, now
 export async function getSpreadsheetInfo(client: SheetsClient, id: string): Promise<SpreadsheetInfo> {
   const resource = await call<SpreadsheetResource>(
     client,
-    `${SHEETS_API}/${encodeURIComponent(id)}?fields=spreadsheetId,spreadsheetUrl,properties.title`,
+    `${SHEETS_API}/${encodeURIComponent(id)}?fields=${INFO_FIELDS}`,
   );
   return toInfo(resource);
 }
 
-/** Reads the `_meta` tab. Returns undefined if the spreadsheet has no `_meta` tab. */
-export async function readMetaRows(client: SheetsClient, id: string): Promise<unknown[][] | undefined> {
+/**
+ * Reads the `_meta` tab. Call only when the tab exists (see SpreadsheetInfo.tabs): every error is passed on,
+ * so a temporary Google problem is never mistaken for "this is not a Kraken sheet".
+ */
+export async function readMetaRows(client: SheetsClient, id: string): Promise<unknown[][]> {
   const range = encodeURIComponent(`'${META_TAB}'!A1:B100`);
-  try {
-    const result = await call<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}`);
-    return result.values ?? [];
-  } catch (error) {
-    // Google answers 400 "Unable to parse range" when the tab does not exist.
-    if (error instanceof SheetsError && error.status === 400) return undefined;
-    throw error;
-  }
+  const result = await call<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}`);
+  return result.values ?? [];
 }

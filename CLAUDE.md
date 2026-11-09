@@ -42,6 +42,9 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
   (owner's choice B, 2026-11-09): every button that talks to Google is wrapped in `withFreshToken`; with under 5 minutes left
   it opens Google's popup first (closes by itself after the first consent), then runs the action. Popups need a click,
   so silent background renewal is impossible without a server. Nothing new is stored (no email hint).
+  If renewal fails while the old token still has minutes left, the action runs with the old token.
+  "Sign out" only forgets the token in the tab; it does not revoke at Google (revoking removes the consent and the
+  drive.file grant for picked sheets). Full removal: myaccount.google.com/connections.
 - Known Google issue (diagnosed 2026-11-09): on a person's **first** sign-in, GIS reports `popup_closed` during the
   "unverified app" / allow screens and never delivers the token; the consent is still saved, so the second click works.
   Owner chose to handle it with a clear "click again" message (option A), not a redirect flow or publishing the app.
@@ -56,7 +59,8 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 
 ## Working process
 Branch `claude/<topic>` → PR → CI (`.github/workflows/ci.yml`: tests + type check + build) must pass →
-Claude reviews its own diff (code-review) before asking the owner → owner tests locally if the PR says so, then merges →
+**Claude runs the `code-review` skill on the PR (level high: reviewer subagents; owner's choice 2026-11-09),
+fixes real findings with tests and tells the owner which findings were skipped and why,** before asking the owner → owner tests locally if the PR says so, then merges →
 `.github/workflows/deploy.yml` publishes `main` to GitHub Pages.
 
 ## Testing (owner's rule, 2026-11-06)

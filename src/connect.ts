@@ -1,12 +1,14 @@
 // Opens a spreadsheet and decides whether Kraken may use it. Never writes to the sheet.
 
-import { checkMeta, type MetaCheck } from './meta';
+import { META_TAB, checkMeta, type MetaCheck } from './meta';
 import { getSpreadsheetInfo, readMetaRows, type SheetsClient, type SpreadsheetInfo } from './sheets';
 
 export type ConnectResult = { info: SpreadsheetInfo; meta: MetaCheck };
 
 export async function inspectSpreadsheet(client: SheetsClient, id: string): Promise<ConnectResult> {
   const info = await getSpreadsheetInfo(client, id);
+  // Only a sheet that has a _meta tab can be a Kraken sheet. Decided from the tab list, never from an error.
+  if (!info.tabs.includes(META_TAB)) return { info, meta: { kind: 'not-kraken' } };
   const rows = await readMetaRows(client, id);
   return { info, meta: checkMeta(rows) };
 }

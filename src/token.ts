@@ -32,11 +32,6 @@ export class TokenHolder {
     return now >= this.expiresAt - RENEW_MARGIN_MS ? 'renew' : 'valid';
   }
 
-  /** The raw token even if expired (only for revoking it at sign-out). */
-  peek(): string | null {
-    return this.token;
-  }
-
   clear(): void {
     this.token = null;
     this.expiresAt = 0;

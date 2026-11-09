@@ -17,6 +17,22 @@ export const MISSING_SCOPE_MESSAGE =
   'Kraken did not get permission to use its Google Sheet. Click "Sign in with Google" again and, on Google\'s screen, ' +
   'tick the box that lets Kraken see and edit the Google Drive files you use with it.';
 
+export const UNUSABLE_PASS_MESSAGE = 'Google sent a sign-in pass Kraken could not use. Click "Sign in with Google" again.';
+
+/** A sign-in attempt replaced by a newer one (for example a double click). Not an error to show. */
+export class SignInSuperseded extends Error {
+  constructor() {
+    super('Sign-in replaced by a newer attempt.');
+    this.name = 'SignInSuperseded';
+  }
+}
+
+/** Google's expires_in in seconds, or null if it is missing or too short to work with. */
+export function usableLifetime(expiresIn: number | string | undefined): number | null {
+  const seconds = Number(expiresIn);
+  return Number.isFinite(seconds) && seconds > 120 ? seconds : null;
+}
+
 export function popupErrorMessage(type: string): string {
   // Known Google behaviour: on a person's very first sign-in, Google's script loses contact with its own window
   // during the "allow" screens, reports popup_closed and never sends the pass. Google still saves the "allow",
@@ -57,7 +73,7 @@ export class SignInFlow {
 
   /** Starts a sign-in. `request` opens Google's popup and is called synchronously (popups need the click). */
   start(request: () => void): Promise<void> {
-    this.pending?.reject(new Error('Sign-in restarted.'));
+    this.pending?.reject(new SignInSuperseded());
     return new Promise<void>((resolve, reject) => {
       this.pending = { resolve, reject };
       this.log('Kraken asked Google to open the sign-in window');
@@ -81,8 +97,14 @@ export class SignInFlow {
       this.fail(waiting, new Error(MISSING_SCOPE_MESSAGE));
       return;
     }
+    const lifetime = usableLifetime(reply.expires_in);
+    if (lifetime === null) {
+      this.log(`Google sent a pass without a usable lifetime${when}`);
+      this.fail(waiting, new Error(UNUSABLE_PASS_MESSAGE));
+      return;
+    }
     this.log(`Google sent a pass with the Drive permission${when}`);
-    this.tokens.set(reply.access_token, Number(reply.expires_in));
+    this.tokens.set(reply.access_token, lifetime);
     if (waiting) {
       waiting.resolve();
     } else {

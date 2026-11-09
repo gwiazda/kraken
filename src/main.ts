@@ -7,6 +7,7 @@ import { NEW_SHEET_TITLE } from './config';
 import { describeMetaProblem, inspectSpreadsheet } from './connect';
 import { pickSpreadsheet } from './picker';
 import { SheetsError, createSpreadsheet, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './sheets';
+import { SignInSuperseded } from './signInFlow';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './storage';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -16,8 +17,16 @@ const app: HTMLElement = appRoot;
 const client: SheetsClient = { getToken, fetch: (input, init) => window.fetch(input, init) };
 const store = browserStore();
 
-/** Which screen is showing, so a late sign-in only moves the app forward from the sign-in screen. */
-let onSignInScreen = false;
+/**
+ * What to do if Google delivers a sign-in reply after it had reported a failure.
+ * Set only by screens that wait for a sign-in (the sign-in screen and "Sign in and continue"), cleared by every
+ * other screen, so a late reply always resumes exactly the action the user was trying to do.
+ */
+interface Resume {
+  ok: () => void;
+  fail: (text: string) => void;
+}
+let resume: Resume | null = null;
 
 type Child = Node | string;
 
@@ -35,7 +44,7 @@ function button(label: string, onClick: () => void, variant: 'primary' | 'second
 }
 
 function show(...children: Child[]): void {
-  onSignInScreen = false;
+  resume = null;
   app.replaceChildren(el('h1', {}, 'Kraken'), ...children);
 }
 
@@ -59,58 +68,67 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const WAITING_FOR_GOOGLE = 'Waiting for Google sign-in… Finish it in the Google window.';
+
+/**
+ * Opens Google's sign-in window (synchronously, inside the click) and shows a waiting message, so there is nothing
+ * to double-click. A newer attempt replacing this one is not an error and is ignored.
+ */
+function signInFromClick(next: () => void, onError: (text: string) => void, waitingScreen: Resume): void {
+  const attempt = signIn();
+  show(message(WAITING_FOR_GOOGLE));
+  resume = waitingScreen;
+  attempt.then(next).catch((error: unknown) => {
+    if (error instanceof SignInSuperseded) return;
+    if (!isSignedIn()) onError(errorText(error));
+  });
+}
+
 /** Runs an action, showing a busy message and turning errors into a readable screen. */
 async function run(busyText: string, action: () => Promise<void>): Promise<void> {
   show(message(busyText));
   try {
     await action();
   } catch (error) {
+    if (error instanceof SignInSuperseded) return;
     if (error instanceof SheetsError && error.kind === 'signed-out') {
-      showRetry(() => run(busyText, action));
+      showRetry(() => void run(busyText, action));
     } else {
       showChooseSheet(errorText(error));
     }
   }
 }
 
-/**
- * Google rejected the sign-in in the middle of an action (for example it was revoked).
- * Offer to sign in and repeat the same action, instead of starting over. Future forms keep their typed values this way.
- */
-function showRetry(retry: () => Promise<void>): void {
-  show(
-    message('Your Google sign-in ran out. Nothing was lost.', 'error'),
-    button('Sign in and continue', () => {
-      signIn()
-        .then(retry)
-        .catch((error: unknown) => showSignIn(errorText(error)));
-    }),
-  );
-}
-
 /** Click handler for actions that talk to Google: renews the sign-in first if needed (renew on the next click). */
-function onClickWithGoogle(action: () => Promise<void>): () => void {
+function onClickWithGoogle(busyText: string, action: () => Promise<void>): () => void {
   return () => {
-    withFreshToken(action).catch((error: unknown) => showChooseSheet(errorText(error)));
+    void run(busyText, () => withFreshToken(action));
   };
 }
 
 // ---- Screens ----
 
 function showSignIn(note?: string): void {
+  const screen: Resume = { ok: afterSignIn, fail: (text) => showSignIn(text) };
   show(
     el('p', {}, 'Sign in with the Google account that has access to the Kraken sheet.'),
     ...(note ? [message(note, 'error')] : []),
-    button('Sign in with Google', () => {
-      signIn()
-        .then(afterSignIn)
-        .catch((error: unknown) => {
-          // Google may still deliver the sign-in after reporting an error; the onLateReply handler then moves on.
-          if (!isSignedIn()) showSignIn(errorText(error));
-        });
-    }),
+    button('Sign in with Google', () => signInFromClick(afterSignIn, (text) => showSignIn(text), screen)),
   );
-  onSignInScreen = true;
+  resume = screen;
+}
+
+/**
+ * Google rejected the sign-in in the middle of an action. Offer to sign in and repeat the same action instead of
+ * starting over. Future forms keep their typed values this way.
+ */
+function showRetry(retry: () => void, note = 'Your Google sign-in ran out. Nothing was lost.'): void {
+  const screen: Resume = { ok: retry, fail: (text) => showRetry(retry, text) };
+  show(
+    message(note, 'error'),
+    button('Sign in and continue', () => signInFromClick(retry, (text) => showRetry(retry, text), screen)),
+  );
+  resume = screen;
 }
 
 function afterSignIn(): void {
@@ -133,18 +151,8 @@ function showChooseSheet(note?: string): void {
     el(
       'div',
       { class: 'actions' },
-      button(
-        'Choose existing sheet',
-        onClickWithGoogle(async () => {
-          const id = await pickSpreadsheet(getToken());
-          if (id) {
-            await connect(id);
-          } else {
-            showChooseSheet();
-          }
-        }),
-      ),
-      button('Create Kraken sheet', onClickWithGoogle(createSheet), 'secondary'),
+      button('Choose existing sheet', onClickWithGoogle("Opening Google's file window…", chooseSheet)),
+      button('Create Kraken sheet', onClickWithGoogle('Creating the Kraken sheet…', createSheet), 'secondary'),
     ),
     el(
       'p',
@@ -155,12 +163,19 @@ function showChooseSheet(note?: string): void {
   );
 }
 
+async function chooseSheet(): Promise<void> {
+  const id = await pickSpreadsheet(getToken());
+  if (id) {
+    await connect(id);
+  } else {
+    showChooseSheet();
+  }
+}
+
 async function createSheet(): Promise<void> {
-  await run('Creating the Kraken sheet…', async () => {
-    const info = await createSpreadsheet(client, NEW_SHEET_TITLE);
-    remember(info.id);
-    await connect(info.id);
-  });
+  const info = await createSpreadsheet(client, NEW_SHEET_TITLE);
+  remember(info.id);
+  await connect(info.id);
 }
 
 async function connect(id: string): Promise<void> {
@@ -216,11 +231,12 @@ function showConnected(info: SpreadsheetInfo, schemaVersion: number): void {
 // ---- Start ----
 
 onLateReply((outcome) => {
-  if (!onSignInScreen) return;
+  const waiting = resume;
+  if (!waiting) return;
   if (outcome.ok) {
-    afterSignIn();
+    waiting.ok();
   } else {
-    showSignIn(errorText(outcome.error));
+    waiting.fail(errorText(outcome.error));
   }
 });
 

@@ -29,13 +29,12 @@ describe('TokenHolder', () => {
     }
   });
 
-  it('forgets the token on clear, but peek still sees it until then (for revoking)', () => {
+  it('forgets the token on clear', () => {
     const holder = new TokenHolder();
     holder.set('tok', 3599, NOW);
-    expect(holder.peek()).toBe('tok');
     holder.clear();
     expect(holder.get(NOW)).toBeNull();
-    expect(holder.peek()).toBeNull();
+    expect(holder.status(NOW)).toBe('none');
   });
 
   it('reports the status: valid, then renew in the last 5 minutes, then none', () => {

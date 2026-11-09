@@ -27,7 +27,6 @@ declare namespace google.accounts.oauth2 {
   }
   function initTokenClient(config: TokenClientConfig): TokenClient;
   function hasGrantedAllScopes(response: TokenResponse, firstScope: string, ...rest: string[]): boolean;
-  function revoke(accessToken: string, done?: () => void): void;
 }
 
 declare namespace google.picker {
@@ -63,5 +62,11 @@ declare namespace google.picker {
 }
 
 declare namespace gapi {
-  function load(library: string, callback: () => void): void;
+  interface LoadConfig {
+    callback: () => void;
+    onerror?: () => void;
+    timeout?: number;
+    ontimeout?: () => void;
+  }
+  function load(library: string, config: (() => void) | LoadConfig): void;
 }

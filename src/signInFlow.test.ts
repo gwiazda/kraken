@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MISSING_SCOPE_MESSAGE, SignInFlow } from './signInFlow';
+import { MISSING_SCOPE_MESSAGE, SignInFlow, SignInSuperseded, UNUSABLE_PASS_MESSAGE, usableLifetime } from './signInFlow';
 import { TokenHolder } from './token';
 
 function setup() {
@@ -84,9 +84,22 @@ describe('SignInFlow', () => {
     const { flow, request } = setup();
     const first = flow.start(request);
     const second = flow.start(request);
-    await expect(first).rejects.toThrow('restarted');
+    await expect(first).rejects.toBeInstanceOf(SignInSuperseded);
     flow.handleToken(goodReply, true);
     await expect(second).resolves.toBeUndefined();
+  });
+
+  it.each([undefined, 'abc', 0, 30, Number.NaN])('rejects a pass with an unusable lifetime (%s) instead of looping silently', async (expiresIn) => {
+    const { flow, tokens, request } = setup();
+    const result = flow.start(request);
+    flow.handleToken({ access_token: 'tok', expires_in: expiresIn as number | undefined }, true);
+    await expect(result).rejects.toThrow(UNUSABLE_PASS_MESSAGE);
+    expect(tokens.get()).toBeNull();
+  });
+
+  it('accepts lifetimes given as text, as Google sometimes does', () => {
+    expect(usableLifetime('3599')).toBe(3599);
+    expect(usableLifetime(3599)).toBe(3599);
   });
 
   it.each([
