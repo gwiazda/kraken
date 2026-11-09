@@ -73,6 +73,16 @@ function toInfo(resource: SpreadsheetResource): SpreadsheetInfo {
   return { id: resource.spreadsheetId, title: resource.properties.title, url: resource.spreadsheetUrl };
 }
 
+/** True only for https addresses on docs.google.com, so a link to the sheet can never point anywhere else. */
+export function isGoogleSheetsUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && parsed.hostname === 'docs.google.com';
+  } catch {
+    return false;
+  }
+}
+
 /** The request body that creates a new Kraken spreadsheet with a filled `_meta` tab, in one step. */
 export function newSpreadsheetBody(title: string, createdAt: Date): object {
   return {

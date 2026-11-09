@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { META_TAB, checkMeta } from './meta';
-import { SheetsError, createSpreadsheet, errorKindForStatus, getSpreadsheetInfo, newSpreadsheetBody, readMetaRows, type SheetsClient } from './sheets';
+import { SheetsError, createSpreadsheet, errorKindForStatus, getSpreadsheetInfo, isGoogleSheetsUrl, newSpreadsheetBody, readMetaRows, type SheetsClient } from './sheets';
 import { fakeClient } from './testing/fakeGoogle';
 
 const ID = 'sheet-id-made-up-1234567890';
@@ -94,5 +94,18 @@ describe('errors', () => {
     };
     await expect(getSpreadsheetInfo(client, ID)).rejects.toMatchObject({ kind: 'signed-out' });
     expect(client.requests).toHaveLength(0);
+  });
+});
+
+describe('isGoogleSheetsUrl', () => {
+  it.each([
+    ['https://docs.google.com/spreadsheets/d/abc/edit', true],
+    ['http://docs.google.com/spreadsheets/d/abc/edit', false],
+    ['javascript:alert(1)', false],
+    ['https://docs.google.com.evil.example/x', false],
+    ['https://evil.example/docs.google.com', false],
+    ['not a url', false],
+  ])('%s -> %s', (url, ok) => {
+    expect(isGoogleSheetsUrl(url)).toBe(ok);
   });
 });

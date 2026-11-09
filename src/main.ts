@@ -6,7 +6,7 @@ import { startDevSignInLog } from './devLog';
 import { NEW_SHEET_TITLE } from './config';
 import { describeMetaProblem, inspectSpreadsheet } from './connect';
 import { pickSpreadsheet } from './picker';
-import { SheetsError, createSpreadsheet, type SheetsClient, type SpreadsheetInfo } from './sheets';
+import { SheetsError, createSpreadsheet, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './storage';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -105,7 +105,7 @@ function showSignIn(note?: string): void {
       signIn()
         .then(afterSignIn)
         .catch((error: unknown) => {
-          // Google may still deliver the sign-in after reporting an error; onLateSignIn then moves on.
+          // Google may still deliver the sign-in after reporting an error; the onLateReply handler then moves on.
           if (!isSignedIn()) showSignIn(errorText(error));
         });
     }),
@@ -183,7 +183,10 @@ function remember(id: string): void {
 }
 
 function showConnected(info: SpreadsheetInfo, schemaVersion: number): void {
-  const link = el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title);
+  // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
+  const link = isGoogleSheetsUrl(info.url)
+    ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)
+    : el('span', {}, info.title);
   show(
     el('p', { class: 'connected' }, 'Connected to: ', link),
     el('p', { class: 'muted small' }, `Data version ${schemaVersion}. Next: green coffee lots, roasts and prices.`),
