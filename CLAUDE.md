@@ -38,6 +38,8 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
   Inline styles are allowed because the Google Picker injects its own (checked in Chrome); inline scripts are not.
 - Google Cloud project `kraken` (owner's account, no billing): Sheets, Drive and Picker APIs enabled; OAuth consent screen
   External, in **Testing** with both owners as test users; Client ID, Picker key and project number are in `src/config.ts`.
+  Picker key website restrictions must be `http://localhost:5173/*` and `https://gwiazda.github.io/*` (no `/kraken/` path):
+  Chrome sends only the origin as referrer to Google, so a path rule fails with "The API developer key is invalid".
 - Sign-in: GIS token client, popup style. The token (about 1 hour) lives only in memory. **Renew on the next click**
   (owner's choice B, 2026-11-09): every button that talks to Google is wrapped in `withFreshToken`; with under 5 minutes left
   it opens Google's popup first (closes by itself after the first consent), then runs the action. Popups need a click,
