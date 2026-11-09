@@ -1,7 +1,7 @@
 // Kraken start screen: sign in, then connect to the Kraken spreadsheet.
 // All text is set with textContent (never innerHTML), so nothing from Google or the sheet can inject code.
 
-import { getToken, initAuth, isSignedIn, signIn, signOut } from './auth';
+import { getToken, initAuth, isSignedIn, signIn, signOut, withFreshToken } from './auth';
 import { NEW_SHEET_TITLE } from './config';
 import { describeMetaProblem, inspectSpreadsheet } from './connect';
 import { pickSpreadsheet } from './picker';
@@ -61,11 +61,33 @@ async function run(busyText: string, action: () => Promise<void>): Promise<void>
     await action();
   } catch (error) {
     if (error instanceof SheetsError && error.kind === 'signed-out') {
-      showSignIn(errorText(error));
+      showRetry(() => run(busyText, action));
     } else {
       showChooseSheet(errorText(error));
     }
   }
+}
+
+/**
+ * Google rejected the sign-in in the middle of an action (for example it was revoked).
+ * Offer to sign in and repeat the same action, instead of starting over. Future forms keep their typed values this way.
+ */
+function showRetry(retry: () => Promise<void>): void {
+  show(
+    message('Your Google sign-in ran out. Nothing was lost.', 'error'),
+    button('Sign in and continue', () => {
+      signIn()
+        .then(retry)
+        .catch((error: unknown) => showSignIn(errorText(error)));
+    }),
+  );
+}
+
+/** Click handler for actions that talk to Google: renews the sign-in first if needed (renew on the next click). */
+function onClickWithGoogle(action: () => Promise<void>): () => void {
+  return () => {
+    withFreshToken(action).catch((error: unknown) => showChooseSheet(errorText(error)));
+  };
 }
 
 // ---- Screens ----
@@ -102,19 +124,18 @@ function showChooseSheet(note?: string): void {
     el(
       'div',
       { class: 'actions' },
-      button('Choose existing sheet', () => {
-        let token: string;
-        try {
-          token = getToken();
-        } catch (error) {
-          showSignIn(errorText(error));
-          return;
-        }
-        pickSpreadsheet(token)
-          .then((id) => (id ? connect(id) : showChooseSheet()))
-          .catch((error: unknown) => showChooseSheet(errorText(error)));
-      }),
-      button('Create Kraken sheet', () => void createSheet(), 'secondary'),
+      button(
+        'Choose existing sheet',
+        onClickWithGoogle(async () => {
+          const id = await pickSpreadsheet(getToken());
+          if (id) {
+            await connect(id);
+          } else {
+            showChooseSheet();
+          }
+        }),
+      ),
+      button('Create Kraken sheet', onClickWithGoogle(createSheet), 'secondary'),
     ),
     el(
       'p',

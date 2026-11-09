@@ -38,9 +38,11 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
   Inline styles are allowed because the Google Picker injects its own (checked in Chrome); inline scripts are not.
 - Google Cloud project `kraken` (owner's account, no billing): Sheets, Drive and Picker APIs enabled; OAuth consent screen
   External, in **Testing** with both owners as test users; Client ID, Picker key and project number are in `src/config.ts`.
-- Sign-in: GIS token client, popup style. The token lasts about 1 hour; after that the user clicks "Sign in" again
-  (a popup cannot be opened without a click). Code map: `auth.ts` sign-in, `sheets.ts` Sheets API calls,
-  `meta.ts` schema version check, `connect.ts` open and check a sheet, `picker.ts` file picker, `main.ts` screens.
+- Sign-in: GIS token client, popup style. The token (about 1 hour) lives only in memory. **Renew on the next click**
+  (owner's choice B, 2026-11-09): every button that talks to Google is wrapped in `withFreshToken`; with under 5 minutes left
+  it opens Google's popup first (closes by itself after the first consent), then runs the action. Popups need a click,
+  so silent background renewal is impossible without a server. Nothing new is stored (no email hint). Code map: `auth.ts` sign-in, `sheets.ts` Sheets API calls,
+  `session.ts` renew-on-click, `meta.ts` schema version check, `connect.ts` open and check a sheet, `picker.ts` file picker, `main.ts` screens.
 
 ## Commands
 - `npm install`: once after cloning, and after `package.json` changes.

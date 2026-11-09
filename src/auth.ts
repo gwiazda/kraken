@@ -3,6 +3,7 @@
 
 import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES } from './config';
 import { loadScript } from './loadScript';
+import { makeGuard } from './session';
 import { SheetsError } from './sheets';
 import { TokenHolder } from './token';
 
@@ -62,6 +63,13 @@ export function getToken(): string {
 export function isSignedIn(): boolean {
   return tokens.get() !== null;
 }
+
+/**
+ * Wrap every button action that talks to Google: if the token is missing or has less than 5 minutes left,
+ * Google's popup opens first (it closes by itself when the user already allowed Kraken), then the action runs.
+ * Must be called directly in the click handler.
+ */
+export const withFreshToken = makeGuard({ status: () => tokens.status(), renew: signIn });
 
 /** Forgets the token and tells Google to revoke it. */
 export function signOut(): void {

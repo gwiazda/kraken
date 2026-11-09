@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EXPIRY_MARGIN_MS, TokenHolder } from './token';
+import { EXPIRY_MARGIN_MS, RENEW_MARGIN_MS, TokenHolder } from './token';
 
 const NOW = 1_000_000_000_000;
 
@@ -36,6 +36,16 @@ describe('TokenHolder', () => {
     holder.clear();
     expect(holder.get(NOW)).toBeNull();
     expect(holder.peek()).toBeNull();
+  });
+
+  it('reports the status: valid, then renew in the last 5 minutes, then none', () => {
+    const holder = new TokenHolder();
+    expect(holder.status(NOW)).toBe('none');
+    holder.set('tok', 3600, NOW);
+    expect(holder.status(NOW)).toBe('valid');
+    expect(holder.status(NOW + 3600_000 - RENEW_MARGIN_MS - 1)).toBe('valid');
+    expect(holder.status(NOW + 3600_000 - RENEW_MARGIN_MS)).toBe('renew');
+    expect(holder.status(NOW + 3600_000 - EXPIRY_MARGIN_MS)).toBe('none');
   });
 
   it('rejects an empty token', () => {
