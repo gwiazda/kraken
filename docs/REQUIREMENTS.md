@@ -288,7 +288,7 @@ Flexible enough to generate prices for any discount.
 **Built (part 1, 2026-11-16):** a "Costs & prices" menu tab: one card per lot (green price per kg, roast loss with
 its source and "Change", roasted from 1 kg, cost of 1 kg roasted, and per bag size: coffee, items, cost of one bag,
 net and gross price at each markup). Below: settings (VAT, markups, default loss) and bag sizes with their cost items
-(add, edit, delete). Tabs (data version 4): `Settings` (name, value), `Bag sizes` (size_g), `Bag costs`
+(add, edit, delete). Tabs (data version 4): `Cost settings` (name, value), `Bag sizes` (size_g), `Bag costs`
 (bag_size_id, item, cost_net_pln), `Lot costs` (lot_id, roast_loss_percent).
 **Next (part 2):** the final gross price per lot and bag size (typed), with the net price and B2B −15 %; old prices kept.
 

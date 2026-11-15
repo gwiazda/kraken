@@ -7,7 +7,7 @@ import { moneyText, parseDecimal, parseMoney, toDecimalText } from '../../core/n
 
 type Fields = Readonly<Record<string, string>>;
 
-export const SETTINGS_TAB = 'Settings';
+export const SETTINGS_TAB = 'Cost settings';
 export const SETTING_COLUMNS = ['name', 'value'] as const;
 export const BAG_SIZES_TAB = 'Bag sizes';
 export const BAG_SIZE_COLUMNS = ['size_g'] as const;
@@ -57,6 +57,16 @@ export function parsePercent(value: string): number | null | undefined {
   return tenths < 1000 ? tenths : undefined;
 }
 
+/**
+ * A percentage as Kraken stores and accepts it: 0, or at least 1 % (e.g. "15.5"). A cell typed by hand as "20%" in
+ * Google Sheets arrives as 0.2, which would silently read as 0,2 %; so values between 0 and 1 % are refused (the page
+ * says the cell cannot be read, and the forms ask for e.g. 15 instead of 0,15).
+ */
+export function percentFromCell(value: string): number | null | undefined {
+  const tenths = parsePercent(value);
+  return typeof tenths === 'number' && tenths > 0 && tenths < 10 ? undefined : tenths;
+}
+
 export const percentText = (tenths: number) => toDecimalText(tenths, 1);
 /** For the screen: "23 %", "15,5 %". */
 export const formatPercent = (tenths: number) => `${percentText(tenths).replace('.', ',')} %`;
@@ -89,7 +99,7 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
   const active = rows.filter((r) => r.deletedAt === '');
   const valueOf = (name: string): string | null => {
     const found = active.filter((r) => r.name === name);
-    if (found.length > 1) problems.push(`The Settings tab has ${found.length} rows named "${name}" (rows ${found.map((r) => r.row).join(', ')}); Kraken uses the first.`);
+    if (found.length > 1) problems.push(`The Cost settings tab has ${found.length} rows named "${name}" (rows ${found.map((r) => r.row).join(', ')}); Kraken uses the first.`);
     return found[0]?.value ?? null;
   };
   const read = <T>(name: string, parse: (v: string) => T | null | undefined, fallback: T): T => {
@@ -104,9 +114,9 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
   };
   return {
     settings: {
-      vatTenths: read(SETTING_NAMES.vat, parsePercent, DEFAULT_SETTINGS.vatTenths),
+      vatTenths: read(SETTING_NAMES.vat, percentFromCell, DEFAULT_SETTINGS.vatTenths),
       markupHundredths: read(SETTING_NAMES.markups, parseMarkups, DEFAULT_SETTINGS.markupHundredths),
-      defaultLossTenths: read(SETTING_NAMES.defaultLoss, parsePercent, DEFAULT_SETTINGS.defaultLossTenths),
+      defaultLossTenths: read(SETTING_NAMES.defaultLoss, percentFromCell, DEFAULT_SETTINGS.defaultLossTenths),
     },
     problems,
   };
@@ -129,12 +139,12 @@ export type SettingsErrors = Partial<Record<keyof SettingsForm, string>>;
 /** Checks the settings form; on success gives the values to store, by setting name. */
 export function validateSettingsForm(form: SettingsForm): { ok: true; values: Record<string, string> } | { ok: false; errors: SettingsErrors } {
   const errors: SettingsErrors = {};
-  const vat = parsePercent(form.vat);
+  const vat = percentFromCell(form.vat);
   if (typeof vat !== 'number') errors.vat = 'Enter the VAT rate, e.g. 23.';
   const markups = parseMarkups(form.markups);
   if (!markups) errors.markups = 'Enter 1 to 5 markups separated by ";", e.g. 2; 2,5; 3.';
-  const loss = parsePercent(form.defaultLoss);
-  if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage below 100, e.g. 15.';
+  const loss = percentFromCell(form.defaultLoss);
+  if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage from 1 to 99, e.g. 15.';
   if (typeof vat !== 'number' || !markups || typeof loss !== 'number') return { ok: false, errors };
   return {
     ok: true,
@@ -237,7 +247,7 @@ export interface LotCost {
 }
 
 export const lotCostFromFields = (fields: Fields, row: number): LotCost => {
-  const loss = parsePercent(text(fields, 'roast_loss_percent'));
+  const loss = percentFromCell(text(fields, 'roast_loss_percent'));
   return {
     id: text(fields, 'id'),
     row,
@@ -252,7 +262,7 @@ export const lotCostFromFields = (fields: Fields, row: number): LotCost => {
 /** Checks a roast loss typed for a lot; empty means "use the average of the roasts again". */
 export function validateLoss(value: string): { ok: true; value: string } | { ok: false; error: string } {
   if (value.trim() === '') return { ok: true, value: '' };
-  const tenths = parsePercent(value);
-  if (typeof tenths !== 'number') return { ok: false, error: 'Enter a percentage below 100, e.g. 15,5 (or leave empty to use the average).' };
+  const tenths = percentFromCell(value);
+  if (typeof tenths !== 'number') return { ok: false, error: 'Enter a percentage from 1 to 99, e.g. 15,5 (or leave empty to use the average).' };
   return { ok: true, value: percentText(tenths) };
 }

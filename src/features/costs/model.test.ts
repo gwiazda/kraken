@@ -11,6 +11,7 @@ import {
   lotCostFromFields,
   parseMarkups,
   parsePercent,
+  percentFromCell,
   readSettings,
   settingFromFields,
   validateBagCostForm,
@@ -41,6 +42,17 @@ describe('numbers typed by the owner', () => {
     expect(parseMarkups('1;2;3;4;5;6')).toBeUndefined();
   });
 
+  it('refuses 0 < x < 1 % from a cell or a form: "20%" typed in the sheet arrives as 0.2', () => {
+    expect(percentFromCell('0.2')).toBeUndefined();
+    expect(percentFromCell('0.15')).toBeUndefined();
+    expect(percentFromCell('0')).toBe(0);
+    expect(percentFromCell('1')).toBe(10);
+    expect(percentFromCell('23')).toBe(230);
+    expect(readSettings([setting('vat_percent', '0.23')]).problems).toHaveLength(1);
+    expect(lotCostFromFields({ lot_id: 'L1', roast_loss_percent: '0.15' }, 2)).toMatchObject({ lossTenths: null, lossText: '0.15' });
+    expect(validateLoss('0,5').ok).toBe(false);
+  });
+
   it('formats for the screen', () => {
     expect(formatPercent(155)).toBe('15,5 %');
     expect(formatPercent(230)).toBe('23 %');
@@ -66,7 +78,7 @@ describe('settings', () => {
     expect(settings).toEqual({ ...DEFAULT_SETTINGS, markupHundredths: [200] });
     expect(problems).toEqual([
       'The setting "vat_percent" has the value "lots", which Kraken cannot read; it uses the default instead.',
-      'The Settings tab has 2 rows named "markups" (rows 3, 7); Kraken uses the first.',
+      'The Cost settings tab has 2 rows named "markups" (rows 3, 7); Kraken uses the first.',
     ]);
   });
 
@@ -84,7 +96,7 @@ describe('settings', () => {
       errors: {
         vat: 'Enter the VAT rate, e.g. 23.',
         markups: 'Enter 1 to 5 markups separated by ";", e.g. 2; 2,5; 3.',
-        defaultLoss: 'Enter a percentage below 100, e.g. 15.',
+        defaultLoss: 'Enter a percentage from 1 to 99, e.g. 15.',
       },
     });
   });

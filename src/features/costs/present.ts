@@ -1,8 +1,8 @@
 // What the Costs & prices page shows, as plain text, so it is tested without a browser. Joins the lots, the roasts
 // (for the average roast loss) and the cost tabs, and runs the calculation.
 
-import { formatPln } from '../../core/numbers';
-import { isDeleted, type Lot } from '../lots';
+import { formatKg, formatPln } from '../../core/numbers';
+import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
 import { formatBagSize, formatMarkup, formatPercent, type BagCost, type BagSize, type CostSettings, type LotCost } from './model';
 import { averageLoss, calculateLot, chooseLoss, roundGrosze, type BagInput, type RoastShare } from './modelCalc';
@@ -64,6 +64,8 @@ export interface LotCard {
   readonly loss: string;
   /** "average of 23 roasts", "your own", "default: no roasts yet". */
   readonly lossSource: string;
+  /** The loss in use, in tenths of a percent (for the Change form). */
+  readonly lossTenths: number;
   readonly ownLoss: LotCost | undefined;
   readonly roastedFromKg: string;
   readonly roastedPerKg: string;
@@ -102,24 +104,37 @@ export function lotCards(
     grams: v.size.grams ?? 0,
     itemsGrosze: v.unreadable ? [] : v.costs.map((c) => c.costGrosze ?? 0),
   }));
-  const active = lots.filter((lot) => !isDeleted(lot)).sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate) || a.code.localeCompare(b.code));
+  const active = sortLots(lots.filter((lot) => !isDeleted(lot))); // the same order as the Lots page
   const cards = active.map((lot): LotCard => {
     const own = lotCosts.find((c) => c.deletedAt === '' && c.lotId === lot.id);
     if (own && own.lossTenths === null && own.lossText !== '') {
       problems.push(`The roast loss "${own.lossText}" saved for ${lot.code} cannot be read; the average of its roasts is used instead.`);
     }
-    const average = averageLoss(shares.get(lot.id) ?? []);
+    const lotShares = shares.get(lot.id) ?? [];
+    const average = averageLoss(lotShares);
+    const weighed = lotShares.filter((s) => s.roastedDecigrams !== null && s.roastedDecigrams > 0 && s.partGrams > 0).length;
+    const nonsense = average === null && weighed > 0;
+    if (nonsense && !(own && own.lossTenths !== null)) {
+      problems.push(`The roasts of ${lot.code} give a roast loss below 0 % or of 100 % or more, so the default loss is used. Check their weights on the Roasts page.`);
+    }
     const { loss, source } = chooseLoss(own?.lossTenths ?? null, average, settings);
     const price = lot.coffeePriceGrosze === null ? null : lot.coffeePriceGrosze + (lot.deliveryCostGrosze ?? 0);
     const calc = calculateLot(price, lot.quantityGrams, loss, bags, settings);
     const lossTenths = Math.round(loss * 1000);
     const lossSource =
-      source.kind === 'own' ? 'your own' : source.kind === 'average' ? `average of ${source.roasts} roast${source.roasts === 1 ? '' : 's'}` : 'default: no roasts with both weights yet';
+      source.kind === 'own'
+        ? 'your own'
+        : source.kind === 'average'
+          ? `average of ${source.roasts} roast${source.roasts === 1 ? '' : 's'}`
+          : nonsense
+            ? 'default: the roast weights do not make sense'
+            : 'default: no roasts with both weights yet';
     const base = {
       lot,
       title: `${lot.code} · ${lot.name}`,
       subtitle: [lot.deliveryDate && `delivered ${lot.deliveryDate}`, lot.country].filter((t) => t).join(' · '),
       loss: formatPercent(lossTenths),
+      lossTenths,
       lossSource,
       ownLoss: own,
     };
@@ -134,7 +149,7 @@ export function lotCards(
       ...base,
       missing: '',
       greenPerKg: `${money(calc.greenPerKg)} / kg`,
-      roastedFromKg: `${(Math.round(calc.roastedFromKg * 1000) / 1000).toString().replace('.', ',')} kg`,
+      roastedFromKg: formatKg(Math.round(calc.roastedFromKg * 1000)),
       roastedPerKg: `${money(calc.roastedPerKg)} / kg`,
       bags: calc.bags.map((bag, i) => ({
         label: sizes[i]?.label ?? formatBagSize(bag.grams),

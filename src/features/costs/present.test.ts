@@ -61,7 +61,7 @@ describe('lotCards', () => {
       greenPerKg: '77,00\u00a0zł / kg',
       loss: '15 %',
       lossSource: 'default: no roasts with both weights yet',
-      roastedFromKg: '0,85 kg',
+      roastedFromKg: '0,85\u00a0kg',
       roastedPerKg: '90,59\u00a0zł / kg',
     });
     expect(cards[0]?.bags).toEqual([
@@ -86,6 +86,12 @@ describe('lotCards', () => {
     expect(lotCards([lot('L1')], roasts, [], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '16 %', lossSource: 'average of 2 roasts' });
     const own = lotCostFromFields({ id: 'O', lot_id: 'L1', roast_loss_percent: '14.2' }, 2);
     expect(lotCards([lot('L1')], roasts, [own], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '14,2 %', lossSource: 'your own', ownLoss: own });
+  });
+
+  it('reports roasts whose weights give a loss that makes no sense, and uses the default', () => {
+    const { cards, problems } = lotCards([lot('L1')], [roast('R1', '1000', '1200')], [], sizes, DEFAULT_SETTINGS);
+    expect(cards[0]).toMatchObject({ loss: '15\u00a0%', lossSource: 'default: the roast weights do not make sense' });
+    expect(problems).toEqual(['The roasts of KENYA-L1 give a roast loss below 0 % or of 100 % or more, so the default loss is used. Check their weights on the Roasts page.']);
   });
 
   it('falls back to the average when the saved loss cannot be read, and says so', () => {

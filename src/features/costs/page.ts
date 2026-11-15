@@ -11,6 +11,7 @@ import {
   formFromBagCost,
   formFromSettings,
   formatPercent,
+  percentText,
   readSettings,
   validateBagCostForm,
   validateBagSize,
@@ -74,45 +75,47 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       });
   }
 
-  function lockPage(): void {
-    for (const node of root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) node.disabled = true;
+  /** Disables every button and field; gives back the ones it disabled, to enable them again after a failed save. */
+  function lockPage(): (HTMLButtonElement | HTMLInputElement)[] {
+    const locked = [...root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')].filter((node) => !node.disabled);
+    for (const node of locked) node.disabled = true;
+    return locked;
   }
 
   /**
-   * Saves something, then reloads the page with `done` as the note. While saving, the page is locked and `where`
-   * shows a spinner; an error is shown at the top with "Sign in and try again" / "Reload costs".
+   * Saves something, then reloads the page with `done` as the note. While saving, the page is locked and `slot` shows
+   * a spinner. If it fails, the page stays as it is (what the owner typed is kept) and `slot` explains the error,
+   * with "Sign in and try again" / "Reload costs".
    */
-  function save(where: HTMLElement, working: string, action: () => Promise<void>, done: string): void {
-    lockPage();
-    where.replaceChildren(busy(working));
+  function save(slot: HTMLElement, working: string, action: () => Promise<void>, done: string): void {
+    const locked = lockPage();
+    slot.replaceChildren(busy(working));
     deps.busy(true);
-    const attempt = () => deps.withGoogle(action);
-    attempt()
+    deps
+      .withGoogle(action)
       .finally(() => deps.busy(false))
       .then(() => {
         if (root.isConnected) load(done);
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
-        if (deps.isIgnorable(error)) {
-          showPage();
-          return;
-        }
+        for (const node of locked) node.disabled = false;
+        slot.replaceChildren();
+        if (deps.isIgnorable(error)) return;
         const show = (e: unknown) =>
-          showPage(
-            undefined,
-            googleErrorNodes(e, deps, {
-              retry: () => save(where, working, action, done),
+          slot.replaceChildren(
+            ...googleErrorNodes(e, deps, {
+              retry: () => save(slot, working, action, done),
               retryLabel: 'Sign in and try again',
               show,
-              other: { label: 'Reload costs', action: () => load(undefined, true), mayHaveSaved: true },
+              other: { label: 'Reload costs (drops what you typed)', action: () => load(undefined, true), mayHaveSaved: true },
             }),
           );
         show(error);
       });
   }
 
-  function showPage(note?: string, error?: Node[]): void {
+  function showPage(note?: string): void {
     if (!data) return;
     const loaded = data;
     const { settings, problems: settingProblems } = readSettings(loaded.settings);
@@ -123,7 +126,6 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     render(
       el('div', { class: 'page-head' }, el('h2', {}, 'Costs & prices')),
       ...(note ? [message(note)] : []),
-      ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
       el(
         'p',
@@ -152,10 +154,11 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     };
     const editLoss = () => {
       const input = el('input', { type: 'text', inputmode: 'decimal', id: `loss-${card.lot.id}`, class: 'input-short', autocomplete: 'off' });
-      input.value = card.ownLoss?.lossTenths != null ? card.loss.replace(/ %$/, '') : '';
-      input.placeholder = card.loss.replace(/ %$/, '');
+      const shown = percentText(card.lossTenths).replace('.', ',');
+      input.value = card.ownLoss?.lossTenths != null ? shown : '';
+      input.placeholder = shown;
       const errorLine = el('span', { class: 'field-error', role: 'alert' });
-      const status = el('span', {});
+      const status = el('div', { class: 'save-status' });
       const submit = (value: string) => {
         const result = validateLoss(value);
         if (!result.ok) {
@@ -165,7 +168,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
         save(
           status,
           'Saving…',
-          async () => deps.repo.saveLoss(card.lot.id, result.value, card.ownLoss, await deps.whoAmI(), deps.now()),
+          () => deps.repo.saveLoss(card.lot.id, result.value, card.ownLoss, deps.whoAmI, deps.now()),
           result.value === '' ? `${card.lot.code}: roast loss back to the average of its roasts.` : `${card.lot.code}: roast loss saved.`,
         );
       };
@@ -258,7 +261,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       el('h3', {}, 'Bag sizes and what goes into one bag'),
       el('p', { class: 'muted small' }, 'Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost".'),
       ...views.map(sizeNode),
-      addSizeNode(views),
+      addSizeNode(),
     );
   }
 
@@ -274,7 +277,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       errors.set(key, error);
       return el('div', { class: 'field' }, el('label', { for: input.id }, label), input, el('p', { class: 'field-hint' }, hint), error);
     };
-    const status = el('span', {});
+    const status = el('div', { class: 'save-status' });
     const form = el(
       'form',
       { class: 'lot-form', novalidate: '' },
@@ -294,13 +297,13 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       for (const [key, line] of errors) line.textContent = result.ok ? '' : (result.errors[key] ?? '');
       if (!result.ok) return;
       const loaded = data?.settings ?? [];
-      save(status, 'Saving…', async () => deps.repo.saveSettings(result.values, loaded, await deps.whoAmI(), deps.now()), 'Settings saved.');
+      save(status, 'Saving…', () => deps.repo.saveSettings(result.values, loaded, deps.whoAmI, deps.now()), 'Settings saved.');
     });
     return form;
   }
 
   function sizeNode(view: BagSizeView): HTMLElement {
-    const status = el('span', {});
+    const status = el('div', { class: 'save-status' });
     const removeSize = () => {
       const confirm = el(
         'p',
@@ -317,7 +320,8 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     return el(
       'div',
       { class: 'bag-size' },
-      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, `items together: ${view.itemsText}`), ' ', headActions, ' ', status),
+      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, `items together: ${view.itemsText}`), ' ', headActions),
+      status,
       ...(rows.length > 0
         ? [
             el(
@@ -366,7 +370,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     const amount = el('input', { id: `${prefix}-cost`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'zł net' });
     amount.value = initial.cost;
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
-    const status = el('span', {});
+    const status = el('div', { class: 'save-status' });
     const form = el(
       'form',
       { class: 'inline-form', novalidate: '' },
@@ -400,8 +404,8 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     return form;
   }
 
-  function addSizeNode(views: readonly BagSizeView[]): HTMLElement {
-    const status = el('span', {});
+  function addSizeNode(): HTMLElement {
+    const status = el('div', { class: 'save-status' });
     const input = el('input', { id: 'new-bag-size', type: 'text', inputmode: 'numeric', autocomplete: 'off', class: 'input-short', placeholder: 'grams' });
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
     const form = el(
@@ -411,7 +415,8 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       input,
       ' g ',
       el('button', { type: 'submit', class: 'btn btn-secondary' }, 'Add bag size'),
-      ...(views.length === 0
+      // Only on a sheet without any bag size (an unreadable one is reported above; adding would make a duplicate).
+      ...(!(data?.sizes ?? []).some((size) => size.deletedAt === '')
         ? [
             ' ',
             button('Add 250 g and 1 kg', () =>

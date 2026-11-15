@@ -6,6 +6,11 @@ import { sheetCostsRepository } from './repo';
 
 const now = new Date('2026-11-16T10:00:00.000Z');
 const later = new Date('2026-11-16T11:00:00.000Z');
+const who = async () => 'owner@example.com';
+/** For edits of existing rows: asking who is signed in would be a wasted Google request. */
+const notAsked = async (): Promise<string> => {
+  throw new Error('who is signed in should not be asked for an edit');
+};
 
 async function setup() {
   const google = fakeGoogleDrive();
@@ -21,11 +26,11 @@ describe('sheetCostsRepository (in-memory Google)', () => {
 
   it('saves settings: adds new ones, then changes only what changed', async () => {
     const { google, repo } = await setup();
-    await repo.saveSettings({ vat_percent: '23', markups: '2;2.5;3', default_roast_loss_percent: '15' }, [], 'owner@example.com', now);
+    await repo.saveSettings({ vat_percent: '23', markups: '2;2.5;3', default_roast_loss_percent: '15' }, [], who, now);
     let data = await repo.load();
     expect(readSettings(data.settings).settings).toEqual({ vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150 });
     google.requests.length = 0;
-    await repo.saveSettings({ vat_percent: '8', markups: '2;2.5;3', default_roast_loss_percent: '15' }, data.settings, 'owner@example.com', later);
+    await repo.saveSettings({ vat_percent: '8', markups: '2;2.5;3', default_roast_loss_percent: '15' }, data.settings, notAsked, later);
     expect(google.requests.filter((r) => r.method !== 'GET' && !r.url.includes(':batchGet'))).toHaveLength(1);
     data = await repo.load();
     expect(data.settings).toHaveLength(3);
@@ -57,12 +62,12 @@ describe('sheetCostsRepository (in-memory Google)', () => {
 
   it("saves a lot's own roast loss, changes it, and clears it back to the average", async () => {
     const { repo } = await setup();
-    await repo.saveLoss('L1', '', undefined, 'owner@example.com', now); // nothing to clear: nothing written
+    await repo.saveLoss('L1', '', undefined, notAsked, now); // nothing to clear: nothing written
     expect((await repo.load()).lotCosts).toEqual([]);
-    await repo.saveLoss('L1', '14.2', undefined, 'owner@example.com', now);
+    await repo.saveLoss('L1', '14.2', undefined, who, now);
     let [own] = (await repo.load()).lotCosts;
     expect(own).toMatchObject({ lotId: 'L1', lossTenths: 142 });
-    await repo.saveLoss('L1', '', own, 'owner@example.com', later);
+    await repo.saveLoss('L1', '', own, notAsked, later);
     [own] = (await repo.load()).lotCosts;
     expect(own).toMatchObject({ lotId: 'L1', lossTenths: null, lossText: '' });
   });

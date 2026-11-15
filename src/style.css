@@ -696,3 +696,11 @@ details summary {
 .confirm-line {
   display: inline;
 }
+
+.save-status:empty {
+  display: none;
+}
+
+.inline-form .save-status {
+  flex-basis: 100%;
+}
