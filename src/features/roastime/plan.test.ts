@@ -60,6 +60,11 @@ describe('planImport: new deliveries', () => {
           supplier: '',
           delivery_date: '2026-11-03',
           quantity_kg: '60',
+          altitude: '',
+          variety: '',
+          coffee_price_net_pln: '',
+          delivery_cost_net_pln: '',
+          notes: '',
           roastime_container_id: 'C1',
           roastime_bean_id: 'B1',
           roastime_supplier_code: 'V1',
@@ -91,6 +96,19 @@ describe('planImport: new deliveries', () => {
     expect(plan.items.map((i) => i.kind)).toEqual(['new']);
     expect(plan.items[0] && defaultDecision(plan.items[0])).toEqual({ action: 'add' });
     expect(operations(plan, new Map([['C1', { action: 'add' }]])).every((op) => op.kind === 'add')).toBe(true);
+  });
+
+  it.each([
+    ['no country', container(), bean({ country: '' }), 'Enter the country.'],
+    ['no name', container(), bean({ name: '' }), 'Enter the coffee name.'],
+    ['0 kg', container({ startGrams: 0 }), bean(), 'The quantity must be more than 0.'],
+    ['a very long name', container(), bean({ name: 'x'.repeat(201) }), 'Use at most 200 characters.'],
+  ])('never imports a broken lot (%s): it is reported instead', (_name, c, b, reason) => {
+    const plan = planImport(data([c], [b]), [], today);
+    expect(plan.items).toEqual([]);
+    expect(plan.problems).toHaveLength(1);
+    expect(plan.problems[0]).toContain(reason);
+    expect(plan.problems[0]).toContain('Correct it in RoasTime, or add the lot by hand.');
   });
 
   it('ignores deliveries deleted in RoasTime that Kraken never had', () => {

@@ -53,6 +53,7 @@ function time(value: unknown): Date | null {
 export function kindOf(path: string): 'containers' | 'beans' | null {
   const parts = path.split('/');
   if (parts.length !== 3) return null; // roast-time / folder / file
+  if ((parts[2] ?? '').startsWith('.')) return null; // hidden files macOS adds, e.g. .DS_Store
   const folder = parts[1];
   return folder === 'containers' || folder === 'beans' ? folder : null;
 }

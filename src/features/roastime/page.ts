@@ -3,9 +3,11 @@
 // with the classic folder chooser; the help box keeps the path one click away (owner's request, 2026-11-15).
 
 import { busy, button, el, message } from '../../ui/dom';
+import { googleErrorNodes } from '../../ui/googleErrors';
+import { ImportStopped, applyImport, summaryOf } from './apply';
 import type { LotsRepository } from '../lots';
-import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile } from './model';
-import { defaultDecision, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan, type Operation } from './plan';
+import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile, type RoastimeData } from './model';
+import { defaultDecision, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
 
 export interface RoastimeImportDeps {
   repo: LotsRepository;
@@ -82,28 +84,41 @@ export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps):
       // Only the deliveries and coffees are read; the roasts are left alone.
       const wanted = files.filter((f) => kindOf(f.webkitRelativePath) !== null);
       const folderFiles: FolderFile[] = await Promise.all(wanted.map(async (f) => ({ path: f.webkitRelativePath, text: await f.text() })));
-      const data = parseRoastimeFiles(folderFiles);
-      render(el('p', {}, busy('Comparing with the lots in Kraken…')));
-      const { lots } = await deps.repo.load();
-      preview(planImport(data, lots, deps.now()));
+      compare(parseRoastimeFiles(folderFiles));
     } catch (error) {
-      if (deps.isIgnorable(error)) return;
-      start(el('div', {}, ...errorNodes(error, () => start())));
+      start(message(`Kraken could not read the folder: ${deps.describeError(error)}`, 'error'));
     }
   }
 
-  function errorNodes(error: unknown, retry: () => void): Node[] {
-    if (deps.isSignedOut(error)) {
-      return [
-        message('Your Google sign-in ran out. Sign in, then choose the folder again.', 'error'),
-        button('Sign in', () => {
-          deps.signIn().then(retry, (e: unknown) => {
-            if (!deps.isIgnorable(e)) start(el('div', {}, ...errorNodes(e, retry)));
-          });
-        }),
-      ];
-    }
-    return [message(deps.describeError(error), 'error')];
+  /** Compares with Kraken's lots. Retried with the same files after a sign-in, so the folder is not chosen again. */
+  function compare(data: RoastimeData, fromClick = false): void {
+    render(el('p', {}, busy('Comparing with the lots in Kraken…')));
+    (fromClick ? deps.withGoogle(() => deps.repo.load()) : deps.repo.load())
+      .then(({ lots }) => {
+        if (root.isConnected) preview(planImport(data, lots, deps.now()));
+      })
+      .catch((error: unknown) => {
+        if (!root.isConnected) return;
+        if (deps.isIgnorable(error)) {
+          start();
+          return;
+        }
+        const show = (e: unknown) =>
+          start(
+            el(
+              'div',
+              {},
+              ...googleErrorNodes(e, deps, {
+                retry: () => compare(data),
+                retryLabel: 'Sign in and continue',
+                show,
+                other: { label: 'Try again', action: () => compare(data, true), mayHaveSaved: false },
+                signedOutNote: 'The folder is already read; nothing to choose again.',
+              }),
+            ),
+          );
+        show(error);
+      });
   }
 
   function preview(plan: ImportPlan): void {
@@ -218,49 +233,45 @@ export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps):
     function apply(): void {
       const ops = operations(plan, decisions);
       if (ops.length === 0) return;
-      let done = 0;
-      render(el('p', {}, busy(`Importing… (0 of ${ops.length})`)));
       const step = (text: string) => render(el('p', {}, busy(text)));
+      step('Importing…');
       deps
-        .withGoogle(async () => {
-          const by = ops.some((op) => op.kind === 'add') ? await deps.whoAmI() : '';
-          for (const op of ops) {
-            step(`Importing… ${op.label} (${done + 1} of ${ops.length})`);
-            await run(op, by);
-            done++;
-          }
-        })
-        .then(() => {
-          if (root.isConnected) deps.backToLots(`Imported from RoasTime: ${summaryOf(ops)}.`);
+        .withGoogle(() => applyImport(ops, { repo: deps.repo, whoAmI: deps.whoAmI, now: deps.now, onProgress: step }))
+        .then((result) => {
+          if (root.isConnected) deps.backToLots(`Imported from RoasTime: ${summaryOf(result)}.`);
         })
         .catch((error: unknown) => {
-          if (!root.isConnected || deps.isIgnorable(error)) return;
-          const partial =
-            done === 0
-              ? 'Nothing was imported.'
-              : `${done} of ${ops.length} changes were saved before this happened. Choose the folder again to import the rest: what is saved is recognised.`;
-          start(el('div', {}, message(partial, 'error'), ...errorNodes(error, () => start())));
+          if (!root.isConnected) return;
+          const cause = error instanceof ImportStopped ? error.cause : error;
+          if (deps.isIgnorable(cause)) {
+            start(message('The import was interrupted by another sign-in. Choose the folder again to continue: what is saved is recognised.'));
+            return;
+          }
+          const saved = error instanceof ImportStopped ? error.saved : 0;
+          const total = error instanceof ImportStopped ? error.total : ops.length;
+          const progress =
+            saved > 0
+              ? `${saved} of ${total} changes were saved before this happened.`
+              : 'Kraken cannot tell whether anything was saved.';
+          const show = (e: unknown) =>
+            start(
+              el(
+                'div',
+                {},
+                message(`${progress} Look at the Lots list, or choose the folder again: what is saved is recognised and not added twice.`, 'error'),
+                ...googleErrorNodes(e, deps, {
+                  retry: () => start(),
+                  retryLabel: 'Sign in',
+                  show,
+                  other: { label: 'Back to lots', action: () => deps.backToLots(), mayHaveSaved: true },
+                  signedOutNote: 'Sign in, then choose the folder again.',
+                }),
+              ),
+            );
+          show(cause);
         });
     }
   }
 
-  async function run(op: Operation, by: string): Promise<void> {
-    if (op.kind === 'add') await deps.repo.add(op.fields, by, deps.now());
-    else await deps.repo.update(op.lot, op.fields, deps.now());
-  }
-
   start();
-}
-
-/** "2 added, 1 updated" */
-export function summaryOf(ops: readonly Operation[]): string {
-  const count = (prefix: string) => ops.filter((op) => op.label.startsWith(prefix)).length;
-  const parts = [
-    [count('Add '), 'added'],
-    [count('Update '), 'updated'],
-  ] as const;
-  return parts
-    .filter(([n]) => n > 0)
-    .map(([n, word]) => `${n} ${word}`)
-    .join(', ');
 }

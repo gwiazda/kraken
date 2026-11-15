@@ -9,7 +9,7 @@
 
 import { localDate } from '../../core/dates';
 import { formatKg, kgText } from '../../core/numbers';
-import { suggestCode, type Lot } from '../lots';
+import { suggestCode, validateLotForm, type Lot } from '../lots';
 import type { RoastimeBean, RoastimeContainer, RoastimeData } from './model';
 
 export type DiffColumn = 'name' | 'country' | 'region' | 'process' | 'quantity_kg';
@@ -69,7 +69,8 @@ export function differences(lot: Lot, container: RoastimeContainer, bean: Roasti
 export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date): ImportPlan {
   const problems = [...data.problems];
   const beans = new Map(data.beans.map((bean) => [bean.id, bean]));
-  const takenCodes = lots.map((lot) => lot.code);
+  /** Codes given to new lots earlier in this same import. */
+  const plannedCodes: string[] = [];
   const items: ImportItem[] = [];
 
   const ordered = [...data.containers].sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
@@ -96,23 +97,41 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
       continue;
     }
     const deliveryDate = localDate(container.createdAt ?? today);
-    const code = suggestCode(bean.country, deliveryDate, takenCodes);
-    takenCodes.push(code);
+    const code = suggestCode(bean.country, deliveryDate, [...lots.map((l) => l.code), ...plannedCodes]);
     const supplier =
       bean.vendorCode === '' ? '' : (lots.find((l) => l.roastime.supplierCode === bean.vendorCode && l.supplier !== '')?.supplier ?? '');
+    // The same checks as a lot typed by hand (code, name, country, kg, lengths), so an import never stores a broken lot.
+    const checked = validateLotForm(
+      {
+        code,
+        name: bean.name,
+        country: bean.country,
+        region: bean.region,
+        altitude: '',
+        process: bean.process,
+        variety: '',
+        supplier,
+        deliveryDate,
+        quantityKg: kgText(container.startGrams),
+        coffeePrice: '',
+        deliveryCost: '',
+        notes: '',
+      },
+      // Only `code` of the other lots is used by the uniqueness check.
+      [...lots, ...plannedCodes.map((c) => ({ code: c }) as Lot)],
+    );
+    if (!checked.ok) {
+      const what = `RoasTime delivery "${bean.name || 'no name'}" (${kgText(container.startGrams)} kg)`;
+      problems.push(`${what} cannot be imported: ${Object.values(checked.errors).join(' ')} Correct it in RoasTime, or add the lot by hand.`);
+      continue;
+    }
+    plannedCodes.push(checked.fields.code ?? code);
     items.push({
       kind: 'new',
       container,
       bean,
       fields: {
-        code,
-        name: bean.name,
-        country: bean.country,
-        region: bean.region,
-        process: bean.process,
-        supplier,
-        delivery_date: deliveryDate,
-        quantity_kg: kgText(container.startGrams),
+        ...checked.fields,
         roastime_container_id: container.id,
         roastime_bean_id: bean.id,
         roastime_supplier_code: bean.vendorCode,

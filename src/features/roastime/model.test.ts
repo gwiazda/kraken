@@ -22,6 +22,7 @@ describe('kindOf', () => {
     ['roast-time/roasts/R1', null],
     ['roast-time/containers/sub/C1', null],
     ['roast-time/db.sqlite3', null],
+    ['roast-time/containers/.DS_Store', null],
     ['containers/C1', null],
   ])('%s -> %s', (path, kind) => {
     expect(kindOf(path)).toBe(kind);

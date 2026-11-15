@@ -2,8 +2,8 @@
 // Everything it needs from outside comes through LotsPageDeps (main.ts provides it), so the screen never reaches
 // into sign-in or Google directly. The logic it shows is in model.ts and present.ts, which are tested.
 
-import { ConflictError, TableError } from '../../core/records';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
 import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
 import { codeAfterChange, deletedCount, formPricePerKg, lotListRows, type LotListRow } from './present';
 import type { LotsRepository } from './repo';
@@ -110,12 +110,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     );
   }
 
-  /**
-   * One way to explain a failed Google action, used by loading, saving, deleting and restoring.
-   * - signed out: a button that signs in (inside the click) and repeats the action
-   * - someone else changed the lot: reload
-   * - anything else: Kraken cannot know whether the change reached the sheet, so it says so and offers a reload
-   */
+  /** See ui/googleErrors.ts. `reload` (default) for actions that may have written something. */
   function googleErrorNodes(
     error: unknown,
     options: {
@@ -127,23 +122,18 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       signedOutNote?: string;
     },
   ): Node[] {
-    const reload = button(options.reloadLabel ?? 'Reload lots', () => load(undefined, true), 'secondary');
-    if (deps.isSignedOut(error)) {
-      return [
-        message(`Your Google sign-in ran out. ${options.signedOutNote ?? 'What you did is still on screen.'}`, 'error'),
-        button(options.retryLabel, () => {
-          deps.signIn().then(options.retry, (e: unknown) => {
-            if (!deps.isIgnorable(e)) options.show(e);
-          });
-        }),
-      ];
-    }
-    if (error instanceof ConflictError) return [message(error.message, 'error'), reload];
-    if (error instanceof TableError) return [message(error.message, 'error')];
-    if (options.otherButton === 'try-again') {
-      return [message(deps.describeError(error), 'error'), button('Try again', () => load(undefined, true), 'secondary')];
-    }
-    return [message(`${deps.describeError(error)} Kraken could not finish. Reload the lots to see whether the change was saved.`, 'error'), reload];
+    const tryAgain = options.otherButton === 'try-again';
+    return explainGoogleError(error, deps, {
+      retry: options.retry,
+      retryLabel: options.retryLabel,
+      show: options.show,
+      ...(options.signedOutNote ? { signedOutNote: options.signedOutNote } : {}),
+      other: {
+        label: tryAgain ? 'Try again' : (options.reloadLabel ?? 'Reload lots'),
+        action: () => load(undefined, true),
+        mayHaveSaved: !tryAgain,
+      },
+    });
   }
 
   /** Disables every button and box on the page while Google works, so nothing else can start meanwhile. */

@@ -130,6 +130,8 @@ export interface RecordTable {
   load(): Promise<TableContents>;
   /** Adds a record with a new ID. Returns all its fields as stored. */
   add(fields: Fields, by: string, now: Date): Promise<Fields>;
+  /** Adds several records in one request (Google applies all or none). Returns them as stored, in order. */
+  addMany(list: readonly Fields[], by: string, now: Date): Promise<Fields[]>;
   /**
    * Changes fields. `loaded` is the record exactly as it was loaded (its fields), used to write only what the user
    * changed and to refuse overwriting someone else's change.
@@ -182,24 +184,32 @@ export function sheetRecordTable(
     return { ...record.fields, ...write };
   }
 
+  async function addMany(list: readonly Fields[], by: string, now: Date): Promise<Fields[]> {
+    if (list.length === 0) return [];
+    for (const fields of list) refuseSafetyColumns(fields);
+    const headers = readHeaders(tab, await readValues(client, spreadsheetId, tab, '1:1'), allNeeded);
+    for (const fields of list) refuseUnknownColumns(tab, headers, fields);
+    const time = now.toISOString();
+    const stored: Fields[] = list.map((fields) => ({ ...fields, id: newId(), created_at: time, updated_at: time, created_by: by, deleted_at: '' }));
+    const range = encodeURIComponent(tabRange(tab, 'A1'));
+    await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      method: 'POST',
+      body: JSON.stringify({ values: stored.map((fields) => rowCells(headers, fields)) }),
+    });
+    return stored;
+  }
+
   return {
     async load() {
       const { values } = await readAll();
       return parseTable(tab, values, needed);
     },
     async add(fields, by, now) {
-      refuseSafetyColumns(fields);
-      const headers = readHeaders(tab, await readValues(client, spreadsheetId, tab, '1:1'), allNeeded);
-      refuseUnknownColumns(tab, headers, fields);
-      const time = now.toISOString();
-      const stored: Fields = { ...fields, id: newId(), created_at: time, updated_at: time, created_by: by, deleted_at: '' };
-      const range = encodeURIComponent(tabRange(tab, 'A1'));
-      await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
-        method: 'POST',
-        body: JSON.stringify({ values: [rowCells(headers, stored)] }),
-      });
+      const [stored] = await addMany([fields], by, now);
+      if (!stored) throw new Error('Nothing was added');
       return stored;
     },
+    addMany,
     async update(id, changes, loaded, now) {
       refuseSafetyColumns(changes);
       return change(id, changes, loaded, now);
