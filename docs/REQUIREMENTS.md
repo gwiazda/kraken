@@ -48,7 +48,10 @@ Background columns (not shown as normal columns): `id`, `roastime_container_id`,
 - **[R]** Deleted lots are hidden behind a "Show deleted" switch, greyed out, with "Restore".
 - **[R]** An imported lot without a price shows a small "Price missing" marker; the Costs & prices page shows "missing" instead of numbers.
 - **[R]** RoasTime is the source of truth for name, country, region and process of imported lots; Kraken-only fields are never overwritten by an import.
-- **[R] Built (2026-11-15):** the Lots tab itself (migration to data version 2). The Lots screen comes next.
+- **[R] Built (2026-11-15):** the Lots tab (migration to data version 2) and the Lots screen: list (newest delivery first,
+  green price per kg, "Price missing", a "Check" marker for unreadable cells), add and edit. The form has sections Coffee,
+  Delivery, Price (with the calculated green price per kg) and Notes (owner's request). Next: "Show deleted" / Restore,
+  then importing lots from RoasTime.
 
 **[R] Computed by the app (never stored)**
 - Green price per kg = (coffee price + delivery cost) ÷ quantity delivered.
