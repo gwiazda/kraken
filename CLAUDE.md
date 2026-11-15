@@ -65,15 +65,17 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
-- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore; `present.ts` = pure text for the screen;
-  `roastime`: import of deliveries as lots, `model.ts` reads the files, `plan.ts` the preview and changes (pure),
-  `apply.ts` saves (new lots in one request); see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
+- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left; `present.ts` = pure text for the screen;
+  `roasts`: roasting log, `allocation.ts` which lot each roast used and stock left (pure, oldest delivery first), Roasts page;
+  `roastime`: "Sync with RoasTime" (lots and roasts in one step; roasts with no coffee, or a coffee with no delivery, are samples, not tracked), `model.ts` reads the files, `plan.ts` / `roastPlan.ts` the
+  preview (pure), `apply.ts` saves (at most 4 requests: lot adds, lot updates, roast adds, roast edits incl. removals and restores);
+  lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `googleErrors.ts` explains Google errors
-  the same way on every screen, `history.ts` browser Back/Forward between Lots, lot form, Import and Settings (owner's
+  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Lots page with a menu (Lots, Roasts, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

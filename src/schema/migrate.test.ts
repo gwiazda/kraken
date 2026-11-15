@@ -83,6 +83,21 @@ describe('initialTabs', () => {
   });
 });
 
+describe('version 3', () => {
+  it('adds the Roasts tab with the columns agreed on 2026-11-15', () => {
+    expect(MIGRATIONS[1]?.steps).toEqual([
+      {
+        kind: 'add-tab',
+        tab: 'Roasts',
+        headers: [
+          'id', 'roasted_at', 'roast_name', 'green_g', 'roasted_g', 'lot_id', 'sample', 'notes', 'roastime_roast_id',
+          'roastime_bean_id', 'created_at', 'updated_at', 'created_by', 'deleted_at',
+        ],
+      },
+    ]);
+  });
+});
+
 describe('helpers', () => {
   it('names the backup with the local date and the next version', () => {
     expect(backupName(now, 2)).toBe('Kraken backup 2026-11-15 (before v2)');

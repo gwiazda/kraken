@@ -1,5 +1,5 @@
-// Public interface of the RoasTime import (green coffee deliveries from the Aillio roaster's software).
-// Code outside `features/roastime/` imports only this file.
+// Public interface of "Sync with RoasTime" (deliveries as lots, and the roasting log, from the Aillio roaster's
+// software). Code outside `features/roastime/` imports only this file.
 
 export { ROASTIME_FOLDER } from './model';
-export { showRoastimeImport, type RoastimeImportDeps } from './page';
+export { showRoastimeSync, type RoastimeSyncDeps } from './page';

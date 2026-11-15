@@ -123,6 +123,67 @@ describe('sheetRecordTable', () => {
     expect(rowsOf(google)).toEqual([HEADERS]);
   });
 
+  it('changes several records in one write, and only the changed cells', async () => {
+    const { google, table } = setup();
+    const [a, b, c] = await table.addMany([{ name: 'A', kg: '1' }, { name: 'B', kg: '2' }, { name: 'C', kg: '3' }], 'me', t1);
+    if (!a || !b || !c) throw new Error('setup');
+    const result = await table.updateMany(
+      [
+        { id: a.id ?? '', changes: { kg: '10' }, loaded: a },
+        { id: c.id ?? '', changes: { name: 'C2', kg: '3' }, loaded: c },
+        { id: b.id ?? '', changes: { kg: '2' }, loaded: b }, // unchanged: not written
+      ],
+      t2,
+    );
+    expect(result.map((r) => [r.name, r.kg, r.updated_at])).toEqual([
+      ['A', '10', t2.toISOString()],
+      ['C2', '3', t2.toISOString()],
+      ['B', '2', t1.toISOString()],
+    ]);
+    const writes = google.requests.filter((r) => r.url.endsWith('/values:batchUpdate'));
+    expect(writes).toHaveLength(1);
+    expect((writes[0]?.body as { data: { range: string }[] }).data.map((d) => d.range)).toEqual(["'Items'!C2", "'Items'!E2", "'Items'!B4", "'Items'!E4"]);
+  });
+
+  it('can soft-delete and restore records within the same single write', async () => {
+    const { google, table } = setup();
+    const [a, b] = await table.addMany([{ name: 'A' }, { name: 'B' }], 'me', t1);
+    if (!a || !b) throw new Error('setup');
+    const removedB = await table.remove(b.id ?? '', b, t2);
+    google.requests.length = 0;
+    const result = await table.updateMany(
+      [
+        { id: a.id ?? '', changes: {}, loaded: a, deleted: true },
+        { id: b.id ?? '', changes: { kg: '4' }, loaded: removedB, deleted: false },
+      ],
+      t3,
+    );
+    expect(result.map((r) => [r.name, r.kg, r.deleted_at, r.updated_at])).toEqual([
+      ['A', '', t3.toISOString(), t3.toISOString()],
+      ['B', '4', '', t3.toISOString()],
+    ]);
+    expect(google.requests.filter((r) => r.url.endsWith('/values:batchUpdate'))).toHaveLength(1);
+    expect((await table.load()).records.map((r) => r.fields.deleted_at)).toEqual([t3.toISOString(), '']);
+  });
+
+  it('writes nothing at all if one of several edits conflicts', async () => {
+    const { google, table } = setup();
+    const [a, b] = await table.addMany([{ name: 'A' }, { name: 'B' }], 'me', t1);
+    if (!a || !b) throw new Error('setup');
+    await table.update(b.id ?? '', { kg: '5' }, b, t2); // someone else's change
+    const before = structuredClone(rowsOf(google));
+    await expect(
+      table.updateMany(
+        [
+          { id: a.id ?? '', changes: { kg: '1' }, loaded: a },
+          { id: b.id ?? '', changes: { kg: '9' }, loaded: b },
+        ],
+        t3,
+      ),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(rowsOf(google)).toEqual(before);
+  });
+
   it('reads back what it wrote', async () => {
     const { table } = setup();
     const a = await table.add({ name: 'Kenya', kg: '60' }, 'me', t1);

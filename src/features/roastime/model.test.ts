@@ -19,7 +19,8 @@ describe('kindOf', () => {
   it.each([
     ['roast-time/containers/C1', 'containers'],
     ['roast-time/beans/B1', 'beans'],
-    ['roast-time/roasts/R1', null],
+    ['roast-time/roasts/R1', 'roasts'],
+    ['roast-time/recipes/X', null],
     ['roast-time/containers/sub/C1', null],
     ['roast-time/db.sqlite3', null],
     ['roast-time/containers/.DS_Store', null],
@@ -42,11 +43,12 @@ describe('parseRoastimeFiles', () => {
     const data = parseRoastimeFiles([
       { path: 'roast-time/containers/C1', text: container() },
       { path: 'roast-time/beans/B1', text: bean() },
-      { path: 'roast-time/roasts/R1', text: 'not even json' },
+      { path: 'roast-time/recipes/X', text: 'not even json' },
     ]);
     expect(data).toEqual({
       containers: [{ id: 'C1', beanId: 'B1', startGrams: 60000, deleted: false, createdAt: new Date('2026-11-03T00:00:00Z') }],
       beans: [{ id: 'B1', name: 'Example Kenya', country: 'Kenya', region: 'Nyeri', process: 'Washed', vendorCode: 'V1' }],
+      roasts: [],
       problems: [],
     });
   });
@@ -80,5 +82,31 @@ describe('parseRoastimeFiles', () => {
       'RoasTime file containers/Z could not be read, so Kraken skipped it.',
       'RoasTime coffee beans/W has no ID, so Kraken skipped it.',
     ]);
+  });
+});
+
+describe('parseRoastimeFiles: roasts', () => {
+  // Made-up, shaped like docs/samples/roastime-roast.example.json (only the summary fields matter).
+  const roastFile = (o: Record<string, unknown> = {}) =>
+    JSON.stringify({ uid: 'R1', dateTime: Date.UTC(2026, 10, 3, 8, 15), roastName: 'Kenia 03.11.2026-1', beanId: 'B1', weightGreen: 1200, weightRoasted: 1026.5, beanTemperature: [1, 2, 3], ...o });
+
+  it('keeps only the summary of a roast', () => {
+    const data = parseRoastimeFiles([{ path: 'roast-time/roasts/R1', text: roastFile({ comments: ' a bit fast ' }) }]);
+    expect(data.roasts).toEqual([
+      { id: 'R1', roastedAt: new Date(Date.UTC(2026, 10, 3, 8, 15)), name: 'Kenia 03.11.2026-1', beanId: 'B1', greenGrams: 1200, roastedDecigrams: 10265, comment: 'a bit fast' },
+    ]);
+  });
+
+  it('reads weights written as text, and treats 0 or missing as not entered', () => {
+    const [a] = parseRoastimeFiles([{ path: 'roast-time/roasts/R1', text: roastFile({ weightGreen: '150', weightRoasted: '132.5' }) }]).roasts;
+    expect(a).toMatchObject({ greenGrams: 150, roastedDecigrams: 1325 });
+    const [b] = parseRoastimeFiles([{ path: 'roast-time/roasts/R1', text: roastFile({ weightGreen: 0, weightRoasted: 0, beanId: undefined }) }]).roasts;
+    expect(b).toMatchObject({ greenGrams: 0, roastedDecigrams: null, beanId: '' });
+    const [c] = parseRoastimeFiles([{ path: 'roast-time/roasts/R1', text: roastFile({ weightGreen: 'abc', weightRoasted: -5 }) }]).roasts;
+    expect(c).toMatchObject({ greenGrams: null, roastedDecigrams: null });
+  });
+
+  it('reports a roast without an ID', () => {
+    expect(parseRoastimeFiles([{ path: 'roast-time/roasts/X', text: roastFile({ uid: '' }) }]).problems).toEqual(['RoasTime roast roasts/X has no ID, so Kraken skipped it.']);
   });
 });

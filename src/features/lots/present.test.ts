@@ -50,6 +50,8 @@ describe('lotListRows', () => {
       priceMissing: false,
       supplier: '—',
       source: 'By hand',
+      stockLeft: '60\u00a0kg',
+      overdrawn: false,
       problems: [],
     });
   });
@@ -78,6 +80,27 @@ describe('lotListRows', () => {
     expect(row?.code).toBe('—');
     expect(row?.quantity).toBe('—');
     expect(row?.problems).toEqual(['Quantity "abc" in row 2 is not a number Kraken can read.']);
+  });
+});
+
+describe('stock left', () => {
+  it('shows the green coffee left per lot', () => {
+    const [row] = lotListRows([lot({})], false, new Map([['id-2', { usedGrams: 38500, leftGrams: 21500 }]]));
+    expect(row).toMatchObject({ stockLeft: '21,5\u00a0kg', overdrawn: false, stockNote: '' });
+  });
+
+  it('shows below zero when more was roasted than delivered, with a note', () => {
+    const [row] = lotListRows([lot({})], false, new Map([['id-2', { usedGrams: 62400, leftGrams: -2400 }]]));
+    expect(row).toMatchObject({
+      stockLeft: '−2,4\u00a0kg',
+      overdrawn: true,
+      stockNote: 'KENYA-26-11: 2,4\u00a0kg more roasted than delivered. Check the lots, or the coffee chosen in RoasTime.',
+    });
+  });
+
+  it('shows the delivered kg when nothing was counted yet, and a dash when it is unknown', () => {
+    expect(lotListRows([lot({})])[0]?.stockLeft).toBe('60\u00a0kg');
+    expect(lotListRows([lot({ quantity_kg: '' })], false, new Map([['id-2', { usedGrams: 0, leftGrams: null }]]))[0]?.stockLeft).toBe('—');
   });
 });
 

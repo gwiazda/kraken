@@ -5,7 +5,7 @@
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
 import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
-import { codeAfterChange, deletedCount, formPricePerKg, lotListRows, type LotListRow } from './present';
+import { codeAfterChange, deletedCount, formPricePerKg, lotListRows, type LotListRow, type StockByLot } from './present';
 import type { LotsRepository } from './repo';
 
 export interface LotsPageDeps {
@@ -21,8 +21,10 @@ export interface LotsPageDeps {
   isIgnorable: (error: unknown) => boolean;
   describeError: (error: unknown) => string;
   now: () => Date;
-  /** Opens the "Import from RoasTime" screen. */
-  openImport: () => void;
+  /** Opens "Sync with RoasTime". */
+  openSync: () => void;
+  /** Green coffee used and left per lot ID, counted from the roasts (oldest delivery first). */
+  loadStock: (lots: readonly Lot[]) => Promise<StockByLot>;
   /** The add/edit form opened (so the browser's Back closes it) / closed. */
   formOpened: () => void;
   formClosed: () => void;
@@ -83,6 +85,7 @@ const FIELDS: readonly FieldSpec[] = SECTIONS.flatMap((section) => section.field
 export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: string, fromClick = false): void {
   let lots: Lot[] = [];
   let problems: string[] = [];
+  let stock: StockByLot = new Map();
   let showDeleted = false;
 
   function render(...children: (Node | string)[]): void {
@@ -92,10 +95,24 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   /** `fromClick`: started by a click, so the sign-in may be renewed first (renew on the next click). */
   function load(note?: string, fromClick = false): void {
     render(el('p', {}, busy('Loading lots…')));
-    (fromClick ? deps.withGoogle(() => deps.repo.load()) : deps.repo.load())
+    const both = async () => {
+      const result = await deps.repo.load();
+      // Stock comes from the Roasts tab; if that cannot be read, the lots are still shown (with a note).
+      const stockResult = await deps.loadStock(result.lots).then(
+        (map) => ({ map, problem: '' }),
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          return { map: new Map() as StockByLot, problem: `Stock left could not be calculated: ${deps.describeError(error)}` };
+        },
+      );
+      return { ...result, stock: stockResult.map, problems: stockResult.problem ? [...result.problems, stockResult.problem] : result.problems };
+    };
+    (fromClick ? deps.withGoogle(both) : both())
       .then((result) => {
+        if (!root.isConnected) return;
         lots = result.lots;
         problems = result.problems;
+        stock = result.stock;
         showList(note);
       })
       .catch((error: unknown) => {
@@ -185,7 +202,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     deps.formClosed(); // the list replaces any open form
     const hidden = deletedCount(lots);
     if (hidden === 0) showDeleted = false; // the switch is not shown, so it must not stay on unseen
-    const rows = lotListRows(lots, showDeleted);
+    const rows = lotListRows(lots, showDeleted, stock);
 
     function rowNodes(row: LotListRow): HTMLTableRowElement[] {
       const cell = el('td', { class: 'row-actions nowrap' });
@@ -203,6 +220,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', {}, row.country),
         el('td', { class: 'nowrap' }, row.delivered),
         el('td', { class: 'num nowrap' }, row.quantity),
+        el('td', { class: `num nowrap${row.overdrawn ? ' overdrawn' : ''}` }, row.stockLeft),
         el('td', { class: 'num nowrap' }, row.pricePerKg ?? (row.priceMissing ? el('span', { class: 'badge' }, 'Price missing') : '—')),
         el('td', {}, row.supplier),
         el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
@@ -232,7 +250,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         confirmRow.replaceChildren(
           el(
             'td',
-            { colspan: '9' },
+            { colspan: '10' },
             el('span', {}, `Delete ${row.code}? It can be restored later under "Show deleted". `),
             button(
               'Yes, delete',
@@ -268,7 +286,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 el(
                   'tr',
                   {},
-                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Green price / kg', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
+                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left', 'Green price / kg', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
@@ -287,7 +305,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         'div',
         { class: 'page-head' },
         el('h2', {}, 'Green coffee lots'),
-        el('div', { class: 'head-actions' }, button('Import from RoasTime', () => deps.openImport(), 'secondary'), button('Add lot', () => showForm({ kind: 'add' }))),
+        el('div', { class: 'head-actions' }, button('Sync with RoasTime', () => deps.openSync(), 'secondary'), button('Add lot', () => showForm({ kind: 'add' }))),
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
@@ -295,6 +313,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       ...rows
         .filter((row) => row.problems.length > 0 && !row.deleted)
         .map((row) => message(`${row.code}: ${row.problems.join(' ')} Open Edit to correct it.`, 'error')),
+      ...rows.filter((row) => row.overdrawn && !row.deleted).map((row) => message(row.stockNote, 'error')),
       table,
       ...(hidden > 0
         ? [el('p', { class: 'show-deleted small' }, toggle, ' ', el('label', { for: 'show-deleted' }, `Show deleted (${hidden})`))]

@@ -1,5 +1,6 @@
 // Reading RoasTime's files (Aillio Bullet R2 PRO). The owner chooses the `roast-time` folder in Chrome; Kraken only
-// reads `containers/` (one file per green coffee delivery) and `beans/` (one file per coffee).
+// reads `containers/` (one file per green coffee delivery), `beans/` (one file per coffee) and `roasts/` (one file
+// per roast; Kraken keeps only the summary, never the temperature curves).
 // Pure: no screen, no Google. Made-up examples: docs/samples/roastime-*.example.json.
 
 /** The folder to choose, for the help box on the import screen. */
@@ -26,9 +27,25 @@ export interface RoastimeBean {
   readonly vendorCode: string;
 }
 
+/** One roast, as RoasTime saved it. */
+export interface RoastimeRoast {
+  readonly id: string;
+  readonly roastedAt: Date | null;
+  readonly name: string;
+  /** Empty when no coffee was chosen in RoasTime (e.g. samples). */
+  readonly beanId: string;
+  /** Green weight in whole grams; null if missing or not a number. */
+  readonly greenGrams: number | null;
+  /** Roasted weight in tenths of a gram; null if missing. */
+  readonly roastedDecigrams: number | null;
+  /** The roaster's comment in RoasTime, if any. */
+  readonly comment: string;
+}
+
 export interface RoastimeData {
   readonly containers: readonly RoastimeContainer[];
   readonly beans: readonly RoastimeBean[];
+  readonly roasts: readonly RoastimeRoast[];
   /** Files Kraken could not use, one sentence each. */
   readonly problems: readonly string[];
 }
@@ -49,13 +66,19 @@ function time(value: unknown): Date | null {
   return typeof seconds === 'number' && Number.isFinite(seconds) ? new Date(seconds * 1000) : null;
 }
 
-/** Which RoasTime folder a file is in ('containers' or 'beans'), from its path; null for every other file. */
-export function kindOf(path: string): 'containers' | 'beans' | null {
+/** A weight in grams written as a number or as text ("150", "132.5"); null if missing or not a non-negative number. */
+function weight(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value.trim()) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** Which RoasTime folder a file is in, from its path; null for every other file. */
+export function kindOf(path: string): 'containers' | 'beans' | 'roasts' | null {
   const parts = path.split('/');
   if (parts.length !== 3) return null; // roast-time / folder / file
   if ((parts[2] ?? '').startsWith('.')) return null; // hidden files macOS adds, e.g. .DS_Store
   const folder = parts[1];
-  return folder === 'containers' || folder === 'beans' ? folder : null;
+  return folder === 'containers' || folder === 'beans' || folder === 'roasts' ? folder : null;
 }
 
 /** True if the chosen files look like RoasTime's folder (so Kraken can say "wrong folder" clearly). */
@@ -66,6 +89,7 @@ export function looksLikeRoastimeFolder(paths: readonly string[]): boolean {
 export function parseRoastimeFiles(files: readonly FolderFile[]): RoastimeData {
   const containers: RoastimeContainer[] = [];
   const beans: RoastimeBean[] = [];
+  const roasts: RoastimeRoast[] = [];
   const problems: string[] = [];
   for (const file of files) {
     const kind = kindOf(file.path);
@@ -78,6 +102,25 @@ export function parseRoastimeFiles(files: readonly FolderFile[]): RoastimeData {
       json = parsed as Json;
     } catch {
       problems.push(`RoasTime file ${name} could not be read, so Kraken skipped it.`);
+      continue;
+    }
+    if (kind === 'roasts') {
+      const id = text(json.uid) || text(json.id);
+      if (id === '') {
+        problems.push(`RoasTime roast ${name} has no ID, so Kraken skipped it.`);
+        continue;
+      }
+      const green = weight(json.weightGreen);
+      const roasted = weight(json.weightRoasted);
+      roasts.push({
+        id,
+        roastedAt: time(json.dateTime),
+        name: text(json.roastName),
+        beanId: text(json.beanId),
+        greenGrams: green === null ? null : Math.round(green),
+        roastedDecigrams: roasted === null || roasted === 0 ? null : Math.round(roasted * 10),
+        comment: text(json.comments),
+      });
       continue;
     }
     if (kind === 'containers') {
@@ -106,5 +149,5 @@ export function parseRoastimeFiles(files: readonly FolderFile[]): RoastimeData {
       });
     }
   }
-  return { containers, beans, problems };
+  return { containers, beans, roasts, problems };
 }
