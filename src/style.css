@@ -561,3 +561,9 @@ h3 {
 .diff-list .new {
   color: var(--yellow);
 }
+
+/* While Kraken saves, the menu waits (Back too). */
+.saving .app-nav .btn-link {
+  opacity: 0.4;
+  cursor: wait;
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lotFromFields } from '../lots';
 import type { RoastimeBean, RoastimeContainer, RoastimeData } from './model';
-import { defaultDecision, differences, operations, planImport, type Decision } from './plan';
+import { defaultDecision, differences, newLotCodes, operations, planImport, type Decision } from './plan';
 
 const today = new Date(2026, 10, 15, 12);
 const container = (o: Partial<RoastimeContainer> = {}): RoastimeContainer => ({
@@ -76,7 +76,15 @@ describe('planImport: new deliveries', () => {
   it('gives two new deliveries in the same month different codes, after existing ones', () => {
     const existing = lot({ code: 'KENYA-26-11', quantity_kg: '1', roastime_container_id: 'OTHER' });
     const plan = planImport(data([container({ id: 'C1' }), container({ id: 'C2', createdAt: new Date(2026, 10, 20, 12) })]), [existing], today);
-    expect(plan.items.map((i) => (i.kind === 'new' ? i.fields.code : i.kind))).toEqual(['KENYA-26-11-B', 'KENYA-26-11-C']);
+    const both = new Map<string, Decision>([['C1', { action: 'add' }], ['C2', { action: 'add' }]]);
+    expect([...newLotCodes(plan, both).values()]).toEqual(['KENYA-26-11-B', 'KENYA-26-11-C']);
+    expect(operations(plan, both).map((op) => op.kind === 'add' && op.fields.code)).toEqual(['KENYA-26-11-B', 'KENYA-26-11-C']);
+  });
+
+  it('gives codes only to the deliveries that are added, so skipping leaves no gap', () => {
+    const plan = planImport(data([container({ id: 'C1' }), container({ id: 'C2', createdAt: new Date(2026, 10, 20, 12) })]), [], today);
+    const skipFirst = new Map<string, Decision>([['C1', { action: 'skip' }], ['C2', { action: 'add' }]]);
+    expect(newLotCodes(plan, skipFirst)).toEqual(new Map([['C2', 'KENYA-26-11']]));
   });
 
   it('fills in the supplier already known for the same RoasTime supplier code', () => {
@@ -118,7 +126,7 @@ describe('planImport: new deliveries', () => {
   it('reports a delivery whose coffee is missing', () => {
     const plan = planImport(data([container()], []), [], today);
     expect(plan.items).toEqual([]);
-    expect(plan.problems).toEqual(['A RoasTime delivery (60 kg) points to a coffee Kraken cannot find, so it was skipped.']);
+    expect(plan.problems).toEqual(['A RoasTime delivery (60\u00a0kg) points to a coffee Kraken cannot find, so it was skipped.']);
   });
 });
 
@@ -141,6 +149,23 @@ describe('planImport: deliveries already in Kraken', () => {
   it('never proposes to empty a field RoasTime has no value for', () => {
     const [item] = planImport(data([container()], [bean({ region: '', process: '' })]), [linked()], today).items;
     expect(item?.kind).toBe('same');
+  });
+
+  it('never offers a change the lot form would refuse (0 kg, too long), and says why', () => {
+    const plan = planImport(data([container({ startGrams: 0 })], [bean({ name: 'x'.repeat(201) })]), [linked()], today);
+    expect(plan.items.map((i) => i.kind)).toEqual(['same']);
+    expect(plan.problems).toEqual([
+      'RoasTime has a change for KENYA-26-11 that Kraken cannot store: the name is longer than 200 characters. Correct it in RoasTime.',
+      'RoasTime has a change for KENYA-26-11 that Kraken cannot store: the quantity would be 0 kg. Correct it in RoasTime.',
+    ]);
+  });
+
+  it('reports two lots linked to the same RoasTime delivery, and compares the active one', () => {
+    const first = linked({ code: 'KENYA-26-11', deleted_at: '2026-11-10T10:00:00.000Z' });
+    const second = linked({ code: 'KENYA-26-11-B' });
+    const plan = planImport(data([container()]), [first, second], today);
+    expect(plan.problems).toEqual(['Lots KENYA-26-11 and KENYA-26-11-B are all linked to the same RoasTime delivery. Delete the extra one in Kraken.']);
+    expect(plan.items[0]).toMatchObject({ kind: 'same', lot: second });
   });
 
   it('only notes a delivery deleted in RoasTime (Kraken deletes nothing)', () => {

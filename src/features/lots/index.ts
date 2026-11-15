@@ -3,7 +3,6 @@
 export {
   LOTS_TAB,
   LOT_COLUMNS,
-  countryCode,
   emptyLotForm,
   formFromLot,
   greenPricePerKg,

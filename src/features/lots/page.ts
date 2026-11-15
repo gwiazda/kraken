@@ -26,6 +26,8 @@ export interface LotsPageDeps {
   /** The add/edit form opened (so the browser's Back closes it) / closed. */
   formOpened: () => void;
   formClosed: () => void;
+  /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
+  busy: (on: boolean) => void;
 }
 
 const PRICE_TIP = 'Entered by hand. Not imported from RoasTime.';
@@ -150,8 +152,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
    */
   function change(lot: Lot, kind: 'remove' | 'restore', progress: () => void): void {
     progress();
+    deps.busy(true);
     deps
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(lot, deps.now()) : deps.repo.restore(lot, deps.now())))
+      .finally(() => deps.busy(false))
       .then((saved) => {
         if (!root.isConnected) return; // the user went to another page meanwhile
         load(kind === 'remove' ? `Deleted ${saved.code}. You can bring it back with "Show deleted", then Restore.` : `Restored ${saved.code}.`);
@@ -392,12 +396,14 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       showErrors({});
       banner.replaceChildren();
       setBusy(true);
+      deps.busy(true);
       deps
         .withGoogle(async () =>
           mode.kind === 'add'
             ? deps.repo.add(result.fields, await deps.whoAmI(), deps.now())
             : deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now()),
         )
+        .finally(() => deps.busy(false))
         .then((saved) => load(`Saved ${saved.code}.`))
         .catch((error: unknown) => {
           setBusy(false);

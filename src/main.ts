@@ -52,35 +52,58 @@ function show(...children: Child[]): void {
 
 /** The connected sheet, while one of its screens is shown. */
 let openSheet: SpreadsheetInfo | null = null;
-/** History moves Kraken makes itself (e.g. leaving a form) whose popstate must be ignored. */
+/** The screen shown now (to put it back if Back is pressed while saving). */
+let currentScreen: Screen = 'lots';
+/** True while Kraken saves to Google: Back and the menu wait, so nothing is left running unseen. */
+let saving = false;
+/** History moves Kraken makes itself (stepping back over a closed form or import) whose popstate must be ignored. */
 let ownMoves = 0;
 
 /** 'push': a new history entry (a click); 'replace': this entry becomes the screen; 'none': came from Back/Forward. */
 type HistoryMove = 'push' | 'replace' | 'none';
 
 function record(screen: Screen, move: HistoryMove): void {
+  currentScreen = screen;
   if (move === 'push') window.history.pushState(stateFor(screen), '', `#${screen}`);
   if (move === 'replace') window.history.replaceState(stateFor(screen), '', `#${screen}`);
 }
 
-/** Steps back over a history entry Kraken itself added (the form, the import), without reacting to it. */
+/**
+ * Steps back over a history entry Kraken itself added (an open form, the import), without reacting to it, so the
+ * history stays clean. Done at most once at a time; a safety timer clears the counter if the browser never answers.
+ */
 function leave(screen: Screen): void {
-  if (screenOf(window.history.state) !== screen) return;
-  ownMoves++;
+  if (screenOf(window.history.state) !== screen || ownMoves > 0) return;
+  ownMoves = 1;
   window.history.back();
+  window.setTimeout(() => (ownMoves = 0), 1000);
+}
+
+/** How a menu click moves: back to the same screen (or out of an open form) replaces, anything else adds a step. */
+function menuMove(target: Screen): HistoryMove {
+  const now = screenOf(window.history.state);
+  return now === target || now === 'lot-form' ? 'replace' : 'push';
 }
 
 window.addEventListener('popstate', (event) => {
   if (ownMoves > 0) {
-    ownMoves--;
+    ownMoves = 0;
     return;
   }
   const info = openSheet;
   if (!info) return;
+  if (saving) {
+    window.history.pushState(stateFor(currentScreen), '', `#${currentScreen}`); // stay: Kraken is saving
+    return;
+  }
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'import') showImport(info, 'none');
-  else showLots(info, undefined, false, 'none'); // a form cannot be brought back: Forward shows the list
+  else {
+    // A form cannot be brought back with Forward: that entry becomes the list.
+    if (screen === 'lot-form') window.history.replaceState(stateFor('lots'), '', '#lots');
+    showLots(info, undefined, false, 'none');
+  }
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
@@ -94,7 +117,16 @@ function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElemen
     return b;
   };
   app.replaceChildren(
-    el('nav', { class: 'app-nav', 'aria-label': 'Kraken' }, tab('Lots', 'lots', () => showLots(info, undefined, true)), tab('Settings', 'settings', () => showSettings(info))),
+    el(
+      'nav',
+      { class: 'app-nav', 'aria-label': 'Kraken' },
+      tab('Lots', 'lots', () => {
+        if (!saving) showLots(info, undefined, true, menuMove('lots'));
+      }),
+      tab('Settings', 'settings', () => {
+        if (!saving) showSettings(info, menuMove('settings'));
+      }),
+    ),
     page,
   );
   return page;
@@ -311,7 +343,14 @@ function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
     now: () => new Date(),
     openImport: () => showImport(info),
     formOpened: () => record('lot-form', 'push'),
-    formClosed: () => leave('lot-form'),
+    formClosed: () => {
+      currentScreen = 'lots';
+      leave('lot-form');
+    },
+    busy: (on) => {
+      saving = on;
+      app.classList.toggle('saving', on);
+    },
   };
 }
 
@@ -324,6 +363,7 @@ function showImport(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
     backToLots: (note) => {
       leave('import');
       showLots(info, note, true, 'none');
+      currentScreen = 'lots';
     },
   });
 }

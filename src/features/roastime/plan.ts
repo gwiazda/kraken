@@ -36,6 +36,8 @@ export type ImportItem =
 export interface ImportPlan {
   readonly items: readonly ImportItem[];
   readonly problems: readonly string[];
+  /** Codes of the lots already in Kraken (deleted ones too), so new codes never clash. */
+  readonly existingCodes: readonly string[];
 }
 
 const LABELS: Record<DiffColumn, string> = { name: 'Name', country: 'Country', region: 'Region', process: 'Process', quantity_kg: 'Quantity' };
@@ -66,16 +68,42 @@ export function differences(lot: Lot, container: RoastimeContainer, bean: Roasti
     }));
 }
 
+/** Why a RoasTime value cannot be stored on an existing lot (the lot form's rules), or null if it can. */
+function invalidValue(difference: Difference): string | null {
+  if (difference.column === 'quantity_kg' && difference.value === '0') return 'the quantity would be 0 kg';
+  if (difference.value.length > MAX_TEXT) return `the ${difference.label.toLowerCase()} is longer than ${MAX_TEXT} characters`;
+  return null;
+}
+
+const MAX_TEXT = 200;
+
 export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date): ImportPlan {
   const problems = [...data.problems];
   const beans = new Map(data.beans.map((bean) => [bean.id, bean]));
-  /** Codes given to new lots earlier in this same import. */
-  const plannedCodes: string[] = [];
+  const existingCodes = lots.map((lot) => lot.code);
   const items: ImportItem[] = [];
+
+  // Lots per RoasTime delivery. Two lots for one delivery is a mistake to report (stock would count twice).
+  const linked = new Map<string, Lot[]>();
+  for (const lot of lots) {
+    if (lot.roastime.containerId !== '') linked.set(lot.roastime.containerId, [...(linked.get(lot.roastime.containerId) ?? []), lot]);
+  }
+  for (const group of linked.values()) {
+    if (group.length > 1) {
+      problems.push(`Lots ${group.map((l) => l.code).join(' and ')} are all linked to the same RoasTime delivery. Delete the extra one in Kraken.`);
+    }
+  }
+  const supplierByVendor = new Map<string, string>();
+  for (const lot of lots) {
+    if (lot.roastime.supplierCode !== '' && lot.supplier !== '' && !supplierByVendor.has(lot.roastime.supplierCode)) {
+      supplierByVendor.set(lot.roastime.supplierCode, lot.supplier);
+    }
+  }
 
   const ordered = [...data.containers].sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
   for (const container of ordered) {
-    const lot = lots.find((l) => l.roastime.containerId === container.id);
+    const group = linked.get(container.id) ?? [];
+    const lot = group.find((l) => l.deletedAt === '') ?? group[0];
     if (lot) {
       if (lot.deletedAt !== '') items.push({ kind: 'deleted-in-kraken', container, lot });
       else if (container.deleted) items.push({ kind: 'deleted-in-roastime', container, lot });
@@ -85,7 +113,12 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
           problems.push(`RoasTime delivery for ${lot.code} points to a coffee Kraken cannot find, so it was not compared.`);
           continue;
         }
-        const diff = differences(lot, container, bean);
+        // The same rules as the lot form: a RoasTime value Kraken could not store is reported, not offered.
+        const diff = differences(lot, container, bean).filter((d) => {
+          const reason = invalidValue(d);
+          if (reason) problems.push(`RoasTime has a change for ${lot.code} that Kraken cannot store: ${reason}. Correct it in RoasTime.`);
+          return reason === null;
+        });
         items.push(diff.length > 0 ? { kind: 'changed', container, bean, lot, differences: diff } : { kind: 'same', container, lot });
       }
       continue;
@@ -93,17 +126,16 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
     if (container.deleted) continue; // deleted in RoasTime and never in Kraken: nothing to do
     const bean = beans.get(container.beanId);
     if (!bean) {
-      problems.push(`A RoasTime delivery (${kgText(container.startGrams)} kg) points to a coffee Kraken cannot find, so it was skipped.`);
+      problems.push(`A RoasTime delivery (${formatKg(container.startGrams)}) points to a coffee Kraken cannot find, so it was skipped.`);
       continue;
     }
     const deliveryDate = localDate(container.createdAt ?? today);
-    const code = suggestCode(bean.country, deliveryDate, [...lots.map((l) => l.code), ...plannedCodes]);
-    const supplier =
-      bean.vendorCode === '' ? '' : (lots.find((l) => l.roastime.supplierCode === bean.vendorCode && l.supplier !== '')?.supplier ?? '');
+    const supplier = supplierByVendor.get(bean.vendorCode) ?? '';
     // The same checks as a lot typed by hand (code, name, country, kg, lengths), so an import never stores a broken lot.
+    // The final code is given when the owner has chosen what to add (see newLotCodes), so skipped ones leave no gaps.
     const checked = validateLotForm(
       {
-        code,
+        code: suggestCode(bean.country, deliveryDate, existingCodes),
         name: bean.name,
         country: bean.country,
         region: bean.region,
@@ -117,15 +149,13 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
         deliveryCost: '',
         notes: '',
       },
-      // Only `code` of the other lots is used by the uniqueness check.
-      [...lots, ...plannedCodes.map((c) => ({ code: c }) as Lot)],
+      lots,
     );
     if (!checked.ok) {
-      const what = `RoasTime delivery "${bean.name || 'no name'}" (${kgText(container.startGrams)} kg)`;
+      const what = `RoasTime delivery "${bean.name || 'no name'}" (${formatKg(container.startGrams)})`;
       problems.push(`${what} cannot be imported: ${Object.values(checked.errors).join(' ')} Correct it in RoasTime, or add the lot by hand.`);
       continue;
     }
-    plannedCodes.push(checked.fields.code ?? code);
     items.push({
       kind: 'new',
       container,
@@ -138,7 +168,23 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
       },
     });
   }
-  return { items, problems };
+  return { items, problems, existingCodes };
+}
+
+/**
+ * The codes of the new lots the owner chose to add, given in delivery order: KENYA-26-11, then -B… A skipped
+ * delivery gets no code, so the added ones have no gaps.
+ */
+export function newLotCodes(plan: ImportPlan, decisions: ReadonlyMap<string, Decision>): Map<string, string> {
+  const taken = [...plan.existingCodes];
+  const codes = new Map<string, string>();
+  for (const item of plan.items) {
+    if (item.kind !== 'new' || decisions.get(item.container.id)?.action !== 'add') continue;
+    const code = suggestCode(item.fields.country ?? '', item.fields.delivery_date ?? '', taken);
+    taken.push(code);
+    codes.set(item.container.id, code);
+  }
+  return codes;
 }
 
 /** The owner's choice for one item. `accept`: the differences to write (for a changed lot). */
@@ -158,11 +204,13 @@ export type Operation =
 /** Turns the plan and the choices into the writes to make. Items without a choice (or skipped) write nothing. */
 export function operations(plan: ImportPlan, decisions: ReadonlyMap<string, Decision>): Operation[] {
   const ops: Operation[] = [];
+  const codes = newLotCodes(plan, decisions);
   for (const item of plan.items) {
     const decision = decisions.get(item.container.id);
     if (!decision || decision.action === 'skip') continue;
     if (item.kind === 'new' && decision.action === 'add') {
-      ops.push({ kind: 'add', fields: item.fields, label: `Add ${item.fields.code}` });
+      const code = codes.get(item.container.id) ?? item.fields.code ?? '';
+      ops.push({ kind: 'add', fields: { ...item.fields, code }, label: `Add ${code}` });
     } else if (item.kind === 'changed' && decision.action === 'update') {
       const accepted = item.differences.filter((d) => decision.accept.includes(d.column));
       if (accepted.length > 0) {

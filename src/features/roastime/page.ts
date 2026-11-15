@@ -2,12 +2,13 @@
 // Chrome cannot remember a folder inside ~/Library (it calls it "system files"), so the folder is chosen each time
 // with the classic folder chooser; the help box keeps the path one click away (owner's request, 2026-11-15).
 
+import { formatKg } from '../../core/numbers';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { ImportStopped, applyImport, summaryOf } from './apply';
 import type { LotsRepository } from '../lots';
 import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile, type RoastimeData } from './model';
-import { defaultDecision, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
+import { defaultDecision, newLotCodes, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
 
 export interface RoastimeImportDeps {
   repo: LotsRepository;
@@ -23,6 +24,8 @@ export interface RoastimeImportDeps {
   now: () => Date;
   /** Back to the Lots list, with an optional note ("Imported …"). */
   backToLots: (note?: string) => void;
+  /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
+  busy: (on: boolean) => void;
 }
 
 export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps): void {
@@ -136,7 +139,11 @@ export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps):
 
     const importButton = button('Import selected', () => apply());
     const summary = el('span', { class: 'muted small' });
+    /** The code shown next to "Add as a new lot", updated when deliveries are skipped (codes have no gaps). */
+    const codeLabels = new Map<string, HTMLElement>();
     const refresh = () => {
+      const codes = newLotCodes(plan, decisions);
+      for (const [id, label] of codeLabels) label.textContent = codes.get(id) ?? '';
       const count = operations(plan, decisions).length;
       importButton.disabled = count === 0;
       summary.textContent = count === 0 ? ' Nothing selected.' : ` ${count} change${count === 1 ? '' : 's'} to save.`;
@@ -166,14 +173,16 @@ export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps):
 
     const newCard = (item: Extract<ImportItem, { kind: 'new' }>) => {
       const id = `rt-${item.container.id}`;
-      const choice = (value: 'add' | 'skip', label: string) => {
+      const codeLabel = el('strong', { class: 'new-code' });
+      codeLabels.set(item.container.id, codeLabel);
+      const choice = (value: 'add' | 'skip', label: string, extra?: Node) => {
         const radio = el('input', { type: 'radio', name: id, id: `${id}-${value}`, value });
         radio.checked = decisions.get(item.container.id)?.action === value;
         radio.addEventListener('change', () => {
           decisions.set(item.container.id, { action: value });
           refresh();
         });
-        return el('li', {}, radio, ' ', el('label', { for: `${id}-${value}` }, label));
+        return el('li', {}, radio, ' ', el('label', { for: `${id}-${value}` }, label, ...(extra ? [' ', extra] : [])));
       };
       return el(
         'div',
@@ -182,9 +191,9 @@ export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps):
           'p',
           {},
           el('strong', {}, item.fields.name || '(no name)'),
-          ` · ${item.fields.country || 'no country'} · ${item.fields.quantity_kg} kg · delivered ${item.fields.delivery_date}`,
+          ` · ${item.fields.country || 'no country'} · ${formatKg(item.container.startGrams)} · delivered ${item.fields.delivery_date}`,
         ),
-        el('ul', { class: 'choice-list' }, choice('add', `Add as a new lot ${item.fields.code}`), choice('skip', 'Skip for now')),
+        el('ul', { class: 'choice-list' }, choice('add', 'Add as a new lot', codeLabel), choice('skip', 'Skip for now')),
       );
     };
 
@@ -235,8 +244,10 @@ export function showRoastimeImport(root: HTMLElement, deps: RoastimeImportDeps):
       if (ops.length === 0) return;
       const step = (text: string) => render(el('p', {}, busy(text)));
       step('Importing…');
+      deps.busy(true);
       deps
         .withGoogle(() => applyImport(ops, { repo: deps.repo, whoAmI: deps.whoAmI, now: deps.now, onProgress: step }))
+        .finally(() => deps.busy(false))
         .then((result) => {
           if (root.isConnected) deps.backToLots(`Imported from RoasTime: ${summaryOf(result)}.`);
         })
