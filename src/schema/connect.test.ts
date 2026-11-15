@@ -68,14 +68,18 @@ describe('createKrakenSpreadsheet', () => {
     expect(request?.body).toEqual(newSpreadsheetBody('Kraken', { title: META_TAB, rows: initialMetaRows(created) }));
   });
 
-  it('writes _meta rows that Kraken itself accepts as an up-to-date sheet', () => {
-    const body = newSpreadsheetBody('Kraken', { title: META_TAB, rows: initialMetaRows(created) }) as {
+  it('sends _meta rows that Kraken itself accepts as an up-to-date sheet', async () => {
+    const client = fakeClient([{ body: resource }]);
+    await createKrakenSpreadsheet(client, 'Kraken', created);
+    const body = client.requests[0]?.body as {
       sheets: { properties: { title: string }; data: { rowData: { values: { userEnteredValue: { stringValue: string } }[] }[] }[] }[];
     };
+    expect(body.sheets).toHaveLength(1);
     const sheet = body.sheets[0];
     expect(sheet?.properties.title).toBe(META_TAB);
     const rows = sheet?.data[0]?.rowData.map((row) => row.values.map((cell) => cell.userEnteredValue.stringValue));
     expect(checkMeta(rows).kind).toBe('ok');
+    expect(rows).toContainEqual(['created_at', '2026-01-15T10:00:00.000Z']);
   });
 });
 

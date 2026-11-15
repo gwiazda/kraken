@@ -50,7 +50,7 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Known Google issue (diagnosed 2026-11-09): on a person's **first** sign-in, GIS reports `popup_closed` during the
   "unverified app" / allow screens and never delivers the token; the consent is still saved, so the second click works.
   Owner chose to handle it with a clear "click again" message (option A), not a redirect flow or publishing the app.
-  `npm run dev` shows a sign-in log under the page (`src/auth/devLog.ts`, never in the live build) for diagnosing sign-in.
+  `npm run dev` shows a sign-in log under the page (`src/ui/devLog.ts`, never in the live build) for diagnosing sign-in.
 
 ## Code structure (owner agreed 2026-11-15)
 Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
@@ -61,7 +61,7 @@ test that reads every import line), so CI fails if a rule is broken.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open and check a sheet; later backup and migrations.
 - `features/<name>/` (e.g. `lots`): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (coming with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs.
+- `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs.
 - Rules: imports only point down (feature → ui/schema/auth → core → config); `auth`, `schema` and each feature are imported
   only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 

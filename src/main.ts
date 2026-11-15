@@ -10,7 +10,6 @@ import {
   onSignInLog,
   signIn,
   signOut,
-  startDevSignInLog,
   withFreshToken,
 } from './auth';
 import { NEW_SHEET_TITLE } from './config';
@@ -18,6 +17,7 @@ import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet } from './schema';
+import { startDevSignInLog } from './ui/devLog';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
 if (!appRoot) throw new Error('Missing #app element in index.html');
