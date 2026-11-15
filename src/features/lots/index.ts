@@ -12,6 +12,7 @@ export {
   priceMissing,
   sortLots,
   suggestCode,
+  validateLotDetails,
   validateLotForm,
   type Lot,
   type LotForm,

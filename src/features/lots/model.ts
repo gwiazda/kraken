@@ -267,6 +267,17 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
   };
 }
 
+/**
+ * Checks the lot form of the Lots page, which has no price fields (owner, 2026-11-16: prices are edited under
+ * Costs & prices). The prices are left out of the check and of the fields to store, so they are never touched here.
+ */
+export function validateLotDetails(form: LotForm, others: readonly Lot[]): ReturnType<typeof validateLotForm> {
+  const result = validateLotForm({ ...form, coffeePrice: '', deliveryCost: '' }, others);
+  if (!result.ok) return result;
+  const { coffee_price_net_pln: _price, delivery_cost_net_pln: _delivery, ...fields } = result.fields;
+  return { ok: true, fields };
+}
+
 /** Newest delivery first; same day by code. */
 export function sortLots(lots: readonly Lot[]): Lot[] {
   return [...lots].sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate) || a.code.localeCompare(b.code));

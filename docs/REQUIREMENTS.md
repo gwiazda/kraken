@@ -65,6 +65,9 @@ Background columns (not shown as normal columns): `id`, `roastime_container_id`,
   Delivery, Price (with the calculated green price per kg) and Notes (owner's request). Delete asks once on a full-width
   line under the lot; "Show deleted (N)" lists deleted lots greyed out with Restore; a spinner shows while Google works.
   The RoasTime import is described below.
+- **[R] Prices moved (owner, 2026-11-16):** the Lots page shows the lot itself (description, delivery, stock left);
+  the coffee price and delivery cost are edited on the lot's card under **Costs & prices** ("Edit price", with the
+  green price per kg shown while typing). The data stays in the same Lots columns.
 
 **[R] Computed by the app (never stored)**
 - Green price per kg = (coffee price + delivery cost) ÷ quantity delivered.
@@ -77,9 +80,8 @@ Background columns (not shown as normal columns): `id`, `roastime_container_id`,
 
 ## 2. Bag sizes (bag stock deferred)
 
-**[R] Bag sizes:** **250 g** and **1 kg** for now, but other sizes must be possible.
-**[P]** Bag sizes are a configurable list (a "Bag sizes" tab), not hard-coded. They are used by invoice
-requests (section 4), price lists (section 5) and the cost calculation (section 6).
+**[R] Bag sizes are fixed (owner, 2026-11-16): 250 g, 500 g and 1 kg.** They are set in the code (no editor), and
+used by the cost calculation (section 6), and later by invoice requests (section 4) and price lists (section 5).
 
 **[R] Out of scope:** web shop sales (krakshop.pl) and cash register sales are **not** recorded in Kraken.
 Only invoice requests are (section 4).
@@ -285,11 +287,14 @@ Flexible enough to generate prices for any discount.
 - **All costs are net** (lot prices, delivery, bag items). Markup × cost of one bag = net price; gross = net × (1 + VAT).
 - Amounts are exact during the calculation and rounded to the grosz (half up) only on the screen.
 
-**Built (part 1, 2026-11-16):** a "Costs & prices" menu tab: one card per lot (green price per kg, roast loss with
-its source and "Change", roasted from 1 kg, cost of 1 kg roasted, and per bag size: coffee, items, cost of one bag,
-net and gross price at each markup). Below: settings (VAT, markups, default loss) and bag sizes with their cost items
-(add, edit, delete). Tabs (data version 4): `Cost settings` (name, value), `Bag sizes` (size_g), `Bag costs`
-(bag_size_id, item, cost_net_pln), `Lot costs` (lot_id, roast_loss_percent).
+**Built (part 1, 2026-11-16):** a "Costs & prices" menu tab with two parts:
+- **Prices per lot:** one card per lot: its price ("Edit price"), green price per kg, roast loss with its source and
+  "Change", roasted from 1 kg, cost of 1 kg roasted, and for 250 g, 500 g and 1 kg: coffee, items, cost of one bag,
+  net and gross price at each markup.
+- **Bag costs & settings:** the cost items of each bag size (add, edit, delete); VAT, markups, default loss.
+Tabs (data version 4): `Cost settings` (name, value), `Bag costs` (bag_size_id = the size in grams, item,
+cost_net_pln), `Lot costs` (lot_id, roast_loss_percent). The `Bag sizes` tab version 4 also added is not used
+(sizes are fixed; the owner may delete it).
 **Next (part 2):** the final gross price per lot and bag size (typed), with the net price and B2B −15 %; old prices kept.
 
 ---

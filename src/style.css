@@ -704,3 +704,32 @@ details summary {
 .inline-form .save-status {
   flex-basis: 100%;
 }
+
+.sub-nav {
+  display: flex;
+  gap: 1.25rem;
+  margin: -0.5rem 0 1rem;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.sub-nav .btn-link {
+  padding: 0.4rem 0;
+  border-bottom: 2px solid transparent;
+  color: var(--grey);
+  text-decoration: none;
+}
+
+.sub-nav .btn-link[aria-current='page'] {
+  color: var(--yellow);
+  border-bottom-color: var(--yellow);
+}
+
+.input-money {
+  width: 9rem;
+}
+
+.bag-sizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0 2rem;
+}

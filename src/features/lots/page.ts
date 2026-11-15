@@ -4,8 +4,8 @@
 
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
-import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
-import { codeAfterChange, deletedCount, formPricePerKg, lotListRows, type LotListRow, type StockByLot } from './present';
+import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotDetails, type Lot, type LotForm, type LotFormErrors } from './model';
+import { codeAfterChange, deletedCount, lotListRows, type LotListRow, type StockByLot } from './present';
 import type { LotsRepository } from './repo';
 
 export interface LotsPageDeps {
@@ -32,7 +32,6 @@ export interface LotsPageDeps {
   busy: (on: boolean) => void;
 }
 
-const PRICE_TIP = 'Entered by hand. Not imported from RoasTime.';
 
 type Mode = { kind: 'add' } | { kind: 'edit'; lot: Lot };
 
@@ -46,8 +45,8 @@ interface FieldSpec {
   required?: boolean;
 }
 
-/** The form, in sections (owner, 2026-11-15: coffee details together, delivery together, prices together). */
-const SECTIONS: readonly { title: string; fields: readonly FieldSpec[]; pricePerKg?: true }[] = [
+/** The form, in sections (owner, 2026-11-15). Prices are edited under Costs & prices (owner, 2026-11-16). */
+const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   {
     title: 'Coffee',
     fields: [
@@ -67,14 +66,6 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[]; pricePer
       { key: 'quantityKg', label: 'Quantity delivered (kg)', decimal: true, required: true },
       { key: 'supplier', label: 'Supplier' },
     ],
-  },
-  {
-    title: 'Price',
-    fields: [
-      { key: 'coffeePrice', label: 'Coffee price, net (PLN)', hint: 'Whole delivery. Can be entered later.', tip: PRICE_TIP, decimal: true },
-      { key: 'deliveryCost', label: 'Delivery cost, net (PLN)', hint: 'Whole delivery. Leave empty if none.', tip: PRICE_TIP, decimal: true },
-    ],
-    pricePerKg: true,
   },
   { title: 'Notes', fields: [{ key: 'notes', label: 'Notes', type: 'textarea' }] },
 ];
@@ -221,7 +212,6 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'nowrap' }, row.delivered),
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: `num nowrap${row.overdrawn ? ' overdrawn' : ''}` }, row.stockLeft),
-        el('td', { class: 'num nowrap' }, row.pricePerKg ?? (row.priceMissing ? el('span', { class: 'badge' }, 'Price missing') : '—')),
         el('td', {}, row.supplier),
         el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,
@@ -250,7 +240,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         confirmRow.replaceChildren(
           el(
             'td',
-            { colspan: '10' },
+            { colspan: '9' },
             el('span', {}, `Delete ${row.code}? It can be restored later under "Show deleted". `),
             button(
               'Yes, delete',
@@ -286,7 +276,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 el(
                   'tr',
                   {},
-                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left', 'Green price / kg', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
+                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
@@ -353,23 +343,9 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       fieldNodes.set(spec.key, node);
     });
 
-    const readForm = (): LotForm => Object.fromEntries(FIELDS.map((spec) => [spec.key, inputs[spec.key].value])) as unknown as LotForm;
+    // The price fields are not on this form: they keep the lot's values (and are never written from here).
+    const readForm = (): LotForm => ({ ...initial, ...(Object.fromEntries(FIELDS.map((spec) => [spec.key, inputs[spec.key].value])) as Partial<LotForm>) });
 
-    // Calculated, not typed: shown in the Price section like a field, updated while typing.
-    const perKgValue = el('output', { class: 'calc-value', for: 'lot-coffeePrice lot-deliveryCost lot-quantityKg', 'aria-live': 'polite' });
-    const perKgHint = el('p', { class: 'field-hint' });
-    const pricePerKgField = el(
-      'div',
-      { class: 'field field-calc' },
-      el('span', { class: 'label' }, 'Green price per kg ', infoTip('Calculated by Kraken: (coffee price + delivery cost) ÷ kg delivered.')),
-      perKgValue,
-      perKgHint,
-    );
-    const updatePreview = () => {
-      const perKg = formPricePerKg(readForm());
-      perKgValue.textContent = perKg ?? '—';
-      perKgHint.textContent = perKg ? 'Calculated automatically.' : 'Shown when price and quantity are filled in.';
-    };
     const updateCode = () => {
       inputs.code.value = codeAfterChange(readForm(), codeTyped, otherCodes);
     };
@@ -379,9 +355,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     });
     inputs.country.addEventListener('input', updateCode);
     inputs.deliveryDate.addEventListener('input', updateCode);
-    for (const key of ['coffeePrice', 'deliveryCost', 'quantityKg'] as const) inputs[key].addEventListener('input', updatePreview);
     if (!codeTyped) updateCode();
-    updatePreview();
 
     const banner = el('div', { class: 'form-banner' });
     // A real submit button inside the form: clicking it or pressing Enter in a field both save.
@@ -406,7 +380,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     // Called directly inside the Save click, so a sign-in renewal can open Google's window.
     function save(): void {
       const form = readForm();
-      const result = validateLotForm(form, others);
+      const result = validateLotDetails(form, others);
       if (!result.ok) {
         showErrors(result.errors);
         banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
@@ -456,7 +430,6 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
             'div',
             { class: 'fields' },
             ...section.fields.map((spec) => fieldNodes.get(spec.key) ?? ''),
-            ...(section.pricePerKg ? [pricePerKgField] : []),
           ),
         ),
       ),

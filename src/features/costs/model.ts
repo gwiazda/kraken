@@ -1,5 +1,6 @@
 // Costs & prices: the tabs, what a row means, and checking what the owner types. Pure: no Google, no screen.
-// Settings (VAT, markups, default roast loss), bag sizes with their cost items, and a per-lot roast loss override.
+// Settings (VAT, markups, default roast loss), the cost items of each bag size, a per-lot roast loss override, and
+// the lot's price (stored on the Lots tab, edited here: owner, 2026-11-16).
 // Rules agreed with the owner on 2026-11-16 (docs/REQUIREMENTS.md section 6): all costs are net; markups give the
 // net price; gross = net × (1 + VAT); roast loss = the average of the lot's roasts unless the owner types one.
 
@@ -9,9 +10,8 @@ type Fields = Readonly<Record<string, string>>;
 
 export const SETTINGS_TAB = 'Cost settings';
 export const SETTING_COLUMNS = ['name', 'value'] as const;
-export const BAG_SIZES_TAB = 'Bag sizes';
-export const BAG_SIZE_COLUMNS = ['size_g'] as const;
 export const BAG_COSTS_TAB = 'Bag costs';
+/** `bag_size_id` holds the bag size in grams ("250", "500", "1000"). */
 export const BAG_COST_COLUMNS = ['bag_size_id', 'item', 'cost_net_pln'] as const;
 export const LOT_COSTS_TAB = 'Lot costs';
 export const LOT_COST_COLUMNS = ['lot_id', 'roast_loss_percent'] as const;
@@ -154,36 +154,18 @@ export function validateSettingsForm(form: SettingsForm): { ok: true; values: Re
 
 // ---- Bag sizes and their costs ----
 
-export interface BagSize {
-  readonly id: string;
-  readonly row: number;
-  /** Grams of roasted coffee in the bag; null if the cell cannot be read. */
-  readonly grams: number | null;
-  readonly deletedAt: string;
-  readonly source: Fields;
-}
-
-export const bagSizeFromFields = (fields: Fields, row: number): BagSize => {
-  const grams = parseDecimal(text(fields, 'size_g'), 0);
-  return { id: text(fields, 'id'), row, grams: typeof grams === 'number' && grams > 0 ? grams : null, deletedAt: text(fields, 'deleted_at'), source: fields };
-};
+/** The bag sizes, fixed (owner, 2026-11-16: always 250 g, 500 g and 1 kg). A cost item stores its size in grams. */
+export const BAG_SIZES_G = [250, 500, 1000] as const;
 
 /** For the screen: "250 g", "1 kg", "1,5 kg". */
 export function formatBagSize(grams: number): string {
   return grams >= 1000 ? `${toDecimalText(grams, 3).replace('.', ',')} kg` : `${grams} g`;
 }
 
-/** Checks a new bag size typed in grams (e.g. "250", "1000"). */
-export function validateBagSize(value: string, existing: readonly BagSize[]): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
-  const grams = parseDecimal(value, 0);
-  if (typeof grams !== 'number' || grams <= 0 || grams > 100000) return { ok: false, error: 'Enter the bag size in whole grams, e.g. 250 or 1000.' };
-  if (existing.some((s) => s.deletedAt === '' && s.grams === grams)) return { ok: false, error: `${formatBagSize(grams)} is already in the list.` };
-  return { ok: true, fields: { size_g: String(grams) } };
-}
-
 export interface BagCost {
   readonly id: string;
   readonly row: number;
+  /** The bag size in grams, as stored ("250"). */
   readonly bagSizeId: string;
   readonly item: string;
   /** Net cost in grosze; null if the cell cannot be read. */
@@ -265,4 +247,38 @@ export function validateLoss(value: string): { ok: true; value: string } | { ok:
   const tenths = percentFromCell(value);
   if (typeof tenths !== 'number') return { ok: false, error: 'Enter a percentage from 1 to 99, e.g. 15,5 (or leave empty to use the average).' };
   return { ok: true, value: percentText(tenths) };
+}
+
+// ---- The lot's price (stored on the Lots tab) ----
+
+export interface PriceForm {
+  coffeePrice: string;
+  deliveryCost: string;
+}
+
+export type PriceErrors = Partial<Record<keyof PriceForm, string>>;
+
+/**
+ * Checks the price of a lot (whole delivery, net). Gives only the columns whose value changed compared with
+ * `initial` (what the form showed), so an untouched cell is never rewritten.
+ */
+export function validatePriceForm(form: PriceForm, initial: PriceForm): { ok: true; fields: Record<string, string> } | { ok: false; errors: PriceErrors } {
+  const errors: PriceErrors = {};
+  const price = parseMoney(form.coffeePrice);
+  if (price === undefined) errors.coffeePrice = 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.';
+  const delivery = parseMoney(form.deliveryCost);
+  if (delivery === undefined) errors.deliveryCost = 'Enter an amount, e.g. 120 — or leave it empty if there was none.';
+  if (price === undefined || delivery === undefined) return { ok: false, errors };
+  const fields: Record<string, string> = {};
+  if (form.coffeePrice.trim() !== initial.coffeePrice.trim()) fields.coffee_price_net_pln = price === null ? '' : moneyText(price);
+  if (form.deliveryCost.trim() !== initial.deliveryCost.trim()) fields.delivery_cost_net_pln = delivery === null ? '' : moneyText(delivery);
+  return { ok: true, fields };
+}
+
+/** The live "green price per kg" while typing, in grosze; null until price and kg are readable. */
+export function typedPricePerKg(form: PriceForm, quantityGrams: number | null): number | null {
+  const price = parseMoney(form.coffeePrice);
+  const delivery = parseMoney(form.deliveryCost);
+  if (typeof price !== 'number' || delivery === undefined || quantityGrams === null || quantityGrams <= 0) return null;
+  return Math.round(((price + (delivery ?? 0)) * 1000) / quantityGrams);
 }

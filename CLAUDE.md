@@ -65,11 +65,13 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
-- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left; `present.ts` = pure text for the screen;
+- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left (no prices: those are
+  under Costs & prices); `present.ts` = pure text for the screen;
   `roasts`: roasting log, `allocation.ts` which lot each roast used and stock left (pure, oldest delivery first), Roasts page;
   `roastime`: "Sync with RoasTime" (lots and roasts in one step; roasts with no coffee, or a coffee with no delivery, are samples, not tracked), `model.ts` reads the files, `plan.ts` / `roastPlan.ts` the
   preview (pure), `apply.ts` saves (at most 4 requests: lot adds, lot updates, roast adds, roast edits incl. removals and restores);
-  `costs`: "Costs & prices" (cost of one bag per lot and bag size, suggested prices; settings, bag sizes and items;
+  `costs`: "Costs & prices" (sub-tabs "Prices per lot" and "Bag costs & settings"; lot prices are edited here, stored
+  on the Lots tab; bag sizes fixed at 250 g, 500 g, 1 kg; settings and bag cost items;
   `modelCalc.ts` the calculation, pure, exact until rounded for the screen);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.

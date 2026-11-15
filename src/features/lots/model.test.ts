@@ -16,6 +16,7 @@ import {
   priceMissing,
   sortLots,
   suggestCode,
+  validateLotDetails,
   validateLotForm,
   type Lot,
   type LotForm,
@@ -187,6 +188,21 @@ describe('suggestCode', () => {
     expect(suggestCode('', '2026-11-03', [])).toBe('');
     expect(suggestCode('Kenya', '', [])).toBe('');
     expect(suggestCode('Kenya', '2026-02-30', [])).toBe('');
+  });
+});
+
+describe('validateLotDetails (the Lots page form, without prices)', () => {
+  it('ignores the price fields, even unreadable ones, and never stores them', () => {
+    const result = validateLotDetails(form({ coffeePrice: 'about 4500', deliveryCost: 'x' }), []);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fields).not.toHaveProperty('coffee_price_net_pln');
+    expect(result.fields).not.toHaveProperty('delivery_cost_net_pln');
+    expect(result.fields.name).toBe('Kenya Kegwa');
+  });
+
+  it('still checks everything else', () => {
+    expect(validateLotDetails(form({ name: '' }), [])).toMatchObject({ ok: false, errors: { name: 'Enter the coffee name.' } });
   });
 });
 

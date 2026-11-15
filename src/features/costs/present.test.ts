@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lotFromFields } from '../lots';
 import { roastFromFields } from '../roasts';
-import { DEFAULT_SETTINGS, bagCostFromFields, bagSizeFromFields, lotCostFromFields } from './model';
+import { DEFAULT_SETTINGS, bagCostFromFields, lotCostFromFields } from './model';
 import { bagSizeViews, lotCards, sharesByLot } from './present';
 
 const lot = (id: string, o: Record<string, string> = {}, row = 2) =>
@@ -23,34 +23,31 @@ const lot = (id: string, o: Record<string, string> = {}, row = 2) =>
 const roast = (id: string, green: string, roasted: string, o: Record<string, string> = {}) =>
   roastFromFields({ id, roasted_at: '2026-10-01T08:00:00.000Z', roast_name: id, green_g: green, roasted_g: roasted, roastime_bean_id: 'B1', ...o }, 2);
 
-const size = (id: string, grams: string, deleted = '') => bagSizeFromFields({ id, size_g: grams, deleted_at: deleted }, 2);
 const cost = (sizeId: string, item: string, value: string, deleted = '') => bagCostFromFields({ id: `${sizeId}-${item}`, bag_size_id: sizeId, item, cost_net_pln: value, deleted_at: deleted }, 2);
 
 describe('bagSizeViews', () => {
-  it('lists active sizes smallest first, with their active items added up', () => {
-    const { views, problems } = bagSizeViews(
-      [size('S1000', '1000'), size('S250', '250'), size('S500', '500', '2026-11-16')],
-      [cost('S250', 'Bag', '1.2'), cost('S250', 'Label', '0.3'), cost('S250', 'Old', '9', '2026-11-16')],
-    );
+  it('always shows 250 g, 500 g and 1 kg, with their active items added up', () => {
+    const { views, problems } = bagSizeViews([cost('250', 'Bag', '1.2'), cost('250', 'Label', '0.3'), cost('250', 'Old', '9', '2026-11-16'), cost('1000', 'Bag', '2')]);
     expect(views.map((v) => [v.label, v.itemsText])).toEqual([
       ['250 g', '1,50\u00a0zł'],
-      ['1 kg', 'missing cost'],
+      ['500 g', 'missing cost'],
+      ['1 kg', '2,00\u00a0zł'],
     ]);
     expect(problems).toEqual([]);
   });
 
-  it('marks a size with a cost it cannot read as missing, and says which', () => {
-    const { views, problems } = bagSizeViews([size('S250', '250'), size('X', 'big')], [cost('S250', 'Bag', 'about 1 zł')]);
-    expect(views.map((v) => [v.label, v.itemsText, v.unreadable])).toEqual([['250 g', 'missing cost', true]]);
+  it('marks a size with a cost it cannot read as missing, and reports items of a size Kraken does not use', () => {
+    const { views, problems } = bagSizeViews([cost('250', 'Bag', 'about 1 zł'), cost('3f2a-old-size', 'Label', '0.3')]);
+    expect(views[0]).toMatchObject({ itemsText: 'missing cost', unreadable: true });
     expect(problems).toEqual([
-      'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Edit it below.',
-      'Row 2 of the Bag sizes tab has a size Kraken cannot read ("big"); it is left out.',
+      'Row 2 of the Bag costs tab (Label) is for a bag size Kraken does not use ("3f2a-old-size"); it is left out.',
+      'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Edit it under "Bag costs & settings".',
     ]);
   });
 });
 
 describe('lotCards', () => {
-  const sizes = bagSizeViews([size('S250', '250'), size('S1000', '1000')], [cost('S250', 'Bag', '1.2'), cost('S250', 'Label', '0.3')]).views;
+  const sizes = bagSizeViews([cost('250', 'Bag', '1.2'), cost('250', 'Label', '0.3')]).views;
 
   it('shows the calculation of the hand-checked example (default loss: no roasts yet)', () => {
     const { cards } = lotCards([lot('L1')], [], [], sizes, DEFAULT_SETTINGS);
@@ -77,6 +74,7 @@ describe('lotCards', () => {
           { markup: '3×', net: '72,44\u00a0zł', gross: '89,10\u00a0zł' },
         ],
       },
+      { label: '500 g', coffee: '45,29\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
       { label: '1 kg', coffee: '90,59\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
     ]);
   });

@@ -21,7 +21,7 @@ async function setup() {
 describe('sheetCostsRepository (in-memory Google)', () => {
   it('starts empty on a new sheet', async () => {
     const { repo } = await setup();
-    expect(await repo.load()).toEqual({ settings: [], sizes: [], costs: [], lotCosts: [], problems: [] });
+    expect(await repo.load()).toEqual({ settings: [], costs: [], lotCosts: [], problems: [] });
   });
 
   it('saves settings: adds new ones, then changes only what changed', async () => {
@@ -37,27 +37,27 @@ describe('sheetCostsRepository (in-memory Google)', () => {
     expect(readSettings(data.settings).settings.vatTenths).toBe(80);
   });
 
-  it('adds bag sizes and their items, edits and soft-deletes them', async () => {
+  it('adds cost items to a bag size, edits and soft-deletes them', async () => {
     const { repo } = await setup();
-    await repo.addBagSizes([{ size_g: '250' }, { size_g: '1000' }], 'owner@example.com', now);
+    await repo.addBagCost({ bag_size_id: '250', item: 'Bag', cost_net_pln: '1.2' }, 'owner@example.com', now);
     let data = await repo.load();
-    const [small, big] = data.sizes;
-    if (!small || !big) throw new Error('setup');
-    expect([small.grams, big.grams]).toEqual([250, 1000]);
-    await repo.addBagCost({ bag_size_id: small.id, item: 'Bag', cost_net_pln: '1.2' }, 'owner@example.com', now);
-    data = await repo.load();
     const [bag] = data.costs;
     if (!bag) throw new Error('setup');
     await repo.updateBagCost(bag, { item: 'Bag', cost_net_pln: '1.25' }, later);
     data = await repo.load();
-    expect(data.costs.map((c) => [c.item, c.costGrosze, c.bagSizeId])).toEqual([['Bag', 125, small.id]]);
+    expect(data.costs.map((c) => [c.item, c.costGrosze, c.bagSizeId])).toEqual([['Bag', 125, '250']]);
     const [changed] = data.costs;
     if (!changed) throw new Error('setup');
     await repo.removeBagCost(changed, later);
-    await repo.removeBagSize(big, later);
-    data = await repo.load();
-    expect(data.costs[0]?.deletedAt).toBe(later.toISOString());
-    expect(data.sizes.map((s) => s.deletedAt !== '')).toEqual([false, true]);
+    expect((await repo.load()).costs[0]?.deletedAt).toBe(later.toISOString());
+  });
+
+  it('works on a sheet whose unused Bag sizes tab was deleted by hand', async () => {
+    const { google, repo } = await setup();
+    const file = [...google.files.values()][0];
+    if (!file) throw new Error('setup');
+    file.tabs = file.tabs.filter((t) => t.title !== 'Bag sizes');
+    expect((await repo.load()).problems).toEqual([]);
   });
 
   it("saves a lot's own roast loss, changes it, and clears it back to the average", async () => {

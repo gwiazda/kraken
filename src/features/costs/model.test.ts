@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   bagCostFromFields,
-  bagSizeFromFields,
   formFromBagCost,
   formFromSettings,
   formatBagSize,
@@ -15,8 +14,9 @@ import {
   readSettings,
   settingFromFields,
   validateBagCostForm,
-  validateBagSize,
+  typedPricePerKg,
   validateLoss,
+  validatePriceForm,
   validateSettingsForm,
 } from './model';
 
@@ -103,21 +103,6 @@ describe('settings', () => {
 });
 
 describe('bag sizes and costs', () => {
-  it('reads a bag size; a size it cannot read is null', () => {
-    expect(bagSizeFromFields({ id: 'S1', size_g: '250' }, 2).grams).toBe(250);
-    expect(bagSizeFromFields({ id: 'S1', size_g: '250 g' }, 2).grams).toBeNull();
-    expect(bagSizeFromFields({ id: 'S1', size_g: '0' }, 2).grams).toBeNull();
-  });
-
-  it('checks a new bag size, and refuses one already in the list', () => {
-    const existing = [bagSizeFromFields({ id: 'S1', size_g: '250' }, 2), bagSizeFromFields({ id: 'S2', size_g: '500', deleted_at: '2026-11-16' }, 3)];
-    expect(validateBagSize('1000', existing)).toEqual({ ok: true, fields: { size_g: '1000' } });
-    expect(validateBagSize('500', existing)).toEqual({ ok: true, fields: { size_g: '500' } }); // the deleted one does not count
-    expect(validateBagSize('250', existing)).toEqual({ ok: false, error: '250 g is already in the list.' });
-    expect(validateBagSize('0,5', existing).ok).toBe(false);
-    expect(validateBagSize('', existing).ok).toBe(false);
-  });
-
   it('reads a cost item, keeping a cost it cannot read as typed', () => {
     expect(bagCostFromFields({ id: 'C1', bag_size_id: 'S1', item: 'Bag', cost_net_pln: '1.2' }, 2)).toMatchObject({ item: 'Bag', costGrosze: 120 });
     const odd = bagCostFromFields({ id: 'C2', bag_size_id: 'S1', item: 'Label', cost_net_pln: 'about 30 gr' }, 3);
@@ -147,5 +132,42 @@ describe('roast loss per lot', () => {
     expect(validateLoss('14,2')).toEqual({ ok: true, value: '14.2' });
     expect(validateLoss(' ')).toEqual({ ok: true, value: '' });
     expect(validateLoss('100').ok).toBe(false);
+  });
+});
+
+describe("the lot's price, edited under Costs & prices", () => {
+  const initial = { coffeePrice: '4500', deliveryCost: '120' };
+
+  it('gives only the columns that changed', () => {
+    expect(validatePriceForm({ coffeePrice: '4600,50', deliveryCost: '120' }, initial)).toEqual({ ok: true, fields: { coffee_price_net_pln: '4600.5' } });
+    expect(validatePriceForm({ coffeePrice: '4500', deliveryCost: '' }, initial)).toEqual({ ok: true, fields: { delivery_cost_net_pln: '' } });
+    expect(validatePriceForm(initial, initial)).toEqual({ ok: true, fields: {} });
+  });
+
+  it('never rewrites a cell it showed as typed (unreadable) when only the other one changed', () => {
+    const odd = { coffeePrice: 'about 4500', deliveryCost: '120' };
+    expect(validatePriceForm({ coffeePrice: 'about 4500', deliveryCost: '130' }, odd)).toEqual({
+      ok: false,
+      errors: { coffeePrice: 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.' },
+    });
+  });
+
+  it('explains wrong amounts', () => {
+    expect(validatePriceForm({ coffeePrice: 'x', deliveryCost: '-5' }, initial)).toEqual({
+      ok: false,
+      errors: {
+        coffeePrice: 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.',
+        deliveryCost: 'Enter an amount, e.g. 120 — or leave it empty if there was none.',
+      },
+    });
+  });
+
+  it('shows the green price per kg while typing, once price and kg are readable', () => {
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '120' }, 60000)).toBe(7700);
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '' }, 60000)).toBe(7500);
+    expect(typedPricePerKg({ coffeePrice: '', deliveryCost: '120' }, 60000)).toBeNull();
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: 'abc' }, 60000)).toBeNull();
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '' }, null)).toBeNull();
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '' }, 0)).toBeNull();
   });
 });

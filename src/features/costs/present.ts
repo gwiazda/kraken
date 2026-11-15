@@ -4,11 +4,13 @@
 import { formatKg, formatPln } from '../../core/numbers';
 import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
-import { formatBagSize, formatMarkup, formatPercent, type BagCost, type BagSize, type CostSettings, type LotCost } from './model';
+import { BAG_SIZES_G, formatBagSize, formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
 import { averageLoss, calculateLot, chooseLoss, roundGrosze, type BagInput, type RoastShare } from './modelCalc';
 
 export interface BagSizeView {
-  readonly size: BagSize;
+  readonly grams: number;
+  /** As stored in the Bag costs tab ("250"). */
+  readonly id: string;
   readonly label: string;
   readonly costs: readonly BagCost[];
   /** Net cost of the items together, e.g. "1,15 zł"; "missing cost" when none are entered. */
@@ -16,30 +18,24 @@ export interface BagSizeView {
   readonly unreadable: boolean;
 }
 
-/** The active bag sizes, smallest first, with their active cost items. Unreadable sizes are left out (reported). */
-export function bagSizeViews(sizes: readonly BagSize[], costs: readonly BagCost[]): { views: BagSizeView[]; problems: string[] } {
+/** The fixed bag sizes (250 g, 500 g, 1 kg) with their active cost items. Items Kraken cannot place are reported. */
+export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[]; problems: string[] } {
   const problems: string[] = [];
-  const views: BagSizeView[] = [];
-  for (const size of sizes.filter((s) => s.deletedAt === '')) {
-    if (size.grams === null) {
-      problems.push(`Row ${size.row} of the Bag sizes tab has a size Kraken cannot read ("${size.source.size_g ?? ''}"); it is left out.`);
-      continue;
-    }
-    const own = costs.filter((c) => c.deletedAt === '' && c.bagSizeId === size.id);
+  const active = costs.filter((c) => c.deletedAt === '');
+  const ids = BAG_SIZES_G.map(String);
+  for (const c of active.filter((c) => !ids.includes(c.bagSizeId))) {
+    problems.push(`Row ${c.row} of the Bag costs tab (${c.item || 'no item name'}) is for a bag size Kraken does not use ("${c.bagSizeId}"); it is left out.`);
+  }
+  const views = BAG_SIZES_G.map((grams): BagSizeView => {
+    const id = String(grams);
+    const own = active.filter((c) => c.bagSizeId === id);
     const unreadable = own.some((c) => c.costGrosze === null);
     for (const c of own.filter((c) => c.costGrosze === null)) {
-      problems.push(`The cost "${c.costText}" of ${c.item || 'an item'} (${formatBagSize(size.grams)}) cannot be read, so that bag size shows "missing cost". Edit it below.`);
+      problems.push(`The cost "${c.costText}" of ${c.item || 'an item'} (${formatBagSize(grams)}) cannot be read, so that bag size shows "missing cost". Edit it under "Bag costs & settings".`);
     }
     const sum = own.reduce((total, c) => total + (c.costGrosze ?? 0), 0);
-    views.push({
-      size,
-      label: formatBagSize(size.grams),
-      costs: own,
-      itemsText: own.length === 0 || unreadable ? 'missing cost' : formatPln(sum),
-      unreadable,
-    });
-  }
-  views.sort((a, b) => (a.size.grams ?? 0) - (b.size.grams ?? 0));
+    return { grams, id, label: formatBagSize(grams), costs: own, itemsText: own.length === 0 || unreadable ? 'missing cost' : formatPln(sum), unreadable };
+  });
   return { views, problems };
 }
 
@@ -100,8 +96,8 @@ export function lotCards(
   const problems: string[] = [];
   const shares = sharesByLot(lots, roasts);
   const bags: BagInput[] = sizes.map((v) => ({
-    id: v.size.id,
-    grams: v.size.grams ?? 0,
+    id: v.id,
+    grams: v.grams,
     itemsGrosze: v.unreadable ? [] : v.costs.map((c) => c.costGrosze ?? 0),
   }));
   const active = sortLots(lots.filter((lot) => !isDeleted(lot))); // the same order as the Lots page

@@ -2,10 +2,10 @@
 // calculation (VAT, markups, default roast loss, bag sizes and their cost items). Everything from outside comes
 // through CostsPageDeps (main.ts provides it).
 
-import { formatPln } from '../../core/numbers';
+import { formatKg, formatPln } from '../../core/numbers';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import type { Lot, LotsRepository } from '../lots';
+import { formFromLot, type Lot, type LotsRepository } from '../lots';
 import type { Roast, RoastsRepository } from '../roasts';
 import {
   formFromBagCost,
@@ -14,12 +14,14 @@ import {
   percentText,
   readSettings,
   validateBagCostForm,
-  validateBagSize,
+  typedPricePerKg,
   validateLoss,
+  validatePriceForm,
   validateSettingsForm,
   type BagCost,
   type BagCostForm,
   type CostSettings,
+  type PriceForm,
   type SettingsForm,
 } from './model';
 import { bagSizeViews, lotCards, type BagSizeView, type LotCard } from './present';
@@ -41,10 +43,14 @@ export interface CostsPageDeps {
   busy: (on: boolean) => void;
 }
 
+type SubTab = 'lots' | 'bags';
+
 export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: string, fromClick = false): void {
   let data: CostData | null = null;
   let lots: Lot[] = [];
   let roasts: Roast[] = [];
+  /** Which part of the page is shown; kept when the page reloads after a save. */
+  let tab: SubTab = 'lots';
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
@@ -119,28 +125,41 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     if (!data) return;
     const loaded = data;
     const { settings, problems: settingProblems } = readSettings(loaded.settings);
-    const { views, problems: sizeProblems } = bagSizeViews(loaded.sizes, loaded.costs);
+    const { views, problems: sizeProblems } = bagSizeViews(loaded.costs);
     const { cards, problems: cardProblems } = lotCards(lots, roasts, loaded.lotCosts, views, settings);
     const problems = [...loaded.problems, ...settingProblems, ...sizeProblems, ...cardProblems];
+    const noBagCosts = views.every((v) => v.costs.length === 0);
 
+    const subTab = (label: string, name: SubTab) => {
+      const b = button(label, () => ((tab = name), showPage()), 'link');
+      if (name === tab) b.setAttribute('aria-current', 'page');
+      return b;
+    };
     render(
       el('div', { class: 'page-head' }, el('h2', {}, 'Costs & prices')),
+      el('nav', { class: 'sub-nav', 'aria-label': 'Costs & prices' }, subTab('Prices per lot', 'lots'), subTab('Bag costs & settings', 'bags')),
       ...(note ? [message(note)] : []),
       ...problems.map((text) => message(text, 'error')),
-      el(
-        'p',
-        { class: 'muted small' },
-        `All costs are net. A suggested price is the cost of one bag × the markup (net); gross = net + VAT ${formatPercent(settings.vatTenths)}.`,
-      ),
-      ...(views.length === 0 ? [message('Add your bag sizes and what goes into a bag (bag, label, …) under "Settings for the calculation" below to see the cost of a bag.')] : []),
-      ...(cards.length === 0 ? [el('p', { class: 'muted' }, 'No lots yet. Add them on the Lots page.')] : cards.map((card) => cardNode(card, views))),
-      settingsNode(settings, views),
+      ...(tab === 'lots'
+        ? [
+            el(
+              'p',
+              { class: 'muted small' },
+              `All costs are net. A suggested price is the cost of one bag × the markup (net); gross = net + VAT ${formatPercent(settings.vatTenths)}.`,
+            ),
+            ...(noBagCosts
+              ? [el('p', { class: 'message muted' }, 'Enter what goes into a bag (bag, label, …) to see the cost of one bag. ', button('Go to Bag costs & settings', () => ((tab = 'bags'), showPage()), 'link'))]
+              : []),
+            ...(cards.length === 0 ? [el('p', { class: 'muted' }, 'No lots yet. Add them on the Lots page.')] : cards.map(cardNode)),
+          ]
+        : [bagsNode(views), settingsNode(settings)]),
     );
   }
 
   // ---- A lot ----
 
-  function cardNode(card: LotCard, views: readonly BagSizeView[]): HTMLElement {
+  function cardNode(card: LotCard): HTMLElement {
+    const priceLine = priceNode(card);
     const lossLine = el('p', { class: 'cost-line' });
     const showLoss = () => {
       lossLine.replaceChildren(
@@ -199,15 +218,15 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       el('p', { class: 'cost-line' }, el('span', { class: 'cost-label' }, label, ...(tip ? [' ', infoTip(tip)] : [])), el('strong', {}, value));
 
     const body: Node[] = card.missing
-      ? [message(card.missing, 'error'), lossLine]
+      ? [message(card.missing, 'error'), priceLine, lossLine]
       : [
+          priceLine,
           line('Green price', card.greenPerKg, 'Coffee price + delivery cost, ÷ kg delivered (net).'),
           lossLine,
           line('Roasted from 1 kg green', card.roastedFromKg),
           line('Cost of 1 kg roasted', card.roastedPerKg, 'Green price per kg ÷ (1 − roast loss).'),
           ...(card.bags.length > 0 ? [bagTable(card)] : []),
         ];
-    if (views.length === 0 && !card.missing) body.push(el('p', { class: 'muted small' }, 'Add bag sizes below to see the cost of a bag.'));
     return el(
       'section',
       { class: 'cost-card' },
@@ -250,19 +269,92 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     );
   }
 
-  // ---- Settings ----
+  // ---- The lot's price (stored on the Lots tab; edited here, owner 2026-11-16) ----
 
-  function settingsNode(settings: CostSettings, views: readonly BagSizeView[]): HTMLElement {
+  function priceNode(card: LotCard): HTMLElement {
+    const lot = card.lot;
+    const initial: PriceForm = (({ coffeePrice, deliveryCost }) => ({ coffeePrice, deliveryCost }))(formFromLot(lot));
+    const holder = el('div', {});
+    const amount = (grosze: number | null, typed: string) => (grosze !== null ? formatPln(grosze) : typed !== '' ? `"${typed}"` : '—');
+    const showPrice = () => {
+      holder.replaceChildren(
+        el(
+          'p',
+          { class: 'cost-line' },
+          el('span', { class: 'cost-label' }, 'Price, whole delivery ', infoTip('Net. Not imported from RoasTime. Stored with the lot.')),
+          ...(lot.coffeePriceGrosze === null && initial.coffeePrice === ''
+            ? [el('span', { class: 'badge' }, 'Price missing')]
+            : [el('strong', {}, amount(lot.coffeePriceGrosze, initial.coffeePrice)), ` + delivery ${amount(lot.deliveryCostGrosze, initial.deliveryCost)}`]),
+          ...(lot.quantityGrams !== null ? [` for ${formatKg(lot.quantityGrams)}`] : []),
+          ' ',
+          button(lot.coffeePriceGrosze === null ? 'Add price' : 'Edit price', editPrice, 'link'),
+        ),
+      );
+    };
+    const editPrice = () => {
+      const input = (key: keyof PriceForm, label: string) => {
+        const node = el('input', { id: `${key}-${lot.id}`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-money' });
+        node.value = initial[key];
+        return { node, label: el('label', { for: node.id }, label) };
+      };
+      const price = input('coffeePrice', 'Coffee price (zł net)');
+      const delivery = input('deliveryCost', 'Delivery cost (zł net)');
+      const perKg = el('output', { class: 'muted small', 'aria-live': 'polite' });
+      const read = (): PriceForm => ({ coffeePrice: price.node.value, deliveryCost: delivery.node.value });
+      const update = () => {
+        const value = typedPricePerKg(read(), lot.quantityGrams);
+        perKg.textContent = value === null ? 'Green price per kg: shown when the price is filled in.' : `Green price per kg: ${formatPln(value)}`;
+      };
+      price.node.addEventListener('input', update);
+      delivery.node.addEventListener('input', update);
+      update();
+      const errorLine = el('p', { class: 'field-error', role: 'alert' });
+      const status = el('div', { class: 'save-status' });
+      const form = el(
+        'form',
+        { class: 'inline-form', novalidate: '' },
+        price.label,
+        price.node,
+        delivery.label,
+        delivery.node,
+        el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
+        button('Cancel', showPrice, 'secondary'),
+        perKg,
+        status,
+        errorLine,
+      );
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const result = validatePriceForm(read(), initial);
+        errorLine.textContent = result.ok ? '' : [result.errors.coffeePrice, result.errors.deliveryCost].filter((t) => t).join(' ');
+        if (!result.ok) return;
+        if (Object.keys(result.fields).length === 0) {
+          showPrice();
+          return;
+        }
+        save(status, 'Saving…', () => deps.lots.update(lot, result.fields, deps.now()).then(() => undefined), `${lot.code}: price saved.`);
+      });
+      holder.replaceChildren(form);
+      price.node.focus();
+    };
+    showPrice();
+    return holder;
+  }
+
+  // ---- Bag costs & settings ----
+
+  function bagsNode(views: readonly BagSizeView[]): HTMLElement {
     return el(
       'section',
-      { class: 'cost-settings' },
-      el('h2', { class: 'sub' }, 'Settings for the calculation'),
-      settingsForm(settings),
-      el('h3', {}, 'Bag sizes and what goes into one bag'),
-      el('p', { class: 'muted small' }, 'Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost".'),
-      ...views.map(sizeNode),
-      addSizeNode(),
+      {},
+      el('h3', {}, 'What goes into one bag'),
+      el('p', { class: 'muted small' }, 'Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost" on the lot cards.'),
+      el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
     );
+  }
+
+  function settingsNode(settings: CostSettings): HTMLElement {
+    return el('section', { class: 'cost-settings' }, el('h3', {}, 'Settings'), settingsForm(settings));
   }
 
   function settingsForm(settings: CostSettings): HTMLElement {
@@ -288,7 +380,8 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
         field('markups', 'Markups', 'Separated by ";", e.g. 2; 2,5; 3.'),
         field('defaultLoss', 'Default roast loss %', 'For a lot with no roasts yet.'),
       ),
-      el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings'), status),
+      el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),
+      status,
     );
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -303,25 +396,11 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
   }
 
   function sizeNode(view: BagSizeView): HTMLElement {
-    const status = el('div', { class: 'save-status' });
-    const removeSize = () => {
-      const confirm = el(
-        'p',
-        { class: 'confirm-line' },
-        `Delete the bag size ${view.label}? Its cost items are kept in the sheet. `,
-        button('Yes, delete', () => save(status, 'Deleting…', () => deps.repo.removeBagSize(view.size, deps.now()), `Bag size ${view.label} deleted.`)),
-        ' ',
-        button('No', () => confirm.replaceWith(headActions), 'secondary'),
-      );
-      headActions.replaceWith(confirm);
-    };
-    const headActions = el('span', {}, button('Delete size', removeSize, 'link'));
     const rows = view.costs.map((cost) => costRow(cost, view));
     return el(
       'div',
       { class: 'bag-size' },
-      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, `items together: ${view.itemsText}`), ' ', headActions),
-      status,
+      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, `items together: ${view.itemsText}`)),
       ...(rows.length > 0
         ? [
             el(
@@ -364,7 +443,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
   /** Adds a cost item to a size (`cost` null), or edits one. */
   function costForm(view: BagSizeView, cost: BagCost | null, cancel?: () => void): HTMLElement {
     const initial: BagCostForm = cost ? formFromBagCost(cost) : { item: '', cost: '' };
-    const prefix = `cost-${view.size.id}-${cost?.id ?? 'new'}`;
+    const prefix = `cost-${view.id}-${cost?.id ?? 'new'}`;
     const item = el('input', { id: `${prefix}-item`, type: 'text', autocomplete: 'off', placeholder: 'e.g. Bag' });
     item.value = initial.item;
     const amount = el('input', { id: `${prefix}-cost`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'zł net' });
@@ -396,45 +475,11 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
         save(
           status,
           'Adding…',
-          async () => deps.repo.addBagCost({ ...result.fields, bag_size_id: view.size.id }, await deps.whoAmI(), deps.now()),
+          async () => deps.repo.addBagCost({ ...result.fields, bag_size_id: view.id }, await deps.whoAmI(), deps.now()),
           `${result.fields.item} added to ${view.label}.`,
         );
     });
     if (cost) queueMicrotask(() => item.focus());
-    return form;
-  }
-
-  function addSizeNode(): HTMLElement {
-    const status = el('div', { class: 'save-status' });
-    const input = el('input', { id: 'new-bag-size', type: 'text', inputmode: 'numeric', autocomplete: 'off', class: 'input-short', placeholder: 'grams' });
-    const errorLine = el('p', { class: 'field-error', role: 'alert' });
-    const form = el(
-      'form',
-      { class: 'inline-form', novalidate: '' },
-      el('label', { for: input.id }, 'New bag size '),
-      input,
-      ' g ',
-      el('button', { type: 'submit', class: 'btn btn-secondary' }, 'Add bag size'),
-      // Only on a sheet without any bag size (an unreadable one is reported above; adding would make a duplicate).
-      ...(!(data?.sizes ?? []).some((size) => size.deletedAt === '')
-        ? [
-            ' ',
-            button('Add 250 g and 1 kg', () =>
-              save(status, 'Adding…', async () => deps.repo.addBagSizes([{ size_g: '250' }, { size_g: '1000' }], await deps.whoAmI(), deps.now()), 'Bag sizes 250 g and 1 kg added.'),
-            ),
-          ]
-        : []),
-      ' ',
-      status,
-      errorLine,
-    );
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const result = validateBagSize(input.value, data?.sizes ?? []);
-      errorLine.textContent = result.ok ? '' : result.error;
-      if (!result.ok) return;
-      save(status, 'Adding…', async () => deps.repo.addBagSize(result.fields, await deps.whoAmI(), deps.now()), 'Bag size added.');
-    });
     return form;
   }
 
