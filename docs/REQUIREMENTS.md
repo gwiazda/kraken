@@ -109,6 +109,29 @@ Keep the data design open for this: the Bag sizes list and invoice lines already
 
 **[R] Input:** manual entry **and** import from a file.
 
+**[R] Built (2026-11-15): Roasts tab (data version 3), "Sync with RoasTime", stock left, Roasts page.**
+- **Roasts tab** stores what RoasTime gives (`roasted_at`, `roast_name`, `green_g`, `roasted_g`, `roastime_roast_id`,
+  `roastime_bean_id`) plus the owner's own fields: `lot_id` (only to override the automatic choice), `sample`, `notes`.
+  Weights in grams (green whole grams; roasted may have one decimal, e.g. 132.5).
+- **One "Sync with RoasTime"** (owner, 2026-11-15: lots and roasts in one place, one step), on the Lots and Roasts pages:
+  choose the folder once, one preview, one "Sync". Roasts: new ones are added (no choice per roast); roasts with no
+  green weight (or no time) are skipped and listed; roasts changed in RoasTime (time, name, coffee, weights) are listed
+  and updated with one tick box; a roast no longer in RoasTime stays in Kraken (only a note). A sync never changes the
+  lot, sample mark or notes, and never empties a value. RoasTime's comment becomes the notes of a new roast.
+- **Which lot a roast used (calculated, never stored):** a lot chosen by the owner wins (reserved first); otherwise the
+  lots of the roast's RoasTime coffee, **oldest delivery first**, splitting a roast when a lot runs out. If all lots of a
+  coffee run out, the rest goes on the newest lot, which then shows below zero. Deleted lots are skipped. Lots entered by
+  hand are only used when chosen. A roast without a coffee and without a chosen lot is not counted.
+- **Samples (owner, 2026-11-15):** a sample with a coffee or a chosen lot counts in stock; without one it does not.
+  RoasTime has no sample mark that Kraken can read, so samples are marked in Kraken.
+- **Stock left** per lot = delivered − green used, shown on the Lots page (below zero in yellow, with a note). A roast
+  dated before the delivery of a lot it uses is marked "Before delivery".
+- **Roasts page:** newest first, roast loss %, the lot(s) used, marks (Sample, Needs a lot, Chosen, Before delivery);
+  "Only roasts that need a lot"; Edit (lot, sample, notes; date and weights only for roasts entered by hand);
+  Add roast by hand; Delete / Show deleted / Restore.
+- Checked on the owner's real RoasTime data (2026-11-15): stock left matches the owner's estimate (21,5 / 31,2 / 30,4 kg).
+- Not yet: "last sync" record in the sheet, CSV import of older roasts.
+
 ### Import from the Aillio Bullet R2 PRO (research, 2026-11-06)
 The Bullet is used with Aillio's **RoasTime** software, which stores one **JSON file per roast**.
 Locally they are in `~/Library/Application Support/roast-time/roasts/` (macOS) or

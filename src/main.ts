@@ -17,7 +17,8 @@ import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
-import { showRoastimeImport } from './features/roastime';
+import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
+import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, message, type Child } from './ui/dom';
@@ -82,7 +83,7 @@ function leave(screen: Screen): void {
 /** How a menu click moves: back to the same screen (or out of an open form) replaces, anything else adds a step. */
 function menuMove(target: Screen): HistoryMove {
   const now = screenOf(window.history.state);
-  return now === target || now === 'lot-form' ? 'replace' : 'push';
+  return now === target || now === 'lot-form' || now === 'roast-form' ? 'replace' : 'push';
 }
 
 window.addEventListener('popstate', (event) => {
@@ -98,20 +99,23 @@ window.addEventListener('popstate', (event) => {
   }
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
-  else if (screen === 'import') showImport(info, 'none');
-  else {
+  else if (screen === 'sync') showSync(info, 'lots', 'none');
+  else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
+    if (screen === 'roast-form') window.history.replaceState(stateFor('roasts'), '', '#roasts');
+    showRoasts(info, undefined, false, 'none');
+  } else {
     if (screen === 'lot-form') window.history.replaceState(stateFor('lots'), '', '#lots');
     showLots(info, undefined, false, 'none');
   }
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElement {
+function showApp(info: SpreadsheetInfo, active: 'lots' | 'roasts' | 'settings'): HTMLElement {
   resume = null;
   openSheet = info;
   const page = el('section', { class: 'page' });
-  const tab = (label: string, name: 'lots' | 'settings', open: () => void) => {
+  const tab = (label: string, name: 'lots' | 'roasts' | 'settings', open: () => void) => {
     const b = button(label, open, 'link');
     if (name === active) b.setAttribute('aria-current', 'page');
     return b;
@@ -122,6 +126,9 @@ function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElemen
       { class: 'app-nav', 'aria-label': 'Kraken' },
       tab('Lots', 'lots', () => {
         if (!saving) showLots(info, undefined, true, menuMove('lots'));
+      }),
+      tab('Roasts', 'roasts', () => {
+        if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
       }),
       tab('Settings', 'settings', () => {
         if (!saving) showSettings(info, menuMove('settings'));
@@ -331,39 +338,72 @@ function showLots(info: SpreadsheetInfo, note?: string, fromClick = false, move:
   showLotsPage(showApp(info, 'lots'), lotsPageDeps(info), note, fromClick);
 }
 
-function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
+/** What every page needs to talk to Google and explain problems. */
+function googleDeps() {
   return {
-    repo: sheetLotsRepository(client, info.id),
     whoAmI: () => whoAmI(client), // asked each time: the person signed in can change on renewal
-    withGoogle: (action) => withFreshToken(action),
+    withGoogle: <T>(action: () => Promise<T>) => withFreshToken(action),
     signIn,
-    isSignedOut: (error) => error instanceof SheetsError && error.kind === 'signed-out',
-    isIgnorable: (error) => error instanceof SignInSuperseded,
+    isSignedOut: (error: unknown) => error instanceof SheetsError && error.kind === 'signed-out',
+    isIgnorable: (error: unknown) => error instanceof SignInSuperseded,
     describeError: errorText,
     now: () => new Date(),
-    openImport: () => showImport(info),
-    formOpened: () => record('lot-form', 'push'),
-    formClosed: () => {
-      currentScreen = 'lots';
-      leave('lot-form');
-    },
-    busy: (on) => {
+    busy: (on: boolean) => {
       saving = on;
       app.classList.toggle('saving', on);
     },
   };
 }
 
-function showImport(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
-  record('import', move);
-  const deps = lotsPageDeps(info);
-  showRoastimeImport(showApp(info, 'lots'), {
-    ...deps,
-    copyText: (text) => navigator.clipboard.writeText(text),
-    backToLots: (note) => {
-      leave('import');
-      showLots(info, note, true, 'none');
+function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
+  const roasts = sheetRoastsRepository(client, info.id);
+  return {
+    ...googleDeps(),
+    repo: sheetLotsRepository(client, info.id),
+    // Stock left: the roasts are loaded and counted against the lots (oldest delivery first).
+    loadStock: async (lots) => allocate(lots, (await roasts.load()).roasts).lots,
+    openSync: () => showSync(info, 'lots'),
+    formOpened: () => record('lot-form', 'push'),
+    formClosed: () => {
       currentScreen = 'lots';
+      leave('lot-form');
+    },
+  };
+}
+
+function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, move: HistoryMove = 'push'): void {
+  record('roasts', move);
+  showRoastsPage(
+    showApp(info, 'roasts'),
+    {
+      ...googleDeps(),
+      repo: sheetRoastsRepository(client, info.id),
+      lots: sheetLotsRepository(client, info.id),
+      openSync: () => showSync(info, 'roasts'),
+      formOpened: () => record('roast-form', 'push'),
+      formClosed: () => {
+        currentScreen = 'roasts';
+        leave('roast-form');
+      },
+    },
+    note,
+    fromClick,
+  );
+}
+
+/** "Sync with RoasTime", opened from the Lots or the Roasts page; it returns there. */
+function showSync(info: SpreadsheetInfo, from: 'lots' | 'roasts', move: HistoryMove = 'push'): void {
+  record('sync', move);
+  showRoastimeSync(showApp(info, from), {
+    ...googleDeps(),
+    lots: sheetLotsRepository(client, info.id),
+    roasts: sheetRoastsRepository(client, info.id),
+    copyText: (text: string) => navigator.clipboard.writeText(text),
+    back: (note?: string) => {
+      leave('sync');
+      if (from === 'roasts') showRoasts(info, note, true, 'none');
+      else showLots(info, note, true, 'none');
+      currentScreen = from;
     },
   });
 }

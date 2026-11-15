@@ -21,7 +21,7 @@ const bean = (o: Partial<RoastimeBean> = {}): RoastimeBean => ({
   vendorCode: 'V1',
   ...o,
 });
-const data = (containers: RoastimeContainer[], beans: RoastimeBean[] = [bean()]): RoastimeData => ({ containers, beans, problems: [] });
+const data = (containers: RoastimeContainer[], beans: RoastimeBean[] = [bean()]): RoastimeData => ({ containers, beans, roasts: [], problems: [] });
 let row = 1;
 const lot = (fields: Record<string, string>) =>
   lotFromFields(

@@ -567,3 +567,40 @@ h3 {
   opacity: 0.4;
   cursor: wait;
 }
+
+.data-table .overdrawn {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
+h2.sub {
+  font-size: 1.1rem;
+  margin-top: 2rem;
+}
+
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  color: var(--grey);
+}
+
+.switches input {
+  accent-color: var(--lime);
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--grey);
+  margin: 0.3rem 0;
+}
+
+.field select {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}

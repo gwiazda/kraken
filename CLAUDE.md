@@ -65,9 +65,11 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
-- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore; `present.ts` = pure text for the screen;
-  `roastime`: import of deliveries as lots, `model.ts` reads the files, `plan.ts` the preview and changes (pure),
-  `apply.ts` saves (new lots in one request); see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
+- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left; `present.ts` = pure text for the screen;
+  `roasts`: roasting log, `allocation.ts` which lot each roast used and stock left (pure, oldest delivery first), Roasts page;
+  `roastime`: "Sync with RoasTime" (lots and roasts in one step), `model.ts` reads the files, `plan.ts` / `roastPlan.ts` the
+  preview (pure), `apply.ts` saves (at most 4 requests: lot adds, lot updates, roast adds, roast updates);
+  lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `googleErrors.ts` explains Google errors
   the same way on every screen, `history.ts` browser Back/Forward between Lots, lot form, Import and Settings (owner's

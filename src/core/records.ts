@@ -125,6 +125,13 @@ export function planChange(current: Fields, loaded: Fields, changes: Fields): { 
   return { write };
 }
 
+/** One edit for updateMany: which record, the new values, and the record as it was loaded. */
+export interface RecordChange {
+  id: string;
+  changes: Fields;
+  loaded: Fields;
+}
+
 /** What a feature needs from a table. The real one is below; it is tested against an in-memory Google. */
 export interface RecordTable {
   load(): Promise<TableContents>;
@@ -137,6 +144,8 @@ export interface RecordTable {
    * changed and to refuse overwriting someone else's change.
    */
   update(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields>;
+  /** Several edits at once: all checked first (any conflict writes nothing), then written in one request. */
+  updateMany(list: readonly RecordChange[], now: Date): Promise<Fields[]>;
   /** Soft delete: sets `deleted_at`. */
   remove(id: string, loaded: Fields, now: Date): Promise<Fields>;
   /** Clears `deleted_at`. */
@@ -159,29 +168,50 @@ export function sheetRecordTable(
   }
 
   async function change(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields> {
-    // Read again just before writing, so the row number and the checks are current.
+    const [stored] = await changeMany([{ id, changes, loaded }], now);
+    if (!stored) throw new Error('Nothing was changed');
+    return stored;
+  }
+
+  /**
+   * Several edits in one go: one read, all checks first (if any record conflicts, nothing is written), one write
+   * of only the changed cells, and one read to check every cell landed in the right record.
+   */
+  async function changeMany(list: readonly RecordChange[], now: Date): Promise<Fields[]> {
+    if (list.length === 0) return [];
+    // Read again just before writing, so the row numbers and the checks are current.
     const { values, headers } = await readAll();
-    refuseUnknownColumns(tab, headers, changes);
-    const record = parseTable(tab, values, needed).records.find((r) => (r.fields[ID] ?? '').trim() === id.trim());
-    if (!record) throw new ConflictError(`This record is no longer in "${tab}". Reload the page.`);
-    const plan = planChange(record.fields, loaded, changes);
-    if ('conflict' in plan) throw new ConflictError(plan.conflict);
-    if (Object.keys(plan.write).length === 0) return record.fields; // nothing changed: nothing written
+    for (const item of list) refuseUnknownColumns(tab, headers, item.changes);
+    const records = parseTable(tab, values, needed).records;
+    const time = now.toISOString();
+    const planned = list.map((item) => {
+      const record = records.find((r) => (r.fields[ID] ?? '').trim() === item.id.trim());
+      if (!record) throw new ConflictError(`A record is no longer in "${tab}". Reload the page.`);
+      const plan = planChange(record.fields, item.loaded, item.changes);
+      if ('conflict' in plan) throw new ConflictError(plan.conflict);
+      const write: Record<string, string> = Object.keys(plan.write).length === 0 ? {} : { ...plan.write, updated_at: time };
+      return { record, write };
+    });
+    const cells = planned.flatMap(({ record, write }) =>
+      Object.entries(write).map(([name, value]) => ({ tab, cell: `${columnLetters(headers.indexOf(name) + 1)}${record.row}`, value })),
+    );
+    if (cells.length === 0) return planned.map(({ record }) => record.fields); // nothing changed: nothing written
+    await writeCells(client, spreadsheetId, cells);
 
-    const write = { ...plan.write, updated_at: now.toISOString() };
-    const cellOf = (name: string) => `${columnLetters(headers.indexOf(name) + 1)}${record.row}`;
-    await writeCells(client, spreadsheetId, Object.entries(write).map(([name, value]) => ({ tab, cell: cellOf(name), value })));
-
-    // Check the cells landed in the right record (rows can move if someone inserts or deletes rows by hand).
-    const [rowNow = []] = await readValues(client, spreadsheetId, tab, `A${record.row}:${columnLetters(headers.length)}${record.row}`, 'unformatted');
-    const idNow = String(rowNow[headers.indexOf(ID)] ?? '').trim();
-    if (idNow !== id.trim()) {
-      throw new Error(
-        `Kraken saved into row ${record.row} of "${tab}", but that row now holds another record (rows were moved in the sheet at the same moment). ` +
-          'Open the sheet and use File → Version history to check that row.',
-      );
+    // Check the cells landed in the right records (rows can move if someone inserts or deletes rows by hand).
+    const [after = []] = await readTabs(client, spreadsheetId, [tab], 'unformatted');
+    const idColumn = headers.indexOf(ID);
+    for (const { record, write } of planned) {
+      if (Object.keys(write).length === 0) continue;
+      const idNow = String(after[record.row - 1]?.[idColumn] ?? '').trim();
+      if (idNow !== (record.fields[ID] ?? '').trim()) {
+        throw new Error(
+          `Kraken saved into row ${record.row} of "${tab}", but that row now holds another record (rows were moved in the sheet at the same moment). ` +
+            'Open the sheet and use File → Version history to check that row.',
+        );
+      }
     }
-    return { ...record.fields, ...write };
+    return planned.map(({ record, write }) => ({ ...record.fields, ...write }));
   }
 
   async function addMany(list: readonly Fields[], by: string, now: Date): Promise<Fields[]> {
@@ -213,6 +243,10 @@ export function sheetRecordTable(
     async update(id, changes, loaded, now) {
       refuseSafetyColumns(changes);
       return change(id, changes, loaded, now);
+    },
+    async updateMany(list, now) {
+      for (const item of list) refuseSafetyColumns(item.changes);
+      return changeMany(list, now);
     },
     remove(id, loaded, now) {
       return change(id, { deleted_at: now.toISOString() }, loaded, now);
