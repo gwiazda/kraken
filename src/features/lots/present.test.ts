@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lotFromFields, type LotForm } from './model';
-import { codeAfterChange, deletedCount, deletedNote, formPricePerKg, lotListRows } from './present';
+import { codeAfterChange, deletedCount, deletedNote, lotListRows } from './present';
 
 const lot = (fields: Record<string, string>, row = 2) =>
   lotFromFields(
@@ -46,8 +46,6 @@ describe('lotListRows', () => {
       country: 'Kenya',
       delivered: '2026-11-03',
       quantity: '60 kg',
-      pricePerKg: '77,01 zł',
-      priceMissing: false,
       supplier: '—',
       source: 'By hand',
       stockLeft: '60\u00a0kg',
@@ -58,12 +56,6 @@ describe('lotListRows', () => {
 
   it('shows lots imported from RoasTime as such', () => {
     expect(lotListRows([lot({ roastime_container_id: 'C1' })])[0]?.source).toBe('RoasTime');
-  });
-
-  it('marks a lot without a price, and shows no price per kg', () => {
-    const [row] = lotListRows([lot({ coffee_price_net_pln: '' })]);
-    expect(row?.priceMissing).toBe(true);
-    expect(row?.pricePerKg).toBeNull();
   });
 
   it('hides deleted lots and puts the newest delivery first', () => {
@@ -127,20 +119,6 @@ describe('deleted lots', () => {
   it('are counted for the switch', () => {
     expect(deletedCount(lots)).toBe(1);
     expect(deletedCount([])).toBe(0);
-  });
-});
-
-describe('formPricePerKg', () => {
-  it('calculates live while typing', () => {
-    expect(formPricePerKg(form())).toBe('77,01 zł');
-    expect(formPricePerKg(form({ deliveryCost: '' }))).toBe('75,00 zł');
-  });
-
-  it('shows nothing until price and quantity are readable', () => {
-    expect(formPricePerKg(form({ coffeePrice: '' }))).toBeNull();
-    expect(formPricePerKg(form({ quantityKg: '6x' }))).toBeNull();
-    expect(formPricePerKg(form({ quantityKg: '0' }))).toBeNull();
-    expect(formPricePerKg(form({ deliveryCost: 'abc' }))).toBeNull();
   });
 });
 

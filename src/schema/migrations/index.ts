@@ -3,5 +3,6 @@
 import type { Migration } from '../migrationTypes';
 import { addLots } from './002-add-lots';
 import { addRoasts } from './003-add-roasts';
+import { addCosts } from './004-add-costs';
 
-export const MIGRATIONS: readonly Migration[] = [addLots, addRoasts];
+export const MIGRATIONS: readonly Migration[] = [addLots, addRoasts, addCosts];

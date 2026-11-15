@@ -65,6 +65,9 @@ Background columns (not shown as normal columns): `id`, `roastime_container_id`,
   Delivery, Price (with the calculated green price per kg) and Notes (owner's request). Delete asks once on a full-width
   line under the lot; "Show deleted (N)" lists deleted lots greyed out with Restore; a spinner shows while Google works.
   The RoasTime import is described below.
+- **[R] Prices moved (owner, 2026-11-16):** the Lots page shows the lot itself (description, delivery, stock left);
+  the coffee price and delivery cost are edited on the lot's card under **Costs & prices** ("Edit price", with the
+  green price per kg shown while typing). The data stays in the same Lots columns.
 
 **[R] Computed by the app (never stored)**
 - Green price per kg = (coffee price + delivery cost) ÷ quantity delivered.
@@ -77,9 +80,8 @@ Background columns (not shown as normal columns): `id`, `roastime_container_id`,
 
 ## 2. Bag sizes (bag stock deferred)
 
-**[R] Bag sizes:** **250 g** and **1 kg** for now, but other sizes must be possible.
-**[P]** Bag sizes are a configurable list (a "Bag sizes" tab), not hard-coded. They are used by invoice
-requests (section 4), price lists (section 5) and the cost calculation (section 6).
+**[R] Bag sizes are fixed (owner, 2026-11-16): 250 g, 500 g and 1 kg.** They are set in the code (no editor), and
+used by the cost calculation (section 6), and later by invoice requests (section 4) and price lists (section 5).
 
 **[R] Out of scope:** web shop sales (krakshop.pl) and cash register sales are **not** recorded in Kraken.
 Only invoice requests are (section 4).
@@ -133,6 +135,8 @@ Keep the data design open for this: the Bag sizes list and invoice lines already
   in RoasTime, is left out of stock until that is fixed in RoasTime.
 - **Stock left** per lot = delivered − green used, shown on the Lots page (below zero in yellow, with a note). A roast
   dated before the delivery of a lot it uses is marked "Before delivery".
+- **Later (owner, 2026-11-16):** filters on the Roasts page (e.g. by coffee, lot, date, samples) and paging, so
+  long lists are easy to sort out. Not urgent; after Costs & prices.
 - **Roasts page:** newest first, roast loss %, the lot(s) used, marks (Sample, Needs a lot, Chosen, Before delivery);
   "Only roasts that need a lot"; Edit (lot, sample, notes; date and weights only for roasts entered by hand);
   Add roast by hand; Delete / Show deleted / Restore.
@@ -274,6 +278,41 @@ Flexible enough to generate prices for any discount.
   added as extra lines per bag size.
 - **[R]** Energy is **not** included as a separate cost (too hard to measure).
 - Final prices chosen here become the **retail price list** in section 5 (one source of truth).
+
+**[R] Decided with the owner (2026-11-16)**
+- The retail price is set **per lot** (delivery), as in the original sheet; the price list later uses the newest lot of each coffee.
+- **Roast loss** = the average of the lot's roasts (weighted by the green coffee each took from the lot; a roast
+  split over two lots counts with its part), unless the owner types their own % for the lot. A lot with no roasts
+  with both weights yet uses the **default 15 %** (a setting).
+- **All costs are net** (lot prices, delivery, bag items). Markup × cost of one bag = net price; gross = net × (1 + VAT).
+- Amounts are exact during the calculation and rounded to the grosz (half up) only on the screen.
+
+**Built (part 1, 2026-11-16):** a "Costs & prices" menu tab with two parts:
+- **Prices per lot:** one card per lot: its price ("Edit price"), green price per kg, roast loss with its source and
+  "Change", roasted from 1 kg, cost of 1 kg roasted, and for 250 g, 500 g and 1 kg: coffee, items, cost of one bag,
+  net and gross price at each markup.
+- **Bag costs & settings:** the cost items of each bag size (add, edit, delete); VAT, markups, default loss.
+Tabs (data version 4): `Cost settings` (name, value), `Bag costs` (bag_size_id = the size in grams, item,
+cost_net_pln), `Lot costs` (lot_id, roast_loss_percent). (A first test of version 4 on the owner's sheet also made a
+"Bag sizes" tab; the owner deleted it, and Kraken never reads it.)
+**Next (part 2):** the final gross price per lot and bag size (typed), with the net price and B2B −15 %; old prices kept.
+
+**[R] Goal of Costs & prices (owner, 2026-11-16):** an easy way to check roughly what the price for the customer
+should be. It must stay **simple**: the owner finds it already crowded ("too much data will kill us").
+**[R] Two kinds of customers:** **retail** customers pay the retail price; **wholesale** customers get a discount
+in percent off the retail price (see section 5).
+**[P] Where it goes (Claude's advice, not decided yet):**
+- *Costs & prices* answers only "what does a bag cost us, and what retail price makes sense". Each lot card shows the
+  short answer (cost of one bag and the suggested prices); the step-by-step calculation folds away under
+  "Show calculation".
+- The **chosen retail prices** and the **wholesale view** (pick or type a discount %, see every coffee and size at
+  that price) go to one separate **Price list** tab (section 5). That tab is what the partner uses day to day, and
+  what an offer is made from.
+
+**[R] Offer generator (owner, 2026-11-16, later):** make an offer as a PDF from the page.
+**[P]** Without a server: a printable offer page (logo, coffees, sizes, prices for the chosen discount, date) and
+Chrome's **Print → Save as PDF**. No new library and no data leaves the browser. A PDF library could make the file
+directly, but would be a new dependency; only if printing is not good enough.
 
 ---
 

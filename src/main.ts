@@ -18,6 +18,7 @@ import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
+import { sheetCostsRepository, showCostsPage } from './features/costs';
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
@@ -99,6 +100,7 @@ window.addEventListener('popstate', (event) => {
   }
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
+  else if (screen === 'costs') showCosts(info, false, 'none');
   else if (screen === 'sync') showSync(info, syncFrom, 'none');
   else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
@@ -111,11 +113,13 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-function showApp(info: SpreadsheetInfo, active: 'lots' | 'roasts' | 'settings'): HTMLElement {
+type MenuTab = 'lots' | 'roasts' | 'costs' | 'settings';
+
+function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
   openSheet = info;
   const page = el('section', { class: 'page' });
-  const tab = (label: string, name: 'lots' | 'roasts' | 'settings', open: () => void) => {
+  const tab = (label: string, name: MenuTab, open: () => void) => {
     const b = button(label, open, 'link');
     if (name === active) b.setAttribute('aria-current', 'page');
     return b;
@@ -129,6 +133,9 @@ function showApp(info: SpreadsheetInfo, active: 'lots' | 'roasts' | 'settings'):
       }),
       tab('Roasts', 'roasts', () => {
         if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
+      }),
+      tab('Costs & prices', 'costs', () => {
+        if (!saving) showCosts(info, true, menuMove('costs'));
       }),
       tab('Settings', 'settings', () => {
         if (!saving) showSettings(info, menuMove('settings'));
@@ -387,6 +394,16 @@ function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, mov
       },
     },
     note,
+    fromClick,
+  );
+}
+
+function showCosts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('costs', move);
+  showCostsPage(
+    showApp(info, 'costs'),
+    { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
+    undefined,
     fromClick,
   );
 }
