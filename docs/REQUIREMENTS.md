@@ -297,6 +297,23 @@ cost_net_pln), `Lot costs` (lot_id, roast_loss_percent). (A first test of versio
 "Bag sizes" tab; the owner deleted it, and Kraken never reads it.)
 **Next (part 2):** the final gross price per lot and bag size (typed), with the net price and B2B −15 %; old prices kept.
 
+**[R] Goal of Costs & prices (owner, 2026-11-16):** an easy way to check roughly what the price for the customer
+should be. It must stay **simple**: the owner finds it already crowded ("too much data will kill us").
+**[R] Two kinds of customers:** **retail** customers pay the retail price; **wholesale** customers get a discount
+in percent off the retail price (see section 5).
+**[P] Where it goes (Claude's advice, not decided yet):**
+- *Costs & prices* answers only "what does a bag cost us, and what retail price makes sense". Each lot card shows the
+  short answer (cost of one bag and the suggested prices); the step-by-step calculation folds away under
+  "Show calculation".
+- The **chosen retail prices** and the **wholesale view** (pick or type a discount %, see every coffee and size at
+  that price) go to one separate **Price list** tab (section 5). That tab is what the partner uses day to day, and
+  what an offer is made from.
+
+**[R] Offer generator (owner, 2026-11-16, later):** make an offer as a PDF from the page.
+**[P]** Without a server: a printable offer page (logo, coffees, sizes, prices for the chosen discount, date) and
+Chrome's **Print → Save as PDF**. No new library and no data leaves the browser. A PDF library could make the file
+directly, but would be a new dependency; only if printing is not good enough.
+
 ---
 
 ## 7. Data storage and schema changes (Google Sheets)
