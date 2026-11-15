@@ -1,7 +1,6 @@
 // Talks to the Google Sheets API directly from the browser with the signed-in user's access token.
 // No server is involved. `fetch` and the token are passed in so tests can replace them with fakes.
-
-import { META_TAB, initialMetaRows } from './meta';
+// Generic building block: knows nothing about Kraken's tabs (those live in `schema/`).
 
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 
@@ -89,18 +88,24 @@ export function isGoogleSheetsUrl(url: string): boolean {
   }
 }
 
-/** The request body that creates a new Kraken spreadsheet with a filled `_meta` tab, in one step. */
-export function newSpreadsheetBody(title: string, createdAt: Date): object {
+/** A tab with its starting content, written as plain text. */
+export interface InitialTab {
+  title: string;
+  rows: string[][];
+}
+
+/** The request body that creates a new spreadsheet with one filled tab, in one step. */
+export function newSpreadsheetBody(title: string, firstTab: InitialTab): object {
   return {
     properties: { title },
     sheets: [
       {
-        properties: { title: META_TAB },
+        properties: { title: firstTab.title },
         data: [
           {
             startRow: 0,
             startColumn: 0,
-            rowData: initialMetaRows(createdAt).map((row) => ({
+            rowData: firstTab.rows.map((row) => ({
               values: row.map((text) => ({ userEnteredValue: { stringValue: text } })),
             })),
           },
@@ -110,11 +115,11 @@ export function newSpreadsheetBody(title: string, createdAt: Date): object {
   };
 }
 
-/** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with `_meta` or not at all. */
-export async function createSpreadsheet(client: SheetsClient, title: string, now = new Date()): Promise<SpreadsheetInfo> {
+/** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with its first tab or not at all. */
+export async function createSpreadsheet(client: SheetsClient, title: string, firstTab: InitialTab): Promise<SpreadsheetInfo> {
   const resource = await call<SpreadsheetResource>(client, `${SHEETS_API}?fields=${INFO_FIELDS}`, {
     method: 'POST',
-    body: JSON.stringify(newSpreadsheetBody(title, now)),
+    body: JSON.stringify(newSpreadsheetBody(title, firstTab)),
   });
   return toInfo(resource);
 }
@@ -127,12 +132,14 @@ export async function getSpreadsheetInfo(client: SheetsClient, id: string): Prom
   return toInfo(resource);
 }
 
-/**
- * Reads the `_meta` tab. Call only when the tab exists (see SpreadsheetInfo.tabs): every error is passed on,
- * so a temporary Google problem is never mistaken for "this is not a Kraken sheet".
- */
-export async function readMetaRows(client: SheetsClient, id: string): Promise<unknown[][]> {
-  const range = encodeURIComponent(`'${META_TAB}'!A1:B100`);
+/** An A1 range on a named tab, e.g. `'_meta'!A1:B100`. Quotes in the tab name are doubled, as Sheets requires. */
+export function tabRange(tab: string, cells: string): string {
+  return `'${tab.replace(/'/g, "''")}'!${cells}`;
+}
+
+/** Reads the cells of a tab. Every error is passed on, so the caller never mistakes a Google problem for data. */
+export async function readValues(client: SheetsClient, id: string, tab: string, cells: string): Promise<unknown[][]> {
+  const range = encodeURIComponent(tabRange(tab, cells));
   const result = await call<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}`);
   return result.values ?? [];
 }

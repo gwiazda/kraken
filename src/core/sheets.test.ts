@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { META_TAB, checkMeta } from './meta';
-import { SheetsError, createSpreadsheet, errorKindForStatus, getSpreadsheetInfo, isGoogleSheetsUrl, newSpreadsheetBody, readMetaRows, type SheetsClient } from './sheets';
-import { fakeClient } from './testing/fakeGoogle';
+import { SheetsError, createSpreadsheet, errorKindForStatus, getSpreadsheetInfo, isGoogleSheetsUrl, newSpreadsheetBody, readValues, tabRange, type SheetsClient } from './sheets';
+import { fakeClient } from '../testing/fakeGoogle';
 
 const ID = 'sheet-id-made-up-1234567890';
 const resource = {
@@ -10,12 +9,13 @@ const resource = {
   properties: { title: 'Kraken' },
   sheets: [{ properties: { title: '_meta' } }, { properties: { title: 'Lots' } }],
 };
-const created = new Date('2026-01-15T10:00:00.000Z');
 
 describe('createSpreadsheet', () => {
-  it('creates the spreadsheet with a filled _meta tab in a single request', async () => {
+  const tab = { title: 'First', rows: [['a', 'b'], ['1', '2']] };
+
+  it('creates the spreadsheet with its first tab filled, in a single request', async () => {
     const client = fakeClient([{ body: resource }]);
-    const info = await createSpreadsheet(client, 'Kraken', created);
+    const info = await createSpreadsheet(client, 'Kraken', tab);
 
     expect(info).toEqual({ id: ID, title: 'Kraken', url: resource.spreadsheetUrl, tabs: ['_meta', 'Lots'] });
     expect(client.requests).toHaveLength(1);
@@ -23,17 +23,28 @@ describe('createSpreadsheet', () => {
     expect(request?.method).toBe('POST');
     expect(request?.url).toMatch(/^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\?/);
     expect(request?.headers.get('Authorization')).toBe('Bearer test-token');
-    expect(request?.body).toEqual(newSpreadsheetBody('Kraken', created));
+    expect(request?.body).toEqual(newSpreadsheetBody('Kraken', tab));
   });
 
-  it('writes _meta rows that Kraken itself accepts as an up-to-date sheet', () => {
-    const body = newSpreadsheetBody('Kraken', created) as {
-      sheets: { properties: { title: string }; data: { rowData: { values: { userEnteredValue: { stringValue: string } }[] }[] }[] }[];
-    };
-    const sheet = body.sheets[0];
-    expect(sheet?.properties.title).toBe(META_TAB);
-    const rows = sheet?.data[0]?.rowData.map((row) => row.values.map((cell) => cell.userEnteredValue.stringValue));
-    expect(checkMeta(rows).kind).toBe('ok');
+  it('writes every cell as plain text (so Google never reinterprets it)', () => {
+    expect(newSpreadsheetBody('Kraken', tab)).toEqual({
+      properties: { title: 'Kraken' },
+      sheets: [
+        {
+          properties: { title: 'First' },
+          data: [
+            {
+              startRow: 0,
+              startColumn: 0,
+              rowData: [
+                { values: [{ userEnteredValue: { stringValue: 'a' } }, { userEnteredValue: { stringValue: 'b' } }] },
+                { values: [{ userEnteredValue: { stringValue: '1' } }, { userEnteredValue: { stringValue: '2' } }] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
   });
 });
 
@@ -59,26 +70,31 @@ describe('getSpreadsheetInfo', () => {
   });
 });
 
-describe('readMetaRows', () => {
-  it('reads the _meta tab', async () => {
+describe('readValues', () => {
+  it('reads the cells of a tab', async () => {
     const values = [['key', 'value'], ['app', 'Kraken']];
     const client = fakeClient([{ body: { values } }]);
-    expect(await readMetaRows(client, ID)).toEqual(values);
-    expect(decodeURIComponent(client.requests[0]?.url ?? '')).toContain(`/values/'_meta'!A1:B100`);
+    expect(await readValues(client, ID, 'Lots', 'A1:C10')).toEqual(values);
+    expect(decodeURIComponent(client.requests[0]?.url ?? '')).toContain(`/${ID}/values/'Lots'!A1:C10`);
   });
 
   it('returns an empty list when the tab is empty', async () => {
-    expect(await readMetaRows(fakeClient([{ body: {} }]), ID)).toEqual([]);
+    expect(await readValues(fakeClient([{ body: {} }]), ID, 'Lots', 'A1:C10')).toEqual([]);
   });
 
-  it('passes every error on, including 400 (never guesses "not a Kraken sheet" from an error)', async () => {
+  it('passes every error on, including 400', async () => {
     const client = fakeClient([{ status: 400, body: { error: { message: 'Bad request' } } }]);
-    await expect(readMetaRows(client, ID)).rejects.toMatchObject({ status: 400 });
+    await expect(readValues(client, ID, 'Lots', 'A1:C10')).rejects.toMatchObject({ status: 400 });
   });
+});
 
-  it('passes access errors on', async () => {
-    const client = fakeClient([{ status: 403, body: { error: { message: 'denied' } } }]);
-    await expect(readMetaRows(client, ID)).rejects.toMatchObject({ kind: 'no-access', status: 403 });
+describe('tabRange', () => {
+  it.each([
+    ['_meta', 'A1:B100', "'_meta'!A1:B100"],
+    ['Bag sizes', 'A:Z', "'Bag sizes'!A:Z"],
+    ["Owner's notes", 'A1', "'Owner''s notes'!A1"],
+  ])('%s %s -> %s', (tab, cells, expected) => {
+    expect(tabRange(tab, cells)).toBe(expected);
   });
 });
 

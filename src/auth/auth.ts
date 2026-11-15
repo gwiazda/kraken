@@ -1,10 +1,10 @@
 // Sign-in with Google Identity Services, popup style (no redirect, no server).
 // The access token lives only in memory and is lost when the page is closed, which is intended.
 
-import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES } from './config';
-import { loadScript } from './loadScript';
+import { GOOGLE_CLIENT_ID, GOOGLE_SCOPES } from '../config';
+import { loadScript } from '../core/loadScript';
 import { makeGuard } from './session';
-import { SheetsError } from './sheets';
+import { SheetsError } from '../core/sheets';
 import { SignInFlow, type LateOutcome } from './signInFlow';
 import { TokenHolder } from './token';
 

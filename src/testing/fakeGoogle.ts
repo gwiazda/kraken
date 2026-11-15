@@ -1,6 +1,6 @@
 // A fake Google Sheets API for tests: records every request and answers from a list of prepared responses.
 
-import type { SheetsClient } from '../sheets';
+import type { SheetsClient } from '../core/sheets';
 
 export interface RecordedRequest {
   url: string;

@@ -1,14 +1,23 @@
 // Kraken start screen: sign in, then connect to the Kraken spreadsheet.
 // All text is set with textContent (never innerHTML), so nothing from Google or the sheet can inject code.
 
-import { getToken, initAuth, isSignedIn, onLateReply, onSignInLog, signIn, signOut, withFreshToken } from './auth';
-import { startDevSignInLog } from './devLog';
+import {
+  SignInSuperseded,
+  getToken,
+  initAuth,
+  isSignedIn,
+  onLateReply,
+  onSignInLog,
+  signIn,
+  signOut,
+  startDevSignInLog,
+  withFreshToken,
+} from './auth';
 import { NEW_SHEET_TITLE } from './config';
-import { describeMetaProblem, inspectSpreadsheet } from './connect';
-import { pickSpreadsheet } from './picker';
-import { SheetsError, createSpreadsheet, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './sheets';
-import { SignInSuperseded } from './signInFlow';
-import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './storage';
+import { pickSpreadsheet } from './core/picker';
+import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
+import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
+import { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet } from './schema';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
 if (!appRoot) throw new Error('Missing #app element in index.html');
@@ -173,7 +182,7 @@ async function chooseSheet(): Promise<void> {
 }
 
 async function createSheet(): Promise<void> {
-  const info = await createSpreadsheet(client, NEW_SHEET_TITLE);
+  const info = await createKrakenSpreadsheet(client, NEW_SHEET_TITLE);
   remember(info.id);
   await connect(info.id);
 }

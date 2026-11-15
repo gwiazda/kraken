@@ -50,8 +50,20 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Known Google issue (diagnosed 2026-11-09): on a person's **first** sign-in, GIS reports `popup_closed` during the
   "unverified app" / allow screens and never delivers the token; the consent is still saved, so the second click works.
   Owner chose to handle it with a clear "click again" message (option A), not a redirect flow or publishing the app.
-  `npm run dev` shows a sign-in log under the page (`src/devLog.ts`, never in the live build) for diagnosing sign-in. Code map: `auth.ts` sign-in, `sheets.ts` Sheets API calls,
-  `signInFlow.ts` sign-in bookkeeping (keeps a token Google delivers late), `session.ts` renew-on-click, `meta.ts` schema version check, `connect.ts` open and check a sheet, `picker.ts` file picker, `main.ts` screens.
+  `npm run dev` shows a sign-in log under the page (`src/auth/devLog.ts`, never in the live build) for diagnosing sign-in.
+
+## Code structure (owner agreed 2026-11-15)
+Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
+test that reads every import line), so CI fails if a rule is broken.
+- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `storage.ts` remembered sheet ID,
+  `picker.ts` file picker, `loadScript.ts`. Later `money.ts` (exact maths in grosze), `ids.ts`, `dates.ts`.
+- `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
+- `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open and check a sheet; later backup and migrations.
+- `features/<name>/` (e.g. `lots`): `model.ts` types, validation and calculations (pure: no Google, no screen),
+  `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
+- `ui/`: shared screen helpers (coming with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs.
+- Rules: imports only point down (feature → ui/schema/auth → core → config); `auth`, `schema` and each feature are imported
+  only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 
 ## Commands
 - `npm install`: once after cloning, and after `package.json` changes.
@@ -69,7 +81,7 @@ fixes real findings with tests and tells the owner which findings were skipped a
 **Every calculation and every data operation must have automated tests**, so later changes can't silently break them.
 - Covered: all calculations (stock, roast loss, costs, prices, discounts, VAT, totals), and adding, editing,
   deleting (soft-delete) and importing records (RoasTime import, CSV), including reading and writing rows by header name and migrations.
-- Tool: **Vitest** (made for Vite). Tests sit next to the code as `src/*.test.ts`; `src/testing/fakeGoogle.ts` fakes the Sheets API.
+- Tool: **Vitest** (made for Vite). Tests sit next to the code as `*.test.ts`; `src/testing/fakeGoogle.ts` fakes the Sheets API.
   CI and the deploy workflow run them, so failing tests block a PR and are never published.
 - Keep logic in plain functions separate from the UI and from the Google API, so it can be tested without a browser or network
   (Sheets calls are faked in tests). Use made-up test data only.
@@ -80,7 +92,7 @@ Everything must be **migration-proof**; full rules in `docs/REQUIREMENTS.md` sec
 - Structure changes only through versioned migrations: full backup copy of the spreadsheet first, then migrate, then check
   no rows were lost, and only then raise `schema_version` in `_meta`. Only add or rename; never drop columns without the owner's OK.
 - Everyday edits: soft delete only, row IDs, `created_at` / `updated_at` / `created_by`; read columns by header name.
-- Raise `APP_SCHEMA_VERSION` in `src/meta.ts` only together with a migration and its tests. An app that sees a newer
+- Raise `APP_SCHEMA_VERSION` in `src/schema/meta.ts` only together with a migration and its tests. An app that sees a newer
   schema version than it knows must not write.
 
 ## Security rules

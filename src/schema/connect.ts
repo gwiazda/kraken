@@ -1,7 +1,20 @@
-// Opens a spreadsheet and decides whether Kraken may use it. Never writes to the sheet.
+// Creates a Kraken spreadsheet, or opens one and decides whether Kraken may use it. Opening never writes to the sheet.
 
-import { META_TAB, checkMeta, type MetaCheck } from './meta';
-import { getSpreadsheetInfo, readMetaRows, type SheetsClient, type SpreadsheetInfo } from './sheets';
+import { createSpreadsheet, getSpreadsheetInfo, readValues, type SheetsClient, type SpreadsheetInfo } from '../core/sheets';
+import { META_TAB, checkMeta, initialMetaRows, type MetaCheck } from './meta';
+
+/** Creates a new spreadsheet with a filled `_meta` tab in one request, so it either fully exists or not at all. */
+export function createKrakenSpreadsheet(client: SheetsClient, title: string, now = new Date()): Promise<SpreadsheetInfo> {
+  return createSpreadsheet(client, title, { title: META_TAB, rows: initialMetaRows(now) });
+}
+
+/**
+ * Reads the `_meta` tab. Call only when the tab exists (see SpreadsheetInfo.tabs): every error is passed on,
+ * so a temporary Google problem is never mistaken for "this is not a Kraken sheet".
+ */
+export function readMetaRows(client: SheetsClient, id: string): Promise<unknown[][]> {
+  return readValues(client, id, META_TAB, 'A1:B100');
+}
 
 export type ConnectResult = { info: SpreadsheetInfo; meta: MetaCheck };
 
