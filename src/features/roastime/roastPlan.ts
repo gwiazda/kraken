@@ -6,7 +6,7 @@
 // - a roast that is no longer in RoasTime stays in Kraken (only a note); roasts deleted in Kraken are left alone
 
 import { formatKg } from '../../core/numbers';
-import { gramsText, roastedGramsText, type Roast } from '../roasts';
+import { gramsText, parseGrams, parseRoastedGrams, roastTimeText, roastedGramsText, type Roast } from '../roasts';
 import type { RoastimeRoast } from './model';
 
 export interface NewRoast {
@@ -33,7 +33,17 @@ export interface RoastPlan {
 }
 
 const iso = (time: Date | null) => (time ? time.toISOString() : '');
-const day = (time: Date | null) => (time ? time.toISOString().slice(0, 10) : 'no date');
+/** Local date and time, like the Roasts page shows it. */
+const when = (time: Date | null) => roastTimeText(time) || 'no date';
+
+/** A stored weight as "1,2 kg" for the preview; a cell Kraken cannot read is shown as typed (never an error). */
+function shownGrams(text: string, parse: (t: string) => number | null | undefined, toGrams: (n: number) => number): string {
+  if (text === '') return '(empty)';
+  const value = parse(text);
+  return typeof value === 'number' ? formatKg(toGrams(value)) : `"${text}"`;
+}
+const greenShown = (text: string) => shownGrams(text, parseGrams, (n) => n);
+const roastedShown = (text: string) => shownGrams(text, parseRoastedGrams, (n) => Math.round(n / 10));
 
 /** The Kraken fields for a RoasTime roast (without Kraken's own fields). */
 function roastimeFields(rt: RoastimeRoast): Record<string, string> {
@@ -67,8 +77,13 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   const ordered = [...fromRoastime].sort((a, b) => (a.roastedAt?.getTime() ?? 0) - (b.roastedAt?.getTime() ?? 0));
 
   for (const rt of ordered) {
+    const label = `${rt.name || 'Roast without a name'} (${when(rt.roastedAt)})`;
+    if (seen.has(rt.id)) {
+      // The same roast twice in the folder (e.g. a Finder copy): use it once.
+      problems.push(`${label} is in the RoasTime folder twice; Kraken uses it once.`);
+      continue;
+    }
     seen.add(rt.id);
-    const label = `${rt.name || 'Roast without a name'} (${day(rt.roastedAt)})`;
     const group = byRoastimeId.get(rt.id) ?? [];
     const existing = group.find((r) => r.deletedAt === '') ?? group[0];
     if (existing) {
@@ -83,11 +98,11 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
         fields[column] = to;
         changes.push(describe(from, to));
       };
-      offer('roasted_at', () => `Time: ${day(existing.roastedAt)} → ${day(rt.roastedAt)}`);
+      offer('roasted_at', () => `Time: ${when(existing.roastedAt)} → ${when(rt.roastedAt)}`);
       offer('roast_name', (from, to) => `Name: ${from || '(empty)'} → ${to}`);
       if (rt.greenGrams === 0) problems.push(`RoasTime now has no green weight for ${label}; Kraken keeps its value.`);
-      else offer('green_g', (from, to) => `Green weight: ${from === '' ? '(empty)' : formatKg(Number(from))} → ${formatKg(Number(to))}`);
-      offer('roasted_g', (from, to) => `Roasted weight: ${from === '' ? '(empty)' : formatKg(Math.round(Number(from)))} → ${formatKg(Math.round(Number(to)))}`);
+      else offer('green_g', (from, to) => `Green weight: ${greenShown(from)} → ${greenShown(to)}`);
+      offer('roasted_g', (from, to) => `Roasted weight: ${roastedShown(from)} → ${roastedShown(to)}`);
       offer('roastime_bean_id', () => 'Coffee: a different coffee was chosen in RoasTime');
       if (Object.keys(fields).length > 0) changed.push({ roast: existing, fields, changes });
       else unchanged++;

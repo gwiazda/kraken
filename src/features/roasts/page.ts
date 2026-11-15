@@ -88,6 +88,8 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
     if (deletedCount === 0) showDeleted = false;
     const all = roastListRows(roasts, lots, allocation, showDeleted);
     const needing = all.filter((row) => row.needsLot && !row.deleted).length;
+    const noCoffee = all.filter((row) => row.needsLot && !row.deleted && row.roast.roastime.beanId === '').length;
+    const noLotForCoffee = needing - noCoffee;
     if (needing === 0) onlyNeedsLot = false;
     const rows = onlyNeedsLot ? all.filter((row) => row.needsLot) : all;
 
@@ -189,7 +191,12 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
-      ...(needing > 0 ? [message(`${needing} roast${needing === 1 ? ' has' : 's have'} no coffee: choose a lot (Edit), or mark ${needing === 1 ? 'it' : 'them'} as a sample. Until then ${needing === 1 ? 'it is' : 'they are'} not counted in any lot.`, 'error')] : []),
+      ...(noCoffee > 0
+        ? [message(`${noCoffee} roast${noCoffee === 1 ? ' has' : 's have'} no coffee chosen in RoasTime: choose a lot (Edit), or mark ${noCoffee === 1 ? 'it' : 'them'} as a sample. Until then ${noCoffee === 1 ? 'it is' : 'they are'} not counted in any lot.`, 'error')]
+        : []),
+      ...(noLotForCoffee > 0
+        ? [message(`${noLotForCoffee} roast${noLotForCoffee === 1 ? ' is' : 's are'} of a coffee that has no lot in Kraken yet: sync the delivery from RoasTime, add the lot by hand, or choose a lot (Edit).`, 'error')]
+        : []),
       el(
         'p',
         { class: 'switches small' },

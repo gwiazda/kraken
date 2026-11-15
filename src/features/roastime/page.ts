@@ -7,7 +7,7 @@ import { formatKg } from '../../core/numbers';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import type { LotsRepository } from '../lots';
-import type { RoastsRepository } from '../roasts';
+import { roastTimeText, type RoastsRepository } from '../roasts';
 import { ImportStopped, applySync, changeCount, summaryOf, type SyncWrites } from './apply';
 import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile, type RoastimeData } from './model';
 import { defaultDecision, newLotCodes, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
@@ -255,7 +255,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
           el('p', {}, box, ' ', el('label', { for: 'update-roasts' }, `Update ${roastPlan.changed.length} roast${roastPlan.changed.length === 1 ? '' : 's'} changed in RoasTime`)),
           details(
             'Show the changes',
-            roastPlan.changed.map((c) => `${c.roast.name || 'Roast'} (${c.roast.roastedAt?.toISOString().slice(0, 10) ?? 'no date'}): ${c.changes.join('; ')}`),
+            roastPlan.changed.map((c) => `${c.roast.name || 'Roast'} (${roastTimeText(c.roast.roastedAt) || 'no date'}): ${c.changes.join('; ')}`),
           ),
         );
       }
@@ -265,7 +265,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
         nodes.push(
           details(
             `${roastPlan.goneFromRoastime.length} no longer in RoasTime (kept in Kraken; delete them on the Roasts page if you want)`,
-            roastPlan.goneFromRoastime.map((r) => `${r.name || 'Roast'} (${r.roastedAt?.toISOString().slice(0, 10) ?? 'no date'})`),
+            roastPlan.goneFromRoastime.map((r) => `${r.name || 'Roast'} (${roastTimeText(r.roastedAt) || 'no date'})`),
           ),
         );
       }

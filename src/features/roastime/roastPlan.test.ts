@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { roastFromFields } from '../roasts';
+import { roastFromFields, roastTimeText } from '../roasts';
 import type { RoastimeRoast } from './model';
 import { planRoasts } from './roastPlan';
 
@@ -61,11 +61,8 @@ describe('planRoasts', () => {
   it('skips roasts with no green weight or no time, and lists them', () => {
     const plan = planRoasts([rt({ id: 'a', greenGrams: 0 }), rt({ id: 'b', greenGrams: null }), rt({ id: 'c', roastedAt: null, name: '' })], []);
     expect(plan.added).toEqual([]);
-    expect(plan.skipped).toEqual([
-      'Roast without a name (no date): no roast time',
-      'Kenia 03.11.2026-1 (2026-11-03): no green weight',
-      'Kenia 03.11.2026-1 (2026-11-03): no green weight',
-    ]);
+    const at = roastTimeText(new Date('2026-11-03T08:15:00.000Z')); // local time, like the Roasts page
+    expect(plan.skipped).toEqual(['Roast without a name (no date): no roast time', `Kenia 03.11.2026-1 (${at}): no green weight`, `Kenia 03.11.2026-1 (${at}): no green weight`]);
   });
 
   it('counts a roast already in Kraken with the same values as unchanged', () => {
@@ -87,7 +84,7 @@ describe('planRoasts', () => {
   it('never empties a Kraken value, and keeps the green weight if RoasTime lost it', () => {
     const plan = planRoasts([rt({ roastedDecigrams: null, greenGrams: 0, name: '' })], [kraken()]);
     expect(plan.changed).toEqual([]);
-    expect(plan.problems).toEqual(['RoasTime now has no green weight for Roast without a name (2026-11-03); Kraken keeps its value.']);
+    expect(plan.problems).toEqual([`RoasTime now has no green weight for Roast without a name (${roastTimeText(new Date('2026-11-03T08:15:00.000Z'))}); Kraken keeps its value.`]);
   });
 
   it('keeps roasts that are no longer in RoasTime, and leaves deleted ones alone', () => {
@@ -104,5 +101,16 @@ describe('planRoasts', () => {
     const plan = planRoasts([rt()], [kraken({}, 2), kraken({}, 7)]);
     expect(plan.problems).toEqual(['2 roasts in Kraken (rows 2, 7) are the same RoasTime roast. Delete the extra ones.']);
     expect(plan.unchanged).toBe(1);
+  });
+
+  it('uses a roast that is in the folder twice only once', () => {
+    const plan = planRoasts([rt(), rt()], []);
+    expect(plan.added).toHaveLength(1);
+    expect(plan.problems[0]).toContain('is in the RoasTime folder twice; Kraken uses it once.');
+  });
+
+  it('shows a weight typed by hand that Kraken cannot read as it is, instead of failing', () => {
+    const plan = planRoasts([rt({ greenGrams: 1150, roastedDecigrams: 9800 })], [kraken({ green_g: '1 200 g', roasted_g: '1026,5' })]);
+    expect(plan.changed[0]?.changes).toEqual(['Green weight: "1 200 g" → 1,15\u00a0kg', 'Roasted weight: 1,027\u00a0kg → 0,98\u00a0kg']);
   });
 });

@@ -199,11 +199,21 @@ export function sheetRecordTable(
     await writeCells(client, spreadsheetId, cells);
 
     // Check the cells landed in the right records (rows can move if someone inserts or deletes rows by hand).
-    const [after = []] = await readTabs(client, spreadsheetId, [tab], 'unformatted');
+    // One written row: read just that row; several: read the tab once.
+    const written = planned.filter(({ write }) => Object.keys(write).length > 0);
     const idColumn = headers.indexOf(ID);
-    for (const { record, write } of planned) {
-      if (Object.keys(write).length === 0) continue;
-      const idNow = String(after[record.row - 1]?.[idColumn] ?? '').trim();
+    const lastColumn = columnLetters(headers.length);
+    const only = written.length === 1 ? written[0] : undefined;
+    const rowsNow: Map<number, unknown[]> = new Map();
+    if (only) {
+      const [row = []] = await readValues(client, spreadsheetId, tab, `A${only.record.row}:${lastColumn}${only.record.row}`, 'unformatted');
+      rowsNow.set(only.record.row, row);
+    } else {
+      const [after = []] = await readTabs(client, spreadsheetId, [tab], 'unformatted');
+      for (const { record } of written) rowsNow.set(record.row, after[record.row - 1] ?? []);
+    }
+    for (const { record } of written) {
+      const idNow = String(rowsNow.get(record.row)?.[idColumn] ?? '').trim();
       if (idNow !== (record.fields[ID] ?? '').trim()) {
         throw new Error(
           `Kraken saved into row ${record.row} of "${tab}", but that row now holds another record (rows were moved in the sheet at the same moment). ` +

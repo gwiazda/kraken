@@ -108,6 +108,13 @@ describe('allocate: deleted and missing', () => {
   it('shows no stock left for a lot whose delivered kg is unknown', () => {
     expect(allocate([lot('a', { quantity_kg: '' })], []).lots.get('a')).toEqual({ usedGrams: 0, leftGrams: null });
   });
+
+  it('keeps the oldest-first order when the oldest lot has no delivered kg (its roasts are not pushed onto newer lots)', () => {
+    const lots = [lot('old', { quantity_kg: '' }), lot('new', { delivery_date: '2026-09-15' })];
+    const result = allocate(lots, [roast('r1', 1000), roast('r2', 500)]);
+    expect(result.lots.get('old')).toEqual({ usedGrams: 1500, leftGrams: null });
+    expect(result.lots.get('new')).toEqual({ usedGrams: 0, leftGrams: 10000 });
+  });
 });
 
 describe('allocate: roasted before delivery', () => {

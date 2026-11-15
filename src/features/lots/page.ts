@@ -24,7 +24,7 @@ export interface LotsPageDeps {
   /** Opens "Sync with RoasTime". */
   openSync: () => void;
   /** Green coffee used and left per lot ID, counted from the roasts (oldest delivery first). */
-  loadStock: (lots: readonly Lot[]) => Promise<ReadonlyMap<string, { readonly usedGrams: number; readonly leftGrams: number | null }>>;
+  loadStock: (lots: readonly Lot[]) => Promise<StockByLot>;
   /** The add/edit form opened (so the browser's Back closes it) / closed. */
   formOpened: () => void;
   formClosed: () => void;
@@ -97,7 +97,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     render(el('p', {}, busy('Loading lots…')));
     const both = async () => {
       const result = await deps.repo.load();
-      return { ...result, stock: await deps.loadStock(result.lots) };
+      // Stock comes from the Roasts tab; if that cannot be read, the lots are still shown (with a note).
+      const stockResult = await deps.loadStock(result.lots).then(
+        (map) => ({ map, problem: '' }),
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          return { map: new Map() as StockByLot, problem: `Stock left could not be calculated: ${deps.describeError(error)}` };
+        },
+      );
+      return { ...result, stock: stockResult.map, problems: stockResult.problem ? [...result.problems, stockResult.problem] : result.problems };
     };
     (fromClick ? deps.withGoogle(both) : both())
       .then((result) => {

@@ -99,7 +99,7 @@ window.addEventListener('popstate', (event) => {
   }
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
-  else if (screen === 'sync') showSync(info, 'lots', 'none');
+  else if (screen === 'sync') showSync(info, syncFrom, 'none');
   else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
     if (screen === 'roast-form') window.history.replaceState(stateFor('roasts'), '', '#roasts');
@@ -392,7 +392,11 @@ function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, mov
 }
 
 /** "Sync with RoasTime", opened from the Lots or the Roasts page; it returns there. */
+/** The page "Sync with RoasTime" was last opened from (Back/Forward returns to the same sync). */
+let syncFrom: 'lots' | 'roasts' = 'lots';
+
 function showSync(info: SpreadsheetInfo, from: 'lots' | 'roasts', move: HistoryMove = 'push'): void {
+  syncFrom = from;
   record('sync', move);
   showRoastimeSync(showApp(info, from), {
     ...googleDeps(),

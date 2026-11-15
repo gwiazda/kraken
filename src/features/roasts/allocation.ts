@@ -32,7 +32,9 @@ const byDelivery = (a: Lot, b: Lot) => a.deliveryDate.localeCompare(b.deliveryDa
 export function allocate(lots: readonly Lot[], roasts: readonly Roast[]): Allocation {
   const active = lots.filter((lot) => lot.deletedAt === '');
   const lotById = new Map(active.map((lot) => [lot.id, lot]));
-  const remaining = new Map(active.map((lot) => [lot.id, lot.quantityGrams ?? 0]));
+  // A lot whose delivered kg is unknown is not limited (its stock left shows as unknown), so the oldest-first order
+  // still holds: its roasts are not pushed onto newer lots.
+  const remaining = new Map(active.map((lot) => [lot.id, lot.quantityGrams ?? Number.POSITIVE_INFINITY]));
   const result = new Map<string, RoastAllocation>();
   const ordered = sortRoastsOldestFirst(roasts.filter((roast) => !isRoastDeleted(roast)));
 
@@ -93,12 +95,16 @@ export function allocate(lots: readonly Lot[], roasts: readonly Roast[]): Alloca
     result.set(roast.id, { status: 'automatic', parts, beforeDelivery: before(roast, parts.map((p) => p.lotId)) });
   }
 
+  const roastsOf = (lotId: string) =>
+    [...result.values()].flatMap((a) => (a.status === 'not-counted' ? [] : a.parts.filter((p) => p.lotId === lotId)));
+  const usedOfUnknown = (parts: { grams: number }[]) => parts.reduce((sum, p) => sum + p.grams, 0);
   const stock = new Map<string, LotStock>();
   for (const lot of lots) {
     if (!lotById.has(lot.id)) continue;
     const left = remaining.get(lot.id) ?? 0;
     const delivered = lot.quantityGrams;
-    stock.set(lot.id, { usedGrams: (delivered ?? 0) - left, leftGrams: delivered === null ? null : left });
+    const used = delivered === null ? 0 : delivered - left;
+    stock.set(lot.id, { usedGrams: delivered === null ? usedOfUnknown(roastsOf(lot.id)) : used, leftGrams: delivered === null ? null : left });
   }
   return { lots: stock, roasts: result };
 }
