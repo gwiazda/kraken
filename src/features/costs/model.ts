@@ -1,0 +1,258 @@
+// Costs & prices: the tabs, what a row means, and checking what the owner types. Pure: no Google, no screen.
+// Settings (VAT, markups, default roast loss), bag sizes with their cost items, and a per-lot roast loss override.
+// Rules agreed with the owner on 2026-11-16 (docs/REQUIREMENTS.md section 6): all costs are net; markups give the
+// net price; gross = net × (1 + VAT); roast loss = the average of the lot's roasts unless the owner types one.
+
+import { moneyText, parseDecimal, parseMoney, toDecimalText } from '../../core/numbers';
+
+type Fields = Readonly<Record<string, string>>;
+
+export const SETTINGS_TAB = 'Settings';
+export const SETTING_COLUMNS = ['name', 'value'] as const;
+export const BAG_SIZES_TAB = 'Bag sizes';
+export const BAG_SIZE_COLUMNS = ['size_g'] as const;
+export const BAG_COSTS_TAB = 'Bag costs';
+export const BAG_COST_COLUMNS = ['bag_size_id', 'item', 'cost_net_pln'] as const;
+export const LOT_COSTS_TAB = 'Lot costs';
+export const LOT_COST_COLUMNS = ['lot_id', 'roast_loss_percent'] as const;
+
+const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
+
+// ---- Settings ----
+
+/** Percentages in tenths (230 = 23,0 %), markups in hundredths (250 = 2,5×). */
+export interface CostSettings {
+  readonly vatTenths: number;
+  readonly markupHundredths: readonly number[];
+  readonly defaultLossTenths: number;
+}
+
+/** Used until the owner saves their own (owner, 2026-11-16: VAT 23 %, markups 2×, 2,5×, 3×, default loss 15 %). */
+export const DEFAULT_SETTINGS: CostSettings = { vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150 };
+
+export const SETTING_NAMES = { vat: 'vat_percent', markups: 'markups', defaultLoss: 'default_roast_loss_percent' } as const;
+
+export interface SettingRow {
+  readonly id: string;
+  readonly row: number;
+  readonly name: string;
+  readonly value: string;
+  readonly deletedAt: string;
+  readonly source: Fields;
+}
+
+export const settingFromFields = (fields: Fields, row: number): SettingRow => ({
+  id: text(fields, 'id'),
+  row,
+  name: text(fields, 'name'),
+  value: text(fields, 'value'),
+  deletedAt: text(fields, 'deleted_at'),
+  source: fields,
+});
+
+/** A percentage typed by a person: "23", "15,5" → tenths. Null if empty, undefined if not a valid percentage below 100. */
+export function parsePercent(value: string): number | null | undefined {
+  const tenths = parseDecimal(value, 1);
+  if (tenths === null || tenths === undefined) return tenths;
+  return tenths < 1000 ? tenths : undefined;
+}
+
+export const percentText = (tenths: number) => toDecimalText(tenths, 1);
+/** For the screen: "23 %", "15,5 %". */
+export const formatPercent = (tenths: number) => `${percentText(tenths).replace('.', ',')} %`;
+
+/** Markups typed as "2; 2,5; 3" → hundredths. Undefined if any part is not a number above 0, or there are none or over 5. */
+export function parseMarkups(value: string): number[] | undefined {
+  const parts = value.split(';').map((p) => p.trim()).filter((p) => p !== '');
+  if (parts.length === 0 || parts.length > 5) return undefined;
+  const result: number[] = [];
+  for (const part of parts) {
+    // A space inside a part means the owner used "," to separate ("2, 3" would otherwise read as 2,3).
+    if (/\s/.test(part)) return undefined;
+    const hundredths = parseDecimal(part, 2);
+    if (typeof hundredths !== 'number' || hundredths <= 0 || hundredths > 10000) return undefined;
+    result.push(hundredths);
+  }
+  return result;
+}
+
+export const markupsText = (hundredths: readonly number[]) => hundredths.map((m) => toDecimalText(m, 2)).join(';');
+/** For the screen: "2,5×". */
+export const formatMarkup = (hundredths: number) => `${toDecimalText(hundredths, 2).replace('.', ',')}×`;
+
+/**
+ * The settings in use: each saved value that Kraken can read, otherwise the default. Problems name the rows that
+ * could not be used (shown on the page, never silently ignored).
+ */
+export function readSettings(rows: readonly SettingRow[]): { settings: CostSettings; problems: string[] } {
+  const problems: string[] = [];
+  const active = rows.filter((r) => r.deletedAt === '');
+  const valueOf = (name: string): string | null => {
+    const found = active.filter((r) => r.name === name);
+    if (found.length > 1) problems.push(`The Settings tab has ${found.length} rows named "${name}" (rows ${found.map((r) => r.row).join(', ')}); Kraken uses the first.`);
+    return found[0]?.value ?? null;
+  };
+  const read = <T>(name: string, parse: (v: string) => T | null | undefined, fallback: T): T => {
+    const value = valueOf(name);
+    if (value === null || value === '') return fallback;
+    const parsed = parse(value);
+    if (parsed === null || parsed === undefined) {
+      problems.push(`The setting "${name}" has the value "${value}", which Kraken cannot read; it uses the default instead.`);
+      return fallback;
+    }
+    return parsed;
+  };
+  return {
+    settings: {
+      vatTenths: read(SETTING_NAMES.vat, parsePercent, DEFAULT_SETTINGS.vatTenths),
+      markupHundredths: read(SETTING_NAMES.markups, parseMarkups, DEFAULT_SETTINGS.markupHundredths),
+      defaultLossTenths: read(SETTING_NAMES.defaultLoss, parsePercent, DEFAULT_SETTINGS.defaultLossTenths),
+    },
+    problems,
+  };
+}
+
+export interface SettingsForm {
+  vat: string;
+  markups: string;
+  defaultLoss: string;
+}
+
+export const formFromSettings = (s: CostSettings): SettingsForm => ({
+  vat: percentText(s.vatTenths).replace('.', ','),
+  markups: s.markupHundredths.map((m) => toDecimalText(m, 2).replace('.', ',')).join('; '),
+  defaultLoss: percentText(s.defaultLossTenths).replace('.', ','),
+});
+
+export type SettingsErrors = Partial<Record<keyof SettingsForm, string>>;
+
+/** Checks the settings form; on success gives the values to store, by setting name. */
+export function validateSettingsForm(form: SettingsForm): { ok: true; values: Record<string, string> } | { ok: false; errors: SettingsErrors } {
+  const errors: SettingsErrors = {};
+  const vat = parsePercent(form.vat);
+  if (typeof vat !== 'number') errors.vat = 'Enter the VAT rate, e.g. 23.';
+  const markups = parseMarkups(form.markups);
+  if (!markups) errors.markups = 'Enter 1 to 5 markups separated by ";", e.g. 2; 2,5; 3.';
+  const loss = parsePercent(form.defaultLoss);
+  if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage below 100, e.g. 15.';
+  if (typeof vat !== 'number' || !markups || typeof loss !== 'number') return { ok: false, errors };
+  return {
+    ok: true,
+    values: { [SETTING_NAMES.vat]: percentText(vat), [SETTING_NAMES.markups]: markupsText(markups), [SETTING_NAMES.defaultLoss]: percentText(loss) },
+  };
+}
+
+// ---- Bag sizes and their costs ----
+
+export interface BagSize {
+  readonly id: string;
+  readonly row: number;
+  /** Grams of roasted coffee in the bag; null if the cell cannot be read. */
+  readonly grams: number | null;
+  readonly deletedAt: string;
+  readonly source: Fields;
+}
+
+export const bagSizeFromFields = (fields: Fields, row: number): BagSize => {
+  const grams = parseDecimal(text(fields, 'size_g'), 0);
+  return { id: text(fields, 'id'), row, grams: typeof grams === 'number' && grams > 0 ? grams : null, deletedAt: text(fields, 'deleted_at'), source: fields };
+};
+
+/** For the screen: "250 g", "1 kg", "1,5 kg". */
+export function formatBagSize(grams: number): string {
+  return grams >= 1000 ? `${toDecimalText(grams, 3).replace('.', ',')} kg` : `${grams} g`;
+}
+
+/** Checks a new bag size typed in grams (e.g. "250", "1000"). */
+export function validateBagSize(value: string, existing: readonly BagSize[]): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
+  const grams = parseDecimal(value, 0);
+  if (typeof grams !== 'number' || grams <= 0 || grams > 100000) return { ok: false, error: 'Enter the bag size in whole grams, e.g. 250 or 1000.' };
+  if (existing.some((s) => s.deletedAt === '' && s.grams === grams)) return { ok: false, error: `${formatBagSize(grams)} is already in the list.` };
+  return { ok: true, fields: { size_g: String(grams) } };
+}
+
+export interface BagCost {
+  readonly id: string;
+  readonly row: number;
+  readonly bagSizeId: string;
+  readonly item: string;
+  /** Net cost in grosze; null if the cell cannot be read. */
+  readonly costGrosze: number | null;
+  /** The cost cell as typed (shown if it cannot be read). */
+  readonly costText: string;
+  readonly deletedAt: string;
+  readonly source: Fields;
+}
+
+export const bagCostFromFields = (fields: Fields, row: number): BagCost => {
+  const cost = parseMoney(text(fields, 'cost_net_pln'));
+  return {
+    id: text(fields, 'id'),
+    row,
+    bagSizeId: text(fields, 'bag_size_id'),
+    item: text(fields, 'item'),
+    costGrosze: typeof cost === 'number' ? cost : null,
+    costText: text(fields, 'cost_net_pln'),
+    deletedAt: text(fields, 'deleted_at'),
+    source: fields,
+  };
+};
+
+export interface BagCostForm {
+  item: string;
+  cost: string;
+}
+
+export type BagCostErrors = Partial<Record<keyof BagCostForm, string>>;
+
+export const formFromBagCost = (cost: BagCost): BagCostForm => ({
+  item: cost.item,
+  cost: cost.costGrosze === null ? cost.costText : `${Math.floor(cost.costGrosze / 100)},${String(cost.costGrosze % 100).padStart(2, '0')}`,
+});
+
+/** Checks a cost item (e.g. "Bag", "0,85"); gives the fields to store (without the bag size). */
+export function validateBagCostForm(form: BagCostForm): { ok: true; fields: Record<string, string> } | { ok: false; errors: BagCostErrors } {
+  const errors: BagCostErrors = {};
+  const item = form.item.trim();
+  if (item === '') errors.item = 'Enter what it is, e.g. Bag or Label.';
+  else if (item.length > 100) errors.item = 'At most 100 characters.';
+  const cost = parseMoney(form.cost);
+  if (typeof cost !== 'number') errors.cost = 'Enter the net cost per bag in zł, e.g. 0,85.';
+  else if (cost > 100000) errors.cost = 'That is more than 1 000 zł per bag; please check.';
+  if (Object.keys(errors).length > 0 || typeof cost !== 'number') return { ok: false, errors };
+  return { ok: true, fields: { item, cost_net_pln: moneyText(cost) } };
+}
+
+// ---- Roast loss per lot (the owner's override) ----
+
+export interface LotCost {
+  readonly id: string;
+  readonly row: number;
+  readonly lotId: string;
+  /** The owner's roast loss in tenths of a percent; null if empty (use the average) or unreadable. */
+  readonly lossTenths: number | null;
+  readonly lossText: string;
+  readonly deletedAt: string;
+  readonly source: Fields;
+}
+
+export const lotCostFromFields = (fields: Fields, row: number): LotCost => {
+  const loss = parsePercent(text(fields, 'roast_loss_percent'));
+  return {
+    id: text(fields, 'id'),
+    row,
+    lotId: text(fields, 'lot_id'),
+    lossTenths: typeof loss === 'number' ? loss : null,
+    lossText: text(fields, 'roast_loss_percent'),
+    deletedAt: text(fields, 'deleted_at'),
+    source: fields,
+  };
+};
+
+/** Checks a roast loss typed for a lot; empty means "use the average of the roasts again". */
+export function validateLoss(value: string): { ok: true; value: string } | { ok: false; error: string } {
+  if (value.trim() === '') return { ok: true, value: '' };
+  const tenths = parsePercent(value);
+  if (typeof tenths !== 'number') return { ok: false, error: 'Enter a percentage below 100, e.g. 15,5 (or leave empty to use the average).' };
+  return { ok: true, value: percentText(tenths) };
+}

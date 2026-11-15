@@ -133,6 +133,8 @@ Keep the data design open for this: the Bag sizes list and invoice lines already
   in RoasTime, is left out of stock until that is fixed in RoasTime.
 - **Stock left** per lot = delivered − green used, shown on the Lots page (below zero in yellow, with a note). A roast
   dated before the delivery of a lot it uses is marked "Before delivery".
+- **Later (owner, 2026-11-16):** filters on the Roasts page (e.g. by coffee, lot, date, samples) and paging, so
+  long lists are easy to sort out. Not urgent; after Costs & prices.
 - **Roasts page:** newest first, roast loss %, the lot(s) used, marks (Sample, Needs a lot, Chosen, Before delivery);
   "Only roasts that need a lot"; Edit (lot, sample, notes; date and weights only for roasts entered by hand);
   Add roast by hand; Delete / Show deleted / Restore.
@@ -274,6 +276,21 @@ Flexible enough to generate prices for any discount.
   added as extra lines per bag size.
 - **[R]** Energy is **not** included as a separate cost (too hard to measure).
 - Final prices chosen here become the **retail price list** in section 5 (one source of truth).
+
+**[R] Decided with the owner (2026-11-16)**
+- The retail price is set **per lot** (delivery), as in the original sheet; the price list later uses the newest lot of each coffee.
+- **Roast loss** = the average of the lot's roasts (weighted by the green coffee each took from the lot; a roast
+  split over two lots counts with its part), unless the owner types their own % for the lot. A lot with no roasts
+  with both weights yet uses the **default 15 %** (a setting).
+- **All costs are net** (lot prices, delivery, bag items). Markup × cost of one bag = net price; gross = net × (1 + VAT).
+- Amounts are exact during the calculation and rounded to the grosz (half up) only on the screen.
+
+**Built (part 1, 2026-11-16):** a "Costs & prices" menu tab: one card per lot (green price per kg, roast loss with
+its source and "Change", roasted from 1 kg, cost of 1 kg roasted, and per bag size: coffee, items, cost of one bag,
+net and gross price at each markup). Below: settings (VAT, markups, default loss) and bag sizes with their cost items
+(add, edit, delete). Tabs (data version 4): `Settings` (name, value), `Bag sizes` (size_g), `Bag costs`
+(bag_size_id, item, cost_net_pln), `Lot costs` (lot_id, roast_loss_percent).
+**Next (part 2):** the final gross price per lot and bag size (typed), with the net price and B2B −15 %; old prices kept.
 
 ---
 
