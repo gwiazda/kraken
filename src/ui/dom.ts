@@ -24,3 +24,8 @@ export function message(text: string, kind: 'info' | 'error' = 'info'): HTMLPara
 export function infoTip(text: string): HTMLSpanElement {
   return el('span', { class: 'info-tip', tabindex: '0', role: 'note', 'aria-label': text, 'data-tip': text }, 'ⓘ');
 }
+
+/** A "working on it" line with a spinning circle, e.g. busy('Deleting…'). */
+export function busy(text: string): HTMLSpanElement {
+  return el('span', { class: 'busy', role: 'status' }, el('span', { class: 'spinner', 'aria-hidden': 'true' }), text);
+}

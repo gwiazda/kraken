@@ -46,6 +46,8 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
   it opens Google's popup first (closes by itself after the first consent), then runs the action. Popups need a click,
   so silent background renewal is impossible without a server. Nothing new is stored (no email hint).
   If renewal fails while the old token still has minutes left, the action runs with the old token.
+  A page reload asks for one "Sign in with Google" click: the owner chose to keep the token in memory only, not in
+  sessionStorage (2026-11-15, option A).
   "Sign out" only forgets the token in the tab; it does not revoke at Google (revoking removes the consent and the
   drive.file grant for picked sheets). Full removal: myaccount.google.com/connections.
 - Known Google issue (diagnosed 2026-11-09): on a person's **first** sign-in, GIS reports `popup_closed` during the
