@@ -63,6 +63,9 @@ test that reads every import line), so CI fails if a rule is broken.
 - `features/<name>/` (e.g. `lots`): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
+  when the address ends with `?new-sheet`, e.g. `https://gwiazda.github.io/kraken/?new-sheet`. The file picker has
+  "All spreadsheets" and "Shared with me" tabs.
 - Rules: imports only point down (feature → ui/schema/auth → core → config); `auth`, `schema` and each feature are imported
   only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 

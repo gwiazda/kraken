@@ -17,6 +17,7 @@ import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
+import { wantsNewSheet } from './ui/newSheetMode';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
 if (!appRoot) throw new Error('Missing #app element in index.html');
@@ -153,6 +154,7 @@ function showChooseSheet(note?: string): void {
     showSignIn(note);
     return;
   }
+  const ownerSetup = wantsNewSheet(window.location.search);
   show(
     el('p', {}, 'Connect Kraken to its Google Sheet.'),
     ...(note ? [message(note, 'error')] : []),
@@ -160,13 +162,15 @@ function showChooseSheet(note?: string): void {
       'div',
       { class: 'actions' },
       button('Choose existing sheet', onClickWithGoogle("Opening Google's file window…", chooseSheet)),
-      button('Create Kraken sheet', onClickWithGoogle('Creating the Kraken sheet…', createSheet), 'secondary'),
+      ...(ownerSetup ? [button('Create Kraken sheet', onClickWithGoogle('Creating the Kraken sheet…', createSheet), 'secondary')] : []),
     ),
     el(
       'p',
       { class: 'muted small' },
-      'First time? Create the sheet once, then share it in Google Drive with your partner. ' +
-        'Your partner then uses "Choose existing sheet" once on their computer.',
+      ownerSetup
+        ? 'Creates a new, empty Kraken sheet in your Google Drive. Share it in Google Drive with your partner.'
+        : 'First time? Ask the owner to share the Kraken sheet with you in Google Drive, then choose it here once. ' +
+            'Shared sheets are under "Shared with me".',
     ),
   );
 }
