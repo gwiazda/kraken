@@ -37,6 +37,10 @@ declare namespace google.picker {
     constructor(viewId?: ViewIdValue);
     setMode(mode: string): DocsView;
     setIncludeFolders(include: boolean): DocsView;
+    /** false: only files shared with the user. */
+    setOwnedByMe(ownedByMe: boolean): DocsView;
+    /** The tab's name in the window. */
+    setLabel(label: string): DocsView;
   }
   interface PickedDocument {
     id: string;

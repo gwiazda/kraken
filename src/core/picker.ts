@@ -26,9 +26,15 @@ function loadPicker(): Promise<void> {
 export async function pickSpreadsheet(accessToken: string): Promise<string | null> {
   await loadPicker();
   return new Promise<string | null>((resolve) => {
-    const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setMode(google.picker.DocsViewMode.LIST);
+    // Two tabs: every spreadsheet the user can open, and only the ones shared with them (where a partner finds the sheet).
+    const all = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setMode(google.picker.DocsViewMode.LIST).setLabel('All spreadsheets');
+    const shared = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+      .setMode(google.picker.DocsViewMode.LIST)
+      .setOwnedByMe(false)
+      .setLabel('Shared with me');
     const picker = new google.picker.PickerBuilder()
-      .addView(view)
+      .addView(all)
+      .addView(shared)
       .setOAuthToken(accessToken)
       .setDeveloperKey(GOOGLE_PICKER_API_KEY)
       .setAppId(GOOGLE_PROJECT_NUMBER)
