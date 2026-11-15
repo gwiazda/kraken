@@ -17,9 +17,11 @@ import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
+import { showRoastimeImport } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, message, type Child } from './ui/dom';
+import { screenOf, stateFor, type Screen } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -42,12 +44,72 @@ let resume: Resume | null = null;
 
 function show(...children: Child[]): void {
   resume = null;
+  openSheet = null; // Back no longer leads into the connected screens
   app.replaceChildren(el('h1', {}, 'Kraken'), ...children);
 }
+
+// ---- Browser Back / Forward between Kraken's screens ----
+
+/** The connected sheet, while one of its screens is shown. */
+let openSheet: SpreadsheetInfo | null = null;
+/** The screen shown now (to put it back if Back is pressed while saving). */
+let currentScreen: Screen = 'lots';
+/** True while Kraken saves to Google: Back and the menu wait, so nothing is left running unseen. */
+let saving = false;
+/** History moves Kraken makes itself (stepping back over a closed form or import) whose popstate must be ignored. */
+let ownMoves = 0;
+
+/** 'push': a new history entry (a click); 'replace': this entry becomes the screen; 'none': came from Back/Forward. */
+type HistoryMove = 'push' | 'replace' | 'none';
+
+function record(screen: Screen, move: HistoryMove): void {
+  currentScreen = screen;
+  if (move === 'push') window.history.pushState(stateFor(screen), '', `#${screen}`);
+  if (move === 'replace') window.history.replaceState(stateFor(screen), '', `#${screen}`);
+}
+
+/**
+ * Steps back over a history entry Kraken itself added (an open form, the import), without reacting to it, so the
+ * history stays clean. Done at most once at a time; a safety timer clears the counter if the browser never answers.
+ */
+function leave(screen: Screen): void {
+  if (screenOf(window.history.state) !== screen || ownMoves > 0) return;
+  ownMoves = 1;
+  window.history.back();
+  window.setTimeout(() => (ownMoves = 0), 1000);
+}
+
+/** How a menu click moves: back to the same screen (or out of an open form) replaces, anything else adds a step. */
+function menuMove(target: Screen): HistoryMove {
+  const now = screenOf(window.history.state);
+  return now === target || now === 'lot-form' ? 'replace' : 'push';
+}
+
+window.addEventListener('popstate', (event) => {
+  if (ownMoves > 0) {
+    ownMoves = 0;
+    return;
+  }
+  const info = openSheet;
+  if (!info) return;
+  if (saving) {
+    window.history.pushState(stateFor(currentScreen), '', `#${currentScreen}`); // stay: Kraken is saving
+    return;
+  }
+  const screen = screenOf(event.state);
+  if (screen === 'settings') showSettings(info, 'none');
+  else if (screen === 'import') showImport(info, 'none');
+  else {
+    // A form cannot be brought back with Forward: that entry becomes the list.
+    if (screen === 'lot-form') window.history.replaceState(stateFor('lots'), '', '#lots');
+    showLots(info, undefined, false, 'none');
+  }
+});
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
 function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElement {
   resume = null;
+  openSheet = info;
   const page = el('section', { class: 'page' });
   const tab = (label: string, name: 'lots' | 'settings', open: () => void) => {
     const b = button(label, open, 'link');
@@ -55,7 +117,16 @@ function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElemen
     return b;
   };
   app.replaceChildren(
-    el('nav', { class: 'app-nav', 'aria-label': 'Kraken' }, tab('Lots', 'lots', () => showLots(info, undefined, true)), tab('Settings', 'settings', () => showSettings(info))),
+    el(
+      'nav',
+      { class: 'app-nav', 'aria-label': 'Kraken' },
+      tab('Lots', 'lots', () => {
+        if (!saving) showLots(info, undefined, true, menuMove('lots'));
+      }),
+      tab('Settings', 'settings', () => {
+        if (!saving) showSettings(info, menuMove('settings'));
+      }),
+    ),
     page,
   );
   return page;
@@ -204,7 +275,7 @@ async function connect(id: string, note?: string): Promise<void> {
       return;
     }
     remember(info.id);
-    showLots(info, note);
+    showLots(info, note, false, 'replace');
   });
 }
 
@@ -255,7 +326,8 @@ function remember(id: string): void {
   }
 }
 
-function showLots(info: SpreadsheetInfo, note?: string, fromClick = false): void {
+function showLots(info: SpreadsheetInfo, note?: string, fromClick = false, move: HistoryMove = 'push'): void {
+  record('lots', move);
   showLotsPage(showApp(info, 'lots'), lotsPageDeps(info), note, fromClick);
 }
 
@@ -269,11 +341,36 @@ function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
     isIgnorable: (error) => error instanceof SignInSuperseded,
     describeError: errorText,
     now: () => new Date(),
+    openImport: () => showImport(info),
+    formOpened: () => record('lot-form', 'push'),
+    formClosed: () => {
+      currentScreen = 'lots';
+      leave('lot-form');
+    },
+    busy: (on) => {
+      saving = on;
+      app.classList.toggle('saving', on);
+    },
   };
 }
 
+function showImport(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
+  record('import', move);
+  const deps = lotsPageDeps(info);
+  showRoastimeImport(showApp(info, 'lots'), {
+    ...deps,
+    copyText: (text) => navigator.clipboard.writeText(text),
+    backToLots: (note) => {
+      leave('import');
+      showLots(info, note, true, 'none');
+      currentScreen = 'lots';
+    },
+  });
+}
+
 /** The sheet Kraken uses, and signing out. Kept off the main page (owner, 2026-11-15). */
-function showSettings(info: SpreadsheetInfo): void {
+function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
+  record('settings', move);
   // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
   const link = isGoogleSheetsUrl(info.url)
     ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)

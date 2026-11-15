@@ -1,0 +1,14 @@
+{
+  "beanId": "EXAMPLEbeanID0000001",
+  "startOnHand": 60000,
+  "deleted": false,
+  "defaultCost": { "amount": 0, "currency": { "code": "USD", "base": 10, "exponent": 2 }, "scale": 2 },
+  "capacityType": 0,
+  "name": "Example container",
+  "containerGroup": "EXAMPLEgroup",
+  "capacity": 60000,
+  "updatedAt": 1767225600000,
+  "id": "EXAMPLEcontainer0001",
+  "createdAt": { "_seconds": 1767225600, "_nanoseconds": 0 },
+  "userId": "EXAMPLEuser"
+}

@@ -7,6 +7,8 @@ export {
   formFromLot,
   greenPricePerKg,
   isDeleted,
+  lotFromFields,
+  lotSource,
   priceMissing,
   sortLots,
   suggestCode,

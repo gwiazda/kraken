@@ -2,7 +2,7 @@
 
 import { localDate } from '../../core/dates';
 import { formatKg, formatPln, parseKg, parseMoney } from '../../core/numbers';
-import { greenPricePerKg, isDeleted, priceMissing, sortLots, suggestCode, type Lot, type LotForm } from './model';
+import { greenPricePerKg, isDeleted, lotSource, priceMissing, sortLots, suggestCode, type Lot, type LotForm } from './model';
 
 export interface LotListRow {
   readonly lot: Lot;
@@ -15,6 +15,8 @@ export interface LotListRow {
   readonly pricePerKg: string | null;
   readonly priceMissing: boolean;
   readonly supplier: string;
+  /** "RoasTime" (imported) or "By hand". */
+  readonly source: string;
   /** Problems with this lot's cells, one sentence each. */
   readonly problems: readonly string[];
   /** Deleted lots are only listed with "Show deleted", greyed out, with Restore. */
@@ -39,6 +41,7 @@ export function lotListRows(lots: readonly Lot[], showDeleted = false): LotListR
       pricePerKg: perKg === null ? null : formatPln(perKg),
       priceMissing: priceMissing(lot),
       supplier: lot.supplier || DASH,
+      source: lotSource(lot),
       problems: lot.problems,
       deleted: isDeleted(lot),
       deletedNote: isDeleted(lot) ? deletedNote(lot.deletedAt) : '',

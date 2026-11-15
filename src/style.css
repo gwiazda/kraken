@@ -454,3 +454,116 @@ h2 {
   border-color: rgba(0, 0, 0, 0.25);
   border-top-color: var(--black);
 }
+
+/* ---- RoasTime import ---- */
+
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.help-box {
+  border: 1px solid #333;
+  border-left: 3px solid var(--lime);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.help-box ol {
+  margin: 0.25rem 0;
+  padding-left: 1.4rem;
+}
+
+.help-box li {
+  margin: 0.3rem 0;
+}
+
+.path-line {
+  list-style: none;
+  margin-left: -1.4rem;
+  padding-left: 1.4rem;
+}
+
+.path-line code {
+  background: #111;
+  border: 1px solid #333;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  color: var(--yellow);
+  user-select: all;
+}
+
+.path-line .btn {
+  padding: 0.2rem 0.7rem;
+  margin-left: 0.5rem;
+}
+
+kbd {
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 0 0.3rem;
+  font-family: inherit;
+  font-size: 0.85em;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+h3 {
+  color: var(--lime);
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.import-card {
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  padding: 0.6rem 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.import-card p {
+  margin: 0.2rem 0;
+}
+
+.choice-list,
+.diff-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.3rem 0;
+}
+
+.choice-list li,
+.diff-list li {
+  margin: 0.25rem 0;
+}
+
+.choice-list input,
+.diff-list input {
+  accent-color: var(--lime);
+}
+
+.diff-list .old {
+  color: var(--grey);
+  text-decoration: line-through;
+}
+
+.diff-list .new {
+  color: var(--yellow);
+}
+
+/* While Kraken saves, the menu waits (Back too). */
+.saving .app-nav .btn-link {
+  opacity: 0.4;
+  cursor: wait;
+}

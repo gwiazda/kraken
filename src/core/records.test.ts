@@ -105,6 +105,24 @@ describe('sheetRecordTable', () => {
     expect(append?.url).toContain('insertDataOption=INSERT_ROWS');
   });
 
+  it('adds several records in one request, each with its own ID', async () => {
+    const { google, table } = setup();
+    const stored = await table.addMany([{ name: 'Kenya' }, { name: 'Burundi' }], 'me', t1);
+    expect(stored.map((s) => [s.id, s.name])).toEqual([
+      ['id-1', 'Kenya'],
+      ['id-2', 'Burundi'],
+    ]);
+    expect(google.requests.filter((r) => r.url.includes(':append'))).toHaveLength(1);
+    expect((await table.load()).records.map((r) => r.fields.name)).toEqual(['Kenya', 'Burundi']);
+    expect(await table.addMany([], 'me', t1)).toEqual([]);
+  });
+
+  it('adds nothing if one of several records is refused', async () => {
+    const { google, table } = setup();
+    await expect(table.addMany([{ name: 'ok' }, { name: 'x', roast_level: 'light' }], 'me', t1)).rejects.toBeInstanceOf(TableError);
+    expect(rowsOf(google)).toEqual([HEADERS]);
+  });
+
   it('reads back what it wrote', async () => {
     const { table } = setup();
     const a = await table.add({ name: 'Kenya', kg: '60' }, 'me', t1);

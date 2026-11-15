@@ -47,12 +47,24 @@ Background columns (not shown as normal columns): `id`, `roastime_container_id`,
 - **[R]** No product name on lots: one product can be a blend of several lots (designed with section 6).
 - **[R]** Deleted lots are hidden behind a "Show deleted" switch, greyed out, with "Restore".
 - **[R]** An imported lot without a price shows a small "Price missing" marker; the Costs & prices page shows "missing" instead of numbers.
-- **[R]** RoasTime is the source of truth for name, country, region and process of imported lots; Kraken-only fields are never overwritten by an import.
+- **[R] Import from RoasTime (built 2026-11-15).** Button "Import from RoasTime" on the Lots page. The owner chooses the
+  `roast-time` folder each time (Chrome refuses to remember folders inside `~/Library`, "system files"); the screen
+  shows the path with a Copy button and the steps. Kraken reads only `containers/` (deliveries) and `beans/` (coffees).
+  A **preview** comes first; nothing is saved until "Import selected":
+  - deliveries not imported yet: "Add as a new lot" (suggested code, no prices, so "Price missing") or "Skip";
+  - lots imported before (matched by RoasTime's delivery ID): differences in name, country, region, process and kg
+    are shown as tick boxes (RoasTime is the source of truth, but nothing changes unticked; an empty RoasTime value never
+    empties a Kraken field);
+  - deleted in RoasTime: only a note, Kraken deletes nothing; lots deleted in Kraken are left alone.
+- **[R] (owner, 2026-11-15)** Lots entered by hand are never matched with or changed by an import. Every lot shows its
+  **Source**: "RoasTime" or "By hand".
+- **[R]** Prices, delivery cost, supplier, notes, code, altitude, variety and an existing lot's delivery date are never
+  changed by an import. A new lot gets the supplier already known for the same RoasTime supplier code.
 - **[R] Built (2026-11-15):** the Lots tab (migration to data version 2) and the Lots screen: list (newest delivery first,
   green price per kg, "Price missing", a "Check" marker for unreadable cells), add and edit. The form has sections Coffee,
   Delivery, Price (with the calculated green price per kg) and Notes (owner's request). Delete asks once on a full-width
   line under the lot; "Show deleted (N)" lists deleted lots greyed out with Restore; a spinner shows while Google works.
-  Next: importing lots from RoasTime (preview first; never overwrites hand-entered fields).
+  The RoasTime import is described below.
 
 **[R] Computed by the app (never stored)**
 - Green price per kg = (coffee price + delivery cost) ÷ quantity delivered.

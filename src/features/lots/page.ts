@@ -2,9 +2,9 @@
 // Everything it needs from outside comes through LotsPageDeps (main.ts provides it), so the screen never reaches
 // into sign-in or Google directly. The logic it shows is in model.ts and present.ts, which are tested.
 
-import { ConflictError, TableError } from '../../core/records';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
-import { changedFields, emptyLotForm, formFromLot, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
+import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
+import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
 import { codeAfterChange, deletedCount, formPricePerKg, lotListRows, type LotListRow } from './present';
 import type { LotsRepository } from './repo';
 
@@ -21,6 +21,13 @@ export interface LotsPageDeps {
   isIgnorable: (error: unknown) => boolean;
   describeError: (error: unknown) => string;
   now: () => Date;
+  /** Opens the "Import from RoasTime" screen. */
+  openImport: () => void;
+  /** The add/edit form opened (so the browser's Back closes it) / closed. */
+  formOpened: () => void;
+  formClosed: () => void;
+  /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
+  busy: (on: boolean) => void;
 }
 
 const PRICE_TIP = 'Entered by hand. Not imported from RoasTime.';
@@ -108,12 +115,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     );
   }
 
-  /**
-   * One way to explain a failed Google action, used by loading, saving, deleting and restoring.
-   * - signed out: a button that signs in (inside the click) and repeats the action
-   * - someone else changed the lot: reload
-   * - anything else: Kraken cannot know whether the change reached the sheet, so it says so and offers a reload
-   */
+  /** See ui/googleErrors.ts. `reload` (default) for actions that may have written something. */
   function googleErrorNodes(
     error: unknown,
     options: {
@@ -125,23 +127,18 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       signedOutNote?: string;
     },
   ): Node[] {
-    const reload = button(options.reloadLabel ?? 'Reload lots', () => load(undefined, true), 'secondary');
-    if (deps.isSignedOut(error)) {
-      return [
-        message(`Your Google sign-in ran out. ${options.signedOutNote ?? 'What you did is still on screen.'}`, 'error'),
-        button(options.retryLabel, () => {
-          deps.signIn().then(options.retry, (e: unknown) => {
-            if (!deps.isIgnorable(e)) options.show(e);
-          });
-        }),
-      ];
-    }
-    if (error instanceof ConflictError) return [message(error.message, 'error'), reload];
-    if (error instanceof TableError) return [message(error.message, 'error')];
-    if (options.otherButton === 'try-again') {
-      return [message(deps.describeError(error), 'error'), button('Try again', () => load(undefined, true), 'secondary')];
-    }
-    return [message(`${deps.describeError(error)} Kraken could not finish. Reload the lots to see whether the change was saved.`, 'error'), reload];
+    const tryAgain = options.otherButton === 'try-again';
+    return explainGoogleError(error, deps, {
+      retry: options.retry,
+      retryLabel: options.retryLabel,
+      show: options.show,
+      ...(options.signedOutNote ? { signedOutNote: options.signedOutNote } : {}),
+      other: {
+        label: tryAgain ? 'Try again' : (options.reloadLabel ?? 'Reload lots'),
+        action: () => load(undefined, true),
+        mayHaveSaved: !tryAgain,
+      },
+    });
   }
 
   /** Disables every button and box on the page while Google works, so nothing else can start meanwhile. */
@@ -155,8 +152,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
    */
   function change(lot: Lot, kind: 'remove' | 'restore', progress: () => void): void {
     progress();
+    deps.busy(true);
     deps
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(lot, deps.now()) : deps.repo.restore(lot, deps.now())))
+      .finally(() => deps.busy(false))
       .then((saved) => {
         if (!root.isConnected) return; // the user went to another page meanwhile
         load(kind === 'remove' ? `Deleted ${saved.code}. You can bring it back with "Show deleted", then Restore.` : `Restored ${saved.code}.`);
@@ -183,6 +182,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   }
 
   function showList(note?: string, error?: Node[]): void {
+    deps.formClosed(); // the list replaces any open form
     const hidden = deletedCount(lots);
     if (hidden === 0) showDeleted = false; // the switch is not shown, so it must not stay on unseen
     const rows = lotListRows(lots, showDeleted);
@@ -205,6 +205,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: 'num nowrap' }, row.pricePerKg ?? (row.priceMissing ? el('span', { class: 'badge' }, 'Price missing') : '—')),
         el('td', {}, row.supplier),
+        el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,
       );
       const inRow = (text: string) => () => {
@@ -231,7 +232,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         confirmRow.replaceChildren(
           el(
             'td',
-            { colspan: '8' },
+            { colspan: '9' },
             el('span', {}, `Delete ${row.code}? It can be restored later under "Show deleted". `),
             button(
               'Yes, delete',
@@ -267,7 +268,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 el(
                   'tr',
                   {},
-                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Green price / kg', 'Supplier', ''].map((h) => el('th', { scope: 'col' }, h)),
+                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Green price / kg', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
@@ -282,7 +283,12 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     });
 
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Green coffee lots'), button('Add lot', () => showForm({ kind: 'add' }))),
+      el(
+        'div',
+        { class: 'page-head' },
+        el('h2', {}, 'Green coffee lots'),
+        el('div', { class: 'head-actions' }, button('Import from RoasTime', () => deps.openImport(), 'secondary'), button('Add lot', () => showForm({ kind: 'add' }))),
+      ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
@@ -297,6 +303,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   }
 
   function showForm(mode: Mode): void {
+    deps.formOpened();
     const others = mode.kind === 'edit' ? lots.filter((lot) => lot.id !== mode.lot.id) : lots;
     const otherCodes = others.map((lot) => lot.code);
     const initial = mode.kind === 'edit' ? formFromLot(mode.lot) : emptyLotForm(deps.now());
@@ -389,12 +396,14 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       showErrors({});
       banner.replaceChildren();
       setBusy(true);
+      deps.busy(true);
       deps
         .withGoogle(async () =>
           mode.kind === 'add'
             ? deps.repo.add(result.fields, await deps.whoAmI(), deps.now())
             : deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now()),
         )
+        .finally(() => deps.busy(false))
         .then((saved) => load(`Saved ${saved.code}.`))
         .catch((error: unknown) => {
           setBusy(false);
@@ -441,7 +450,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
 
     render(
       el('h2', {}, mode.kind === 'add' ? 'Add lot' : `Edit ${mode.lot.code}`),
-      el('p', { class: 'muted small' }, 'Fields marked * are required. One lot = one delivery of green coffee.'),
+      el(
+        'p',
+        { class: 'muted small' },
+        mode.kind === 'edit' && lotSource(mode.lot) === 'RoasTime'
+          ? 'Imported from RoasTime. A later import may update the name, country, region, process and quantity (you are asked first). Fields marked * are required.'
+          : mode.kind === 'edit'
+            ? 'Entered by hand. Imports from RoasTime never change it. Fields marked * are required.'
+            : 'Fields marked * are required. One lot = one delivery of green coffee.',
+      ),
       ...(mode.kind === 'edit' && mode.lot.problems.length > 0 ? mode.lot.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,
