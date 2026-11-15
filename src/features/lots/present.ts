@@ -1,5 +1,6 @@
 // What the Lots screen shows, as plain text. Pure (no screen, no Google), so it is tested directly.
 
+import { localDate } from '../../core/dates';
 import { formatKg, formatPln, parseKg, parseMoney } from '../../core/numbers';
 import { greenPricePerKg, isDeleted, priceMissing, sortLots, suggestCode, type Lot, type LotForm } from './model';
 
@@ -16,13 +17,17 @@ export interface LotListRow {
   readonly supplier: string;
   /** Problems with this lot's cells, one sentence each. */
   readonly problems: readonly string[];
+  /** Deleted lots are only listed with "Show deleted", greyed out, with Restore. */
+  readonly deleted: boolean;
+  /** "Deleted 2026-11-16" for deleted lots, else ''. */
+  readonly deletedNote: string;
 }
 
 const DASH = '—';
 
-/** The active lots, newest delivery first, ready to show. */
-export function lotListRows(lots: readonly Lot[]): LotListRow[] {
-  return sortLots(lots.filter((lot) => !isDeleted(lot))).map((lot) => {
+/** The lots to show, newest delivery first: active ones, plus deleted ones when `showDeleted` is on. */
+export function lotListRows(lots: readonly Lot[], showDeleted = false): LotListRow[] {
+  return sortLots(lots.filter((lot) => showDeleted || !isDeleted(lot))).map((lot) => {
     const perKg = greenPricePerKg(lot);
     return {
       lot,
@@ -35,6 +40,8 @@ export function lotListRows(lots: readonly Lot[]): LotListRow[] {
       priceMissing: priceMissing(lot),
       supplier: lot.supplier || DASH,
       problems: lot.problems,
+      deleted: isDeleted(lot),
+      deletedNote: isDeleted(lot) ? deletedNote(lot.deletedAt) : '',
     };
   });
 }
@@ -55,4 +62,13 @@ export function formPricePerKg(form: Pick<LotForm, 'coffeePrice' | 'deliveryCost
  */
 export function codeAfterChange(form: LotForm, codeTyped: boolean, otherCodes: readonly string[]): string {
   return codeTyped ? form.code : suggestCode(form.country, form.deliveryDate, otherCodes);
+}
+
+/** How many lots are deleted (for the "Show deleted (2)" switch). */
+export const deletedCount = (lots: readonly Lot[]) => lots.filter(isDeleted).length;
+
+/** "Deleted 2026-11-16", on the local calendar (a lot deleted just after midnight shows the right day). */
+export function deletedNote(deletedAt: string): string {
+  const time = new Date(deletedAt);
+  return Number.isNaN(time.getTime()) ? 'Deleted' : `Deleted ${localDate(time)}`;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lotFromFields, type LotForm } from './model';
-import { codeAfterChange, formPricePerKg, lotListRows } from './present';
+import { codeAfterChange, deletedCount, deletedNote, formPricePerKg, lotListRows } from './present';
 
 const lot = (fields: Record<string, string>, row = 2) =>
   lotFromFields(
@@ -73,6 +73,32 @@ describe('lotListRows', () => {
     expect(row?.code).toBe('—');
     expect(row?.quantity).toBe('—');
     expect(row?.problems).toEqual(['Quantity "abc" in row 2 is not a number Kraken can read.']);
+  });
+});
+
+describe('deleted lots', () => {
+  const lots = [
+    lot({ code: 'ACTIVE', delivery_date: '2026-11-01' }, 2),
+    lot({ code: 'GONE', delivery_date: '2026-11-05', deleted_at: '2026-11-16T09:30:00.000Z' }, 3),
+  ];
+
+  it('are hidden unless "Show deleted" is on', () => {
+    expect(lotListRows(lots).map((r) => r.code)).toEqual(['ACTIVE']);
+    expect(lotListRows(lots, true).map((r) => [r.code, r.deleted, r.deletedNote])).toEqual([
+      ['GONE', true, deletedNote('2026-11-16T09:30:00.000Z')],
+      ['ACTIVE', false, ''],
+    ]);
+  });
+
+  it('show the deleted day on the local calendar, and cope with a non-date typed in the sheet', () => {
+    const justAfterMidnight = new Date(2026, 10, 16, 0, 30); // local time
+    expect(deletedNote(justAfterMidnight.toISOString())).toBe('Deleted 2026-11-16');
+    expect(deletedNote('yes')).toBe('Deleted');
+  });
+
+  it('are counted for the switch', () => {
+    expect(deletedCount(lots)).toBe(1);
+    expect(deletedCount([])).toBe(0);
   });
 });
 
