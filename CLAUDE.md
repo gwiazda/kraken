@@ -56,15 +56,18 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 ## Code structure (owner agreed 2026-11-15)
 Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
 test that reads every import line), so CI fails if a rule is broken.
-- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `drive.ts` backup copy, `storage.ts` remembered sheet ID,
+- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `storage.ts` remembered sheet ID,
   `picker.ts` file picker, `loadScript.ts`. `dates.ts` local date. `numbers.ts` exact money (grosze) and weight (grams),
+  `drive.ts` backup copy and `whoAmI` (signed-in email for `created_by`; works with `drive.file`, checked live 2026-11-15),
   `records.ts` a tab as a table of records (by header name; IDs, times, soft delete; an edit writes only the changed cells
   and is refused if someone changed the record or those cells meanwhile).
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
-- `features/<name>/` (built: `lots` model + repository; screen next): `model.ts` types, validation and calculations (pure: no Google, no screen),
+- `features/<name>/` (built: `lots`: list, add, edit; `present.ts` = pure text for the screen): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+- `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip, `devLog.ts` dev-only sign-in log).
+  Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
+  the app shows the Lots page with a menu (Lots, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

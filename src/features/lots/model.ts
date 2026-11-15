@@ -183,6 +183,9 @@ export const emptyLotForm = (today: Date): LotForm => ({
 
 /** The form for editing an existing lot. */
 export function formFromLot(lot: Lot): LotForm {
+  // A cell Kraken could not read is shown exactly as typed, so saving never wipes it: the form check then asks
+  // the user to correct it.
+  const raw = (column: string) => (lot.source[column] ?? '').trim();
   return {
     code: lot.code,
     name: lot.name,
@@ -193,9 +196,9 @@ export function formFromLot(lot: Lot): LotForm {
     variety: lot.variety,
     supplier: lot.supplier,
     deliveryDate: lot.deliveryDate,
-    quantityKg: lot.quantityGrams === null ? '' : kgText(lot.quantityGrams),
-    coffeePrice: lot.coffeePriceGrosze === null ? '' : moneyText(lot.coffeePriceGrosze),
-    deliveryCost: lot.deliveryCostGrosze === null ? '' : moneyText(lot.deliveryCostGrosze),
+    quantityKg: lot.quantityGrams === null ? raw('quantity_kg') : kgText(lot.quantityGrams),
+    coffeePrice: lot.coffeePriceGrosze === null ? raw('coffee_price_net_pln') : moneyText(lot.coffeePriceGrosze),
+    deliveryCost: lot.deliveryCostGrosze === null ? raw('delivery_cost_net_pln') : moneyText(lot.deliveryCostGrosze),
     notes: lot.notes,
   };
 }
@@ -264,4 +267,34 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
 /** Newest delivery first; same day by code. */
 export function sortLots(lots: readonly Lot[]): Lot[] {
   return [...lots].sort((a, b) => b.deliveryDate.localeCompare(a.deliveryDate) || a.code.localeCompare(b.code));
+}
+
+/** Which column each form field is stored in. */
+export const FORM_COLUMNS: Readonly<Record<keyof LotForm, string>> = {
+  code: 'code',
+  name: 'name',
+  country: 'country',
+  region: 'region',
+  altitude: 'altitude',
+  process: 'process',
+  variety: 'variety',
+  supplier: 'supplier',
+  deliveryDate: 'delivery_date',
+  quantityKg: 'quantity_kg',
+  coffeePrice: 'coffee_price_net_pln',
+  deliveryCost: 'delivery_cost_net_pln',
+  notes: 'notes',
+};
+
+/**
+ * For an edit: only the stored values of fields the user actually changed in the form. Untouched fields are not
+ * rewritten (not even tidied up, e.g. a code typed in small letters in the sheet stays as it is).
+ */
+export function changedFields(initial: LotForm, form: LotForm, fields: Readonly<Record<string, string>>): Record<string, string> {
+  const changed: Record<string, string> = {};
+  for (const key of Object.keys(FORM_COLUMNS) as (keyof LotForm)[]) {
+    const column = FORM_COLUMNS[key];
+    if (form[key] !== initial[key] && column in fields) changed[column] = fields[column] ?? '';
+  }
+  return changed;
 }

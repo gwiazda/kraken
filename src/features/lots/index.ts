@@ -16,3 +16,4 @@ export {
   type LotFormErrors,
 } from './model';
 export { sheetLotsRepository, type LotsRepository } from './repo';
+export { showLotsPage, type LotsPageDeps } from './page';

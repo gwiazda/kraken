@@ -12,11 +12,14 @@ import {
   signOut,
   withFreshToken,
 } from './auth';
+import { whoAmI } from './core/drive';
 import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
-import { MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
+import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
+import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
+import { button, el, message, type Child } from './ui/dom';
 import { wantsNewSheet } from './ui/newSheetMode';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -37,28 +40,25 @@ interface Resume {
 }
 let resume: Resume | null = null;
 
-type Child = Node | string;
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
-  node.append(...children);
-  return node;
-}
-
-function button(label: string, onClick: () => void, variant: 'primary' | 'secondary' = 'primary'): HTMLButtonElement {
-  const b = el('button', { type: 'button', class: `btn btn-${variant}` }, label);
-  b.addEventListener('click', onClick);
-  return b;
-}
-
 function show(...children: Child[]): void {
   resume = null;
   app.replaceChildren(el('h1', {}, 'Kraken'), ...children);
 }
 
-function message(text: string, kind: 'info' | 'error' = 'info'): HTMLParagraphElement {
-  return el('p', { class: kind === 'error' ? 'message message-error' : 'message muted', role: kind === 'error' ? 'alert' : 'status' }, text);
+/** A screen of the connected app: a small menu bar on top, the page below. */
+function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElement {
+  resume = null;
+  const page = el('section', { class: 'page' });
+  const tab = (label: string, name: 'lots' | 'settings', open: () => void) => {
+    const b = button(label, open, 'link');
+    if (name === active) b.setAttribute('aria-current', 'page');
+    return b;
+  };
+  app.replaceChildren(
+    el('nav', { class: 'app-nav', 'aria-label': 'Kraken' }, tab('Lots', 'lots', () => showLots(info, undefined, true)), tab('Settings', 'settings', () => showSettings(info))),
+    page,
+  );
+  return page;
 }
 
 function errorText(error: unknown): string {
@@ -204,7 +204,7 @@ async function connect(id: string, note?: string): Promise<void> {
       return;
     }
     remember(info.id);
-    showConnected(info, meta.kind === 'ok' ? meta.schemaVersion : 0, note);
+    showLots(info, note);
   });
 }
 
@@ -255,15 +255,33 @@ function remember(id: string): void {
   }
 }
 
-function showConnected(info: SpreadsheetInfo, schemaVersion: number, note?: string): void {
+function showLots(info: SpreadsheetInfo, note?: string, fromClick = false): void {
+  showLotsPage(showApp(info, 'lots'), lotsPageDeps(info), note, fromClick);
+}
+
+function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
+  return {
+    repo: sheetLotsRepository(client, info.id),
+    whoAmI: () => whoAmI(client), // asked each time: the person signed in can change on renewal
+    withGoogle: (action) => withFreshToken(action),
+    signIn,
+    isSignedOut: (error) => error instanceof SheetsError && error.kind === 'signed-out',
+    isIgnorable: (error) => error instanceof SignInSuperseded,
+    describeError: errorText,
+    now: () => new Date(),
+  };
+}
+
+/** The sheet Kraken uses, and signing out. Kept off the main page (owner, 2026-11-15). */
+function showSettings(info: SpreadsheetInfo): void {
   // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
   const link = isGoogleSheetsUrl(info.url)
     ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)
     : el('span', {}, info.title);
-  show(
+  showApp(info, 'settings').append(
+    el('h2', {}, 'Settings'),
     el('p', { class: 'connected' }, 'Connected to: ', link),
-    ...(note ? [message(note)] : []),
-    el('p', { class: 'muted small' }, `Data version ${schemaVersion}. Next: green coffee lots, roasts and prices.`),
+    el('p', { class: 'muted small' }, `Data version ${APP_SCHEMA_VERSION}.`),
     el(
       'div',
       { class: 'actions' },
