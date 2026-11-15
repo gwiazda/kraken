@@ -47,7 +47,7 @@ export function describeMetaProblem(meta: MetaCheck): string | null {
     case 'ok':
       return null;
     case 'not-kraken':
-      return 'This is not a Kraken sheet. Choose the sheet that Kraken created, or create a new one.';
+      return 'This is not a Kraken sheet. Choose the Kraken sheet (if it was shared with you, look under "Shared with me").';
     case 'app-outdated':
       return `This sheet was updated by a newer version of Kraken (data version ${meta.schemaVersion}). Reload this page with Cmd+Shift+R to get the latest version. Kraken will not change the sheet until then.`;
     case 'needs-migration':
