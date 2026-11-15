@@ -1,0 +1,214 @@
+// A tab used as a table of records: row 1 holds the column names, every other row is one record.
+// Kraken's data-safety rules (CLAUDE.md) are built in here once, so no feature can forget them:
+// - columns are found by header name, never by position; columns Kraken does not know are kept as they are
+// - every record gets a permanent `id`, `created_at`, `updated_at` and `created_by`
+// - nothing is ever deleted: `deleted_at` is set instead (and can be cleared to restore)
+// - an edit writes only the cells the user changed, and is refused if someone else changed the record (or one of
+//   those cells by hand) since it was loaded: nothing is overwritten silently
+
+import { SHEETS_API, callGoogle, readTabs, readValues, tabRange, writeCells, type SheetsClient } from './sheets';
+
+export const ID = 'id';
+/** Columns every record table has. Features may not write these directly. */
+export const SAFETY_COLUMNS = ['id', 'created_at', 'updated_at', 'created_by', 'deleted_at'] as const;
+
+/** One record: column name → text. */
+export type Fields = Readonly<Record<string, string>>;
+
+export interface StoredRecord {
+  /** Row number in the sheet (1 = headers), for messages like "row 7". */
+  row: number;
+  fields: Fields;
+}
+
+export interface TableContents {
+  records: StoredRecord[];
+  /** Rows Kraken could not use, explained in a sentence each. They are shown, never dropped silently. */
+  problems: string[];
+}
+
+/** The tab does not have the columns Kraken needs. Kraken then reads nothing and writes nothing. */
+export class TableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TableError';
+  }
+}
+
+/** The record was changed by someone else since it was loaded. Reload and try again; nothing was written. */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+const cellText = (cell: unknown) => (cell === null || cell === undefined ? '' : String(cell));
+
+/** Column number (1 = A) as letters: 1 → A, 26 → Z, 27 → AA. */
+export function columnLetters(column: number): string {
+  let letters = '';
+  for (let n = column; n > 0; n = Math.floor((n - 1) / 26)) letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
+  return letters;
+}
+
+/** Reads the header row and checks the needed columns are there exactly once. */
+export function readHeaders(tab: string, values: readonly (readonly unknown[])[], needed: readonly string[]): string[] {
+  const headers = (values[0] ?? []).map((cell) => cellText(cell).trim());
+  const missing = needed.filter((name) => !headers.includes(name));
+  if (missing.length > 0) throw new TableError(`Tab "${tab}" is missing the column(s): ${missing.join(', ')}.`);
+  const duplicates = headers.filter((name, i) => name !== '' && headers.indexOf(name) !== i);
+  if (duplicates.length > 0) throw new TableError(`Tab "${tab}" has the column(s) ${[...new Set(duplicates)].join(', ')} more than once.`);
+  return headers;
+}
+
+/** Turns the rows of a tab into records by header name. Empty rows are skipped; rows without a usable ID are reported. */
+export function parseTable(tab: string, values: readonly (readonly unknown[])[], needed: readonly string[]): TableContents {
+  const headers = readHeaders(tab, values, [...SAFETY_COLUMNS, ...needed]);
+  const records: StoredRecord[] = [];
+  const problems: string[] = [];
+  const seen = new Map<string, number>();
+  values.slice(1).forEach((cells, index) => {
+    const row = index + 2;
+    if (cells.every((cell) => cellText(cell).trim() === '')) return;
+    const fields: Record<string, string> = {};
+    headers.forEach((name, i) => {
+      if (name !== '') fields[name] = cellText(cells[i]);
+    });
+    const id = (fields[ID] ?? '').trim();
+    if (id === '') {
+      problems.push(`Row ${row} of "${tab}" has no ID, so Kraken ignores it. Was it typed in by hand?`);
+    } else if (seen.has(id)) {
+      problems.push(`Row ${row} of "${tab}" has the same ID as row ${seen.get(id)}, so Kraken ignores it.`);
+    } else {
+      seen.set(id, row);
+      records.push({ row, fields });
+    }
+  });
+  return { records, problems };
+}
+
+/** The cells of a row in header order: given fields win, other columns keep what the row had. */
+export function rowCells(headers: readonly string[], fields: Fields, existing: readonly unknown[] = []): string[] {
+  return headers.map((name, i) => (name !== '' && name in fields ? (fields[name] ?? '') : cellText(existing[i])));
+}
+
+function refuseSafetyColumns(fields: Fields): void {
+  const touched = SAFETY_COLUMNS.filter((name) => name in fields);
+  if (touched.length > 0) throw new Error(`Features may not write ${touched.join(', ')} directly`);
+}
+
+function refuseUnknownColumns(tab: string, headers: readonly string[], fields: Fields): void {
+  const unknown = Object.keys(fields).filter((name) => !headers.includes(name));
+  if (unknown.length > 0) throw new TableError(`Tab "${tab}" has no column(s) ${unknown.join(', ')}, so Kraken saved nothing.`);
+}
+
+const same = (a: string | undefined, b: string | undefined) => (a ?? '') === (b ?? '');
+
+/**
+ * Decides what an edit writes. Only fields the user actually changed (compared with the record as it was loaded)
+ * are written, so values typed directly in the sheet meanwhile are kept. If someone changed the record through
+ * Kraken (`updated_at`) or changed one of the same cells by hand, the edit is refused: nothing is overwritten silently.
+ */
+export function planChange(current: Fields, loaded: Fields, changes: Fields): { write: Record<string, string> } | { conflict: string } {
+  const write: Record<string, string> = {};
+  for (const [name, value] of Object.entries(changes)) {
+    if (!same(value, loaded[name])) write[name] = value;
+  }
+  if (!same(current.updated_at, loaded.updated_at)) {
+    return { conflict: 'Someone else changed this record in the meantime. Reload the page to see their change, then try again.' };
+  }
+  const touchedByHand = Object.keys(write).filter((name) => !same(current[name], loaded[name]));
+  if (touchedByHand.length > 0) {
+    return { conflict: `Someone changed ${touchedByHand.join(', ')} directly in the sheet in the meantime. Reload the page, then try again.` };
+  }
+  return { write };
+}
+
+/** What a feature needs from a table. The real one is below; it is tested against an in-memory Google. */
+export interface RecordTable {
+  load(): Promise<TableContents>;
+  /** Adds a record with a new ID. Returns all its fields as stored. */
+  add(fields: Fields, by: string, now: Date): Promise<Fields>;
+  /**
+   * Changes fields. `loaded` is the record exactly as it was loaded (its fields), used to write only what the user
+   * changed and to refuse overwriting someone else's change.
+   */
+  update(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields>;
+  /** Soft delete: sets `deleted_at`. */
+  remove(id: string, loaded: Fields, now: Date): Promise<Fields>;
+  /** Clears `deleted_at`. */
+  restore(id: string, loaded: Fields, now: Date): Promise<Fields>;
+}
+
+export function sheetRecordTable(
+  client: SheetsClient,
+  spreadsheetId: string,
+  tab: string,
+  needed: readonly string[],
+  newId: () => string = () => crypto.randomUUID(),
+): RecordTable {
+  const allNeeded = [...SAFETY_COLUMNS, ...needed];
+
+  async function readAll() {
+    // Unformatted: numbers come without their display format, so "4 500,00 zł" typed by hand reads as 4500.
+    const [values = []] = await readTabs(client, spreadsheetId, [tab], 'unformatted');
+    return { values, headers: readHeaders(tab, values, allNeeded) };
+  }
+
+  async function change(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields> {
+    // Read again just before writing, so the row number and the checks are current.
+    const { values, headers } = await readAll();
+    refuseUnknownColumns(tab, headers, changes);
+    const record = parseTable(tab, values, needed).records.find((r) => (r.fields[ID] ?? '').trim() === id.trim());
+    if (!record) throw new ConflictError(`This record is no longer in "${tab}". Reload the page.`);
+    const plan = planChange(record.fields, loaded, changes);
+    if ('conflict' in plan) throw new ConflictError(plan.conflict);
+    if (Object.keys(plan.write).length === 0) return record.fields; // nothing changed: nothing written
+
+    const write = { ...plan.write, updated_at: now.toISOString() };
+    const cellOf = (name: string) => `${columnLetters(headers.indexOf(name) + 1)}${record.row}`;
+    await writeCells(client, spreadsheetId, Object.entries(write).map(([name, value]) => ({ tab, cell: cellOf(name), value })));
+
+    // Check the cells landed in the right record (rows can move if someone inserts or deletes rows by hand).
+    const [rowNow = []] = await readValues(client, spreadsheetId, tab, `A${record.row}:${columnLetters(headers.length)}${record.row}`, 'unformatted');
+    const idNow = String(rowNow[headers.indexOf(ID)] ?? '').trim();
+    if (idNow !== id.trim()) {
+      throw new Error(
+        `Kraken saved into row ${record.row} of "${tab}", but that row now holds another record (rows were moved in the sheet at the same moment). ` +
+          'Open the sheet and use File → Version history to check that row.',
+      );
+    }
+    return { ...record.fields, ...write };
+  }
+
+  return {
+    async load() {
+      const { values } = await readAll();
+      return parseTable(tab, values, needed);
+    },
+    async add(fields, by, now) {
+      refuseSafetyColumns(fields);
+      const headers = readHeaders(tab, await readValues(client, spreadsheetId, tab, '1:1'), allNeeded);
+      refuseUnknownColumns(tab, headers, fields);
+      const time = now.toISOString();
+      const stored: Fields = { ...fields, id: newId(), created_at: time, updated_at: time, created_by: by, deleted_at: '' };
+      const range = encodeURIComponent(tabRange(tab, 'A1'));
+      await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+        method: 'POST',
+        body: JSON.stringify({ values: [rowCells(headers, stored)] }),
+      });
+      return stored;
+    },
+    async update(id, changes, loaded, now) {
+      refuseSafetyColumns(changes);
+      return change(id, changes, loaded, now);
+    },
+    remove(id, loaded, now) {
+      return change(id, { deleted_at: now.toISOString() }, loaded, now);
+    },
+    restore(id, loaded, now) {
+      return change(id, { deleted_at: '' }, loaded, now);
+    },
+  };
+}

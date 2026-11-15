@@ -198,3 +198,8 @@ export function updatePlan(fromVersion: number, now = new Date(), all: readonly 
     backupName: backupName(now, fromVersion + 1),
   };
 }
+
+/** The columns a tab has in the final layout (the same one a new sheet gets). Lets features check they match. */
+export function columnsOf(tab: string): string[] {
+  return [...(initialTabs(new Date(0)).find((t) => t.title === tab)?.rows[0] ?? [])];
+}

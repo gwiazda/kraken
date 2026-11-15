@@ -2,4 +2,4 @@
 // Code outside `schema/` imports only from this file.
 
 export { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updateSpreadsheet, type ConnectResult } from './connect';
-export { MigrationError, updatePlan } from './migrate';
+export { MigrationError, columnsOf, updatePlan } from './migrate';
