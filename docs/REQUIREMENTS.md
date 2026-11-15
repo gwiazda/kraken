@@ -23,19 +23,39 @@ Status legend: **[R]** stated requirement · **[P]** Claude's proposal, awaiting
 
 Record every delivery of green (unroasted) coffee and know how much is left.
 
-**[R] Data per green-coffee lot**
-- Coffee / lot name (for example "Kenia Kirinyaga")
-- Origin: country, region (from the labels: country, region, altitude, process, variety)
-- Altitude (m a.s.l.), process (washed / natural / ...), variety
-- Supplier: where the coffee was bought from
-- Delivery date
-- Quantity delivered (kg)
-- Price: price per sack and delivery cost (also feeds section 6)
+**[R] Lots tab (confirmed by the owner, 2026-11-15).** One row = one delivery = one RoasTime container.
 
-**[P] Computed by the app**
-- Green stock left (kg) = delivered − green weight of all roasts of that lot.
-- Warn when a lot runs low (threshold set per lot, optional).
-- **[P]** Each lot gets a short internal code (for example `KEN-2611`) so roasts and bags can refer to it unambiguously.
+| Column (shown as) | Stored header | Filled by | Notes |
+|---|---|---|---|
+| Code | `code` | Kraken suggests | `COUNTRY-YY-MM` in capitals, e.g. `KENYA-26-11`; a second lot in the same month gets `-B`; spaces become dashes. Editable, unique |
+| Name | `name` | RoasTime / owner | e.g. Kenya Kegwa |
+| Country | `country` | RoasTime / owner | |
+| Region | `region` | RoasTime / owner | optional |
+| Altitude | `altitude` | owner | optional, text (a range like "1600–1800" works) |
+| Process | `process` | RoasTime / owner | optional |
+| Variety | `variety` | owner | optional (RoasTime has only codes) |
+| Supplier | `supplier` | owner | optional; filled in automatically for lots with a RoasTime supplier code already named once |
+| Delivery date | `delivery_date` | RoasTime suggests / owner | suggested from when the container was created |
+| Quantity delivered (kg) | `quantity_kg` | RoasTime / owner | the container's starting amount |
+| Coffee price, net (PLN) ⓘ | `coffee_price_net_pln` | owner only | whole delivery. Tooltip: "Entered by hand. Not imported from RoasTime." |
+| Delivery cost, net (PLN) ⓘ | `delivery_cost_net_pln` | owner only | whole delivery; 0 if none. Same tooltip |
+| Notes | `notes` | owner | optional |
+
+Background columns (not shown as normal columns): `id`, `roastime_container_id`, `roastime_bean_id`, `roastime_supplier_code`,
+`created_at`, `updated_at`, `created_by`, `deleted_at` (empty = active; a date = deleted then).
+
+- **[R]** No product name on lots: one product can be a blend of several lots (designed with section 6).
+- **[R]** Deleted lots are hidden behind a "Show deleted" switch, greyed out, with "Restore".
+- **[R]** An imported lot without a price shows a small "Price missing" marker; the Costs & prices page shows "missing" instead of numbers.
+- **[R]** RoasTime is the source of truth for name, country, region and process of imported lots; Kraken-only fields are never overwritten by an import.
+- **[R] Built (2026-11-15):** the Lots tab itself (migration to data version 2). The Lots screen comes next.
+
+**[R] Computed by the app (never stored)**
+- Green price per kg = (coffee price + delivery cost) ÷ quantity delivered.
+- Green stock left (kg) = delivered − green weight of the roasts of that lot. Roasts are allocated to lots **oldest lot
+  first** (FIFO), splitting a roast when a lot runs out, because RoasTime records only the bean, not the container.
+  The owner can override the allocation, and assign or mark roasts that have no bean (comes with the roasting log).
+- No low-stock warning (owner, 2026-11-15: would not be used).
 
 ---
 
@@ -234,8 +254,17 @@ Flexible enough to generate prices for any discount.
 - **Why not a new file for each version:** a new file gets a new ID and needs re-sharing, and data
   could be split across files. Updating in place with a backup copy first is safer.
 
-**[R] Built (2026-11-09):** Kraken creates the spreadsheet with a `_meta` tab (`app` = `Kraken`, `schema_version` = `1`,
+**[R] Built (2026-11-09):** Kraken creates the spreadsheet with a `_meta` tab (`app` = `Kraken`, `schema_version`,
 `created_at`) and checks it every time it opens a sheet.
+
+**[R] Built (2026-11-15): migrations.** When Kraken opens a sheet with an older data version, it shows what will change
+and the backup's name, and does nothing until someone clicks **Update now**. Then, in the browser: (1) a full copy named
+"Kraken backup YYYY-MM-DD (before vN)" is made in Google Drive and checked cell by cell against the sheet; (2) the
+migration runs; (3) Kraken checks every old tab has the same number of rows and the new headers are there; (4) only then
+`schema_version` is raised. A failure at any point leaves the version as it was; clicking Update now again is safe (steps
+already done are recognised). A tab with the same name that Kraken did not make is never touched. Old backups stay in
+Drive until the owner deletes them. A brand-new sheet starts at version 1 and gets the same migrations (without a backup,
+as it holds no data).
 
 **[P] Tabs:** one tab per kind of record (Lots, Roasts, Bag sizes, Contractors, Prices, Invoice requests,
 Invoice lines, Settings), with row 1 as column headers. Each tab is added by a migration when its feature is built.

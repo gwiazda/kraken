@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { newSpreadsheetBody } from '../core/sheets';
 import { fakeClient } from '../testing/fakeGoogle';
-import { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, readMetaRows } from './connect';
-import { META_TAB, checkMeta, initialMetaRows } from './meta';
+import { fakeGoogleDrive } from '../testing/fakeGoogleDrive';
+import { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, readMetaRows, updateSpreadsheet } from './connect';
+import { APP_SCHEMA_VERSION, META_TAB, checkMeta, initialMetaRows } from './meta';
 
 const ID = 'sheet-id-made-up-1234567890';
 const resource = {
@@ -16,10 +17,10 @@ const noMetaTab = { ...resource, sheets: [{ properties: { title: 'Sheet1' } }] }
 
 describe('inspectSpreadsheet', () => {
   it('accepts a Kraken sheet with the current data version', async () => {
-    const client = fakeClient([{ body: resource }, { body: { values: [['app', 'Kraken'], ['schema_version', '1']] } }]);
+    const client = fakeClient([{ body: resource }, { body: { values: [['app', 'Kraken'], ['schema_version', String(APP_SCHEMA_VERSION)]] } }]);
     const result = await inspectSpreadsheet(client, ID);
     expect(result.info.title).toBe('Kraken');
-    expect(result.meta).toEqual({ kind: 'ok', schemaVersion: 1 });
+    expect(result.meta).toEqual({ kind: 'ok', schemaVersion: APP_SCHEMA_VERSION });
   });
 
   it('recognises a spreadsheet without a _meta tab as not a Kraken sheet, from the tab list alone', async () => {
@@ -55,31 +56,38 @@ describe('describeMetaProblem', () => {
 });
 
 describe('createKrakenSpreadsheet', () => {
-  it('creates the spreadsheet with a filled _meta tab in a single request', async () => {
-    const client = fakeClient([{ body: resource }]);
-    const info = await createKrakenSpreadsheet(client, 'Kraken', created);
+  it('creates _meta at version 1 in one request, then runs the migrations (no backup: the sheet is new)', async () => {
+    const google = fakeGoogleDrive();
+    const info = await createKrakenSpreadsheet(google, 'Kraken', created);
 
-    expect(info).toEqual({ id: ID, title: 'Kraken', url: resource.spreadsheetUrl, tabs: ['_meta'] });
-    expect(client.requests).toHaveLength(1);
-    const [request] = client.requests;
-    expect(request?.method).toBe('POST');
-    expect(request?.url).toMatch(/^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\?/);
-    expect(request?.headers.get('Authorization')).toBe('Bearer test-token');
-    expect(request?.body).toEqual(newSpreadsheetBody('Kraken', { title: META_TAB, rows: initialMetaRows(created) }));
-  });
+    const [first] = google.requests;
+    expect(first?.method).toBe('POST');
+    expect(first?.url).toMatch(/^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\?/);
+    expect(first?.body).toEqual(newSpreadsheetBody('Kraken', { title: META_TAB, rows: initialMetaRows(created) }));
+    expect(google.requests.some((r) => r.url.includes('/copy'))).toBe(false);
+    expect(google.files.size).toBe(1);
 
-  it('sends _meta rows that Kraken itself accepts as an up-to-date sheet', async () => {
-    const client = fakeClient([{ body: resource }]);
-    await createKrakenSpreadsheet(client, 'Kraken', created);
-    const body = client.requests[0]?.body as {
-      sheets: { properties: { title: string }; data: { rowData: { values: { userEnteredValue: { stringValue: string } }[] }[] }[] }[];
-    };
-    expect(body.sheets).toHaveLength(1);
-    const sheet = body.sheets[0];
-    expect(sheet?.properties.title).toBe(META_TAB);
-    const rows = sheet?.data[0]?.rowData.map((row) => row.values.map((cell) => cell.userEnteredValue.stringValue));
-    expect(checkMeta(rows).kind).toBe('ok');
+    const rows = await readMetaRows(google, info.id);
+    expect(checkMeta(rows)).toEqual({ kind: 'ok', schemaVersion: APP_SCHEMA_VERSION });
     expect(rows).toContainEqual(['created_at', '2026-01-15T10:00:00.000Z']);
+    expect((await inspectSpreadsheet(google, info.id)).meta.kind).toBe('ok');
+    expect(google.files.get(info.id)?.tabs.map((t) => t.title)).toEqual(['_meta', 'Lots']);
+  });
+});
+
+describe('updateSpreadsheet', () => {
+  it('backs up, then brings an existing version 1 sheet up to date', async () => {
+    const google = fakeGoogleDrive();
+    google.addFile(ID, { name: 'Kraken', tabs: [{ title: META_TAB, sheetId: 0, rows: initialMetaRows(created) }] });
+    const progress: string[] = [];
+    const result = await updateSpreadsheet(google, ID, (text) => progress.push(text));
+
+    expect(result.fromVersion).toBe(1);
+    expect(result.toVersion).toBe(APP_SCHEMA_VERSION);
+    expect(result.backupName).toMatch(/^Kraken backup \d{4}-\d{2}-\d{2} \(before v2\)$/);
+    expect(google.files.size).toBe(2);
+    expect(progress[0]).toContain('backup copy');
+    expect((await inspectSpreadsheet(google, ID)).meta).toEqual({ kind: 'ok', schemaVersion: APP_SCHEMA_VERSION });
   });
 });
 

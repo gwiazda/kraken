@@ -16,7 +16,7 @@ import { NEW_SHEET_TITLE } from './config';
 import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
-import { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet } from './schema';
+import { MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -187,17 +187,62 @@ async function createSheet(): Promise<void> {
   await connect(info.id);
 }
 
-async function connect(id: string): Promise<void> {
+async function connect(id: string, note?: string): Promise<void> {
   await run('Opening the Kraken sheet…', async () => {
     const { info, meta } = await inspectSpreadsheet(client, id);
+    if (meta.kind === 'needs-migration') {
+      remember(info.id);
+      showUpdate(info, meta.schemaVersion);
+      return;
+    }
     const problem = describeMetaProblem(meta);
     if (problem) {
       showChooseSheet(problem);
       return;
     }
     remember(info.id);
-    showConnected(info, meta.kind === 'ok' ? meta.schemaVersion : 0);
+    showConnected(info, meta.kind === 'ok' ? meta.schemaVersion : 0, note);
   });
+}
+
+/** The sheet is older than this app. Nothing changes until the user clicks "Update now". */
+function showUpdate(info: SpreadsheetInfo, fromVersion: number, error?: string): void {
+  const plan = updatePlan(fromVersion);
+  show(
+    el('p', {}, `Your Kraken sheet "${info.title}" needs an update (data version ${fromVersion} → ${plan.toVersion}):`),
+    el('ul', {}, ...plan.changes.map((change) => el('li', {}, change))),
+    el(
+      'p',
+      { class: 'muted small' },
+      `Kraken will first make a full backup copy in your Google Drive, named "${plan.backupName}", and check it. ` +
+        'Your sheet is changed only after that.',
+    ),
+    ...(error ? [message(error, 'error')] : []),
+    el(
+      'div',
+      { class: 'actions' },
+      button('Update now', onClickWithGoogle('Starting the update…', () => runUpdate(info, fromVersion))),
+      button(
+        'Change sheet',
+        () => {
+          forgetSpreadsheetId(store);
+          showChooseSheet();
+        },
+        'secondary',
+      ),
+    ),
+  );
+}
+
+async function runUpdate(info: SpreadsheetInfo, fromVersion: number): Promise<void> {
+  try {
+    const result = await updateSpreadsheet(client, info.id, (text) => show(message(text)));
+    await connect(info.id, result.backupName ? `Updated. Backup copy saved in your Google Drive: "${result.backupName}".` : undefined);
+  } catch (error) {
+    if (error instanceof SignInSuperseded || (error instanceof SheetsError && error.kind === 'signed-out')) throw error;
+    const text = error instanceof MigrationError ? error.message : `${errorText(error)} The data version was not raised; try "Update now" again.`;
+    showUpdate(info, fromVersion, text);
+  }
 }
 
 function remember(id: string): void {
@@ -206,13 +251,14 @@ function remember(id: string): void {
   }
 }
 
-function showConnected(info: SpreadsheetInfo, schemaVersion: number): void {
+function showConnected(info: SpreadsheetInfo, schemaVersion: number, note?: string): void {
   // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
   const link = isGoogleSheetsUrl(info.url)
     ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)
     : el('span', {}, info.title);
   show(
     el('p', { class: 'connected' }, 'Connected to: ', link),
+    ...(note ? [message(note)] : []),
     el('p', { class: 'muted small' }, `Data version ${schemaVersion}. Next: green coffee lots, roasts and prices.`),
     el(
       'div',

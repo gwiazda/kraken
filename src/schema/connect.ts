@@ -2,10 +2,21 @@
 
 import { createSpreadsheet, getSpreadsheetInfo, readValues, type SheetsClient, type SpreadsheetInfo } from '../core/sheets';
 import { META_TAB, checkMeta, initialMetaRows, type MetaCheck } from './meta';
+import { googleSheetOps, migrateSpreadsheet, type MigrateResult } from './migrate';
 
-/** Creates a new spreadsheet with a filled `_meta` tab in one request, so it either fully exists or not at all. */
-export function createKrakenSpreadsheet(client: SheetsClient, title: string, now = new Date()): Promise<SpreadsheetInfo> {
-  return createSpreadsheet(client, title, { title: META_TAB, rows: initialMetaRows(now) });
+/**
+ * Creates a new Kraken spreadsheet: `_meta` at version 1 in one request, then the same migrations an existing sheet
+ * gets (no backup: the new sheet holds no data yet). If a migration fails, the sheet simply asks for "Update now".
+ */
+export async function createKrakenSpreadsheet(client: SheetsClient, title: string, now = new Date()): Promise<SpreadsheetInfo> {
+  const info = await createSpreadsheet(client, title, { title: META_TAB, rows: initialMetaRows(now) });
+  await migrateSpreadsheet(googleSheetOps(client), info.id, { backup: false, now });
+  return info;
+}
+
+/** Updates an existing sheet to this app's data version, with a checked backup copy first. */
+export function updateSpreadsheet(client: SheetsClient, id: string, onProgress: (text: string) => void): Promise<MigrateResult> {
+  return migrateSpreadsheet(googleSheetOps(client), id, { backup: true, onProgress });
 }
 
 /**
