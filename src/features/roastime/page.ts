@@ -11,7 +11,7 @@ import { roastTimeText, type Roast, type RoastsRepository } from '../roasts';
 import { ImportStopped, applySync, changeCount, summaryOf, type SyncWrites } from './apply';
 import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile, type RoastimeData } from './model';
 import { defaultDecision, newLotCodes, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
-import { planRoasts, type RoastPlan } from './roastPlan';
+import { coffeesOf, planRoasts, type RoastPlan } from './roastPlan';
 
 export interface RoastimeSyncDeps {
   lots: LotsRepository;
@@ -103,7 +103,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     const both = () => Promise.all([deps.lots.load(), deps.roasts.load()]);
     (fromClick ? deps.withGoogle(both) : both())
       .then(([{ lots }, { roasts }]) => {
-        if (root.isConnected) preview(planImport(data, lots, deps.now()), planRoasts(data.roasts, roasts));
+        if (root.isConnected) preview(planImport(data, lots, deps.now()), planRoasts(data.roasts, roasts, coffeesOf(data.containers, lots)));
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
@@ -265,7 +265,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
         const n = roastPlan.removed.length;
         nodes.push(
           details(
-            `${n} roast${n === 1 ? '' : 's'} without a coffee (samples) will be removed. You can still see ${n === 1 ? 'it' : 'them'} with "Show deleted".`,
+            `${n} sample${n === 1 ? '' : 's'} (no coffee, or a coffee with no delivery, in RoasTime) will be removed. You can still see ${n === 1 ? 'it' : 'them'} with "Show deleted".`,
             listed(roastPlan.removed),
           ),
         );
@@ -277,18 +277,18 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
           details('Show the changes', withChanges(roastPlan.changed)),
         );
       }
-      if (roastPlan.keptNoCoffee.length > 0) {
-        const n = roastPlan.keptNoCoffee.length;
+      if (roastPlan.keptSamples.length > 0) {
+        const n = roastPlan.keptSamples.length;
         nodes.push(
           details(
-            `${n} roast${n === 1 ? '' : 's'} without a coffee kept, because you gave ${n === 1 ? 'it' : 'them'} a lot, a sample mark or notes in Kraken (delete ${n === 1 ? 'it' : 'them'} on the Roasts page if not needed)`,
-            listed(roastPlan.keptNoCoffee),
+            `${n} sample${n === 1 ? '' : 's'} kept, because you gave ${n === 1 ? 'it' : 'them'} a lot, a sample mark or notes in Kraken (delete ${n === 1 ? 'it' : 'them'} on the Roasts page if not needed)`,
+            listed(roastPlan.keptSamples),
           ),
         );
       }
       if (roastPlan.unchanged > 0) nodes.push(el('p', { class: 'muted' }, `${roastPlan.unchanged} roast${roastPlan.unchanged === 1 ? '' : 's'} already match RoasTime.`));
-      if (roastPlan.noCoffee.length > 0) {
-        nodes.push(details(`${roastPlan.noCoffee.length} without a coffee in RoasTime (samples, not tracked)`, roastPlan.noCoffee));
+      if (roastPlan.samples.length > 0) {
+        nodes.push(details(`${roastPlan.samples.length} sample${roastPlan.samples.length === 1 ? '' : 's'} in RoasTime (not tracked)`, roastPlan.samples));
       }
       if (roastPlan.skipped.length > 0) nodes.push(details(`${roastPlan.skipped.length} skipped (not imported)`, roastPlan.skipped));
       if (roastPlan.goneFromRoastime.length > 0) {
@@ -307,7 +307,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       el(
         'p',
         { class: 'muted small' },
-        'Only lots and roasts that came from RoasTime are compared; anything entered by hand is never changed. Roasts with no coffee chosen in RoasTime are samples and are not tracked. Prices, supplier, codes, chosen lots, sample marks and notes are never changed by a sync.',
+        'Only lots and roasts that came from RoasTime are compared; anything entered by hand is never changed. Roasts with no coffee chosen in RoasTime, or whose coffee has no delivery there, are samples and are not tracked. Prices, supplier, codes, chosen lots, sample marks and notes are never changed by a sync.',
       ),
       ...[...plan.problems, ...roastPlan.problems].map((text) => message(text, 'error')),
       el('h2', { class: 'sub' }, 'Deliveries (lots)'),

@@ -1,10 +1,10 @@
 // The roasts part of "Sync with RoasTime". Pure, so every rule is tested. Rules agreed with the owner on 2026-11-15:
 // - roasts are matched by RoasTime's roast ID; new ones are added (no choice per roast: the log should be complete)
 // - a roast with no green weight is skipped and listed
-// - a roast with no coffee chosen in RoasTime is a sample and is not tracked (owner, 2026-11-15): it is skipped, and one
-//   imported earlier is soft-deleted unless the owner touched it in Kraken (chose a lot, marked a sample, own notes);
-//   a deleted roast without a coffee that gets one in RoasTime later is offered back (own tick box: the owner may have
-//   deleted it by hand)
+// - a roast with no coffee chosen in RoasTime, or whose coffee has no delivery in RoasTime, is a sample and is not
+//   tracked (owner, 2026-11-15): it is skipped, and one imported earlier is soft-deleted unless the owner touched it in
+//   Kraken (chose a lot, marked a sample, own notes); when it becomes a real roast later (a coffee chosen, or the
+//   coffee's first delivery entered), a deleted one is offered back (own tick box: the owner may have deleted it by hand)
 // - a roast changed in RoasTime (time, name, coffee, weights) is listed; one tick box updates them all
 // - Kraken's own fields (lot, sample, notes) are never changed by a sync; an empty RoasTime value never empties Kraken's
 // - a roast that is no longer in RoasTime stays in Kraken (only a note); other roasts deleted in Kraken are left alone
@@ -31,13 +31,13 @@ export interface RoastPlan {
   readonly unchanged: number;
   /** Roasts not imported, with the reason, e.g. "Kenia 03.11 (2026-11-03): no green weight". */
   readonly skipped: readonly string[];
-  /** Roasts with no coffee chosen in RoasTime (samples), not tracked: not imported, or already deleted in Kraken. */
-  readonly noCoffee: readonly string[];
-  /** Roasts imported earlier with no coffee and untouched in Kraken: soft-deleted by the sync. */
+  /** Samples (no coffee, or a coffee with no delivery, in RoasTime), not tracked: not imported, or already deleted in Kraken. With the reason. */
+  readonly samples: readonly string[];
+  /** Samples imported earlier and untouched in Kraken: soft-deleted by the sync. */
   readonly removed: readonly Roast[];
-  /** Roasts with no coffee kept because the owner gave them a lot, a sample mark or own notes in Kraken. */
-  readonly keptNoCoffee: readonly Roast[];
-  /** Deleted roasts that had no coffee and now have one in RoasTime: offered back, with the RoasTime changes. */
+  /** Samples kept because the owner gave them a lot, a sample mark or own notes in Kraken. */
+  readonly keptSamples: readonly Roast[];
+  /** Deleted samples that are real roasts now (a coffee chosen, or the coffee's first delivery): offered back, with the RoasTime changes. */
   readonly restored: readonly ChangedRoast[];
   /** Roasts in Kraken (from RoasTime) that are no longer in the RoasTime folder. Kept; only reported. */
   readonly goneFromRoastime: readonly Roast[];
@@ -97,7 +97,26 @@ function roastimeFields(rt: RoastimeRoast): Record<string, string> {
   };
 }
 
-export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: readonly Roast[]): RoastPlan {
+/** Which RoasTime coffees (bean IDs) are real stock. */
+export interface Coffees {
+  /** Coffees with at least one delivery (container) in RoasTime, deleted ones included. */
+  readonly delivered: ReadonlySet<string>;
+  /** Coffees that already had a lot in Kraken before this sync (deleted lots included). */
+  readonly withLot: ReadonlySet<string>;
+}
+
+/** The coffees for planRoasts, from the RoasTime folder and the lots in Kraken. */
+export function coffeesOf(containers: readonly { beanId: string }[], lots: readonly { roastime: { beanId: string } }[]): Coffees {
+  return {
+    delivered: new Set(containers.map((c) => c.beanId).filter((id) => id !== '')),
+    withLot: new Set(lots.map((l) => l.roastime.beanId).filter((id) => id !== '')),
+  };
+}
+
+export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: readonly Roast[], coffees: Coffees): RoastPlan {
+  /** Why a RoasTime roast is a sample, or '' if it is a real roast. */
+  const sampleReason = (rt: RoastimeRoast) =>
+    rt.beanId === '' ? 'no coffee chosen' : coffees.delivered.has(rt.beanId) ? '' : 'its coffee has no delivery in RoasTime';
   const problems: string[] = [];
   const byRoastimeId = new Map<string, Roast[]>();
   for (const roast of roasts) {
@@ -113,9 +132,9 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   const added: NewRoast[] = [];
   const changed: ChangedRoast[] = [];
   const skipped: string[] = [];
-  const noCoffee: string[] = [];
+  const samples: string[] = [];
   const removed: Roast[] = [];
-  const keptNoCoffee: Roast[] = [];
+  const keptSamples: Roast[] = [];
   const restored: ChangedRoast[] = [];
   let unchanged = 0;
   const seen = new Set<string>();
@@ -132,21 +151,28 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
     const group = byRoastimeId.get(rt.id) ?? [];
     const existing = group.find((r) => r.deletedAt === '') ?? group[0];
     if (existing) {
+      const reason = sampleReason(rt);
+      // The Kraken roast is of the same coffee (or none yet), so the RoasTime coffee decides; a different coffee in
+      // Kraken is never replaced by "no coffee" (a sync never empties a value).
+      const sameCoffee = (roast: Roast) => roast.roastime.beanId === '' || roast.roastime.beanId === rt.beanId;
       if (existing.deletedAt !== '') {
-        // Deleted in Kraken: left alone, unless it had no coffee and RoasTime now has one (a real roast after all).
-        const hadNoCoffee = existing.roastime.beanId === '';
-        if (hadNoCoffee && rt.beanId === '') noCoffee.push(label);
-        else if (hadNoCoffee && rt.greenGrams && rt.roastedAt !== null) restored.push({ roast: existing, ...differences(existing, rt, label, problems) });
+        // Deleted in Kraken: left alone, unless it was a sample and is a real roast now (a coffee chosen, or the
+        // coffee's first delivery comes in this sync).
+        if (reason !== '') {
+          if (sameCoffee(existing)) samples.push(`${label}: ${reason}`);
+        } else if ((existing.roastime.beanId === '' || !coffees.withLot.has(rt.beanId)) && rt.greenGrams && rt.roastedAt !== null) {
+          restored.push({ roast: existing, ...differences(existing, rt, label, problems) });
+        }
         continue;
       }
-      if (rt.beanId === '' && existing.roastime.beanId === '') {
+      if (reason !== '' && sameCoffee(existing)) {
         // A sample: every active copy goes (a duplicate is reported above), unless the owner touched it in Kraken.
         for (const roast of group.filter((r) => r.deletedAt === '')) {
-          if (touchedInKraken(roast, rt)) keptNoCoffee.push(roast);
+          if (touchedInKraken(roast, rt)) keptSamples.push(roast);
           else removed.push(roast);
         }
         // A kept one stays tracked, so it still gets RoasTime's changes below.
-        if (!keptNoCoffee.includes(existing)) continue;
+        if (!keptSamples.includes(existing)) continue;
       }
       const { fields, changes } = differences(existing, rt, label, problems);
       if (Object.keys(fields).length > 0) changed.push({ roast: existing, fields, changes });
@@ -161,8 +187,9 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
       skipped.push(`${label}: no roast time`);
       continue;
     }
-    if (rt.beanId === '') {
-      noCoffee.push(label);
+    const reason = sampleReason(rt);
+    if (reason !== '') {
+      samples.push(`${label}: ${reason}`);
       continue;
     }
     added.push({
@@ -172,5 +199,5 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   }
 
   const goneFromRoastime = roasts.filter((r) => r.roastime.roastId !== '' && r.deletedAt === '' && !seen.has(r.roastime.roastId));
-  return { added, changed, unchanged, skipped, noCoffee, removed, keptNoCoffee, restored, goneFromRoastime, problems };
+  return { added, changed, unchanged, skipped, samples, removed, keptSamples, restored, goneFromRoastime, problems };
 }

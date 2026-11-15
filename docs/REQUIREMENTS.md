@@ -124,11 +124,13 @@ Keep the data design open for this: the Bag sizes list and invoice lines already
   hand are only used when chosen. A roast without a coffee and without a chosen lot is not counted.
 - **Samples (owner, 2026-11-15):** a sample with a coffee or a chosen lot counts in stock; without one it does not.
   RoasTime has no sample mark that Kraken can read, so samples are marked in Kraken.
-- **Roasts with no coffee chosen in RoasTime are samples and are not tracked** (owner, 2026-11-15): the sync does not
-  import them (listed in the preview). One imported earlier is soft-deleted by the sync unless the owner gave it
-  something in Kraken (a chosen lot, a sample mark or own notes; those are listed as kept). If a coffee is chosen for a
-  deleted one later in RoasTime, the preview offers to bring it back (own tick box, ticked; untick it if the roast was
-  deleted on purpose). Risk accepted: a real roast saved without a coffee would make stock look higher.
+- **Roasts with no coffee chosen in RoasTime, or whose coffee has no delivery in RoasTime, are samples and are not
+  tracked** (owner, 2026-11-15): the sync does not import them (listed in the preview with the reason). One imported
+  earlier is soft-deleted by the sync unless the owner gave it something in Kraken (a chosen lot, a sample mark or own
+  notes; those are listed as kept). When a deleted one becomes a real roast (a coffee chosen, or its coffee's first
+  delivery comes in the same sync), the preview offers to bring it back (own tick box, ticked; untick it if the roast
+  was deleted on purpose). Risk accepted: a real roast saved without a coffee, or roasted before its delivery is entered
+  in RoasTime, is left out of stock until that is fixed in RoasTime.
 - **Stock left** per lot = delivered − green used, shown on the Lots page (below zero in yellow, with a note). A roast
   dated before the delivery of a lot it uses is marked "Before delivery".
 - **Roasts page:** newest first, roast loss %, the lot(s) used, marks (Sample, Needs a lot, Chosen, Before delivery);
