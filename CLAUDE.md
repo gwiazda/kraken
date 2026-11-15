@@ -36,6 +36,7 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Published at `https://gwiazda.github.io/kraken/` (the address follows the repo name, `gwiazda/kraken`). Vite `base: './'` (relative links).
 - CSP is a `<meta>` tag in `index.html`. Scripts: only self, `accounts.google.com` (sign-in) and `apis.google.com` (Picker).
   Inline styles are allowed because the Google Picker injects its own (checked in Chrome); inline scripts are not.
+  `connect-src`: `sheets.googleapis.com`, `www.googleapis.com` (Drive copy for backups) and `accounts.google.com`.
 - Google Cloud project `kraken` (owner's account, no billing): Sheets, Drive and Picker APIs enabled; OAuth consent screen
   External, in **Testing** with both owners as test users; Client ID, Picker key and project number are in `src/config.ts`.
   Picker key website restrictions must be `http://localhost:5173/*` and `https://gwiazda.github.io/*` (no `/kraken/` path):
@@ -55,13 +56,13 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 ## Code structure (owner agreed 2026-11-15)
 Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
 test that reads every import line), so CI fails if a rule is broken.
-- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `storage.ts` remembered sheet ID,
-  `picker.ts` file picker, `loadScript.ts`. Later `money.ts` (exact maths in grosze), `ids.ts`, `dates.ts`.
+- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `drive.ts` backup copy, `storage.ts` remembered sheet ID,
+  `picker.ts` file picker, `loadScript.ts`. `dates.ts` local date. Later `money.ts` (exact maths in grosze), `ids.ts`.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
-- `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open and check a sheet; later backup and migrations.
+- `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (e.g. `lots`): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs.
+- `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
 - Rules: imports only point down (feature → ui/schema/auth → core → config); `auth`, `schema` and each feature are imported
   only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 
@@ -81,7 +82,7 @@ fixes real findings with tests and tells the owner which findings were skipped a
 **Every calculation and every data operation must have automated tests**, so later changes can't silently break them.
 - Covered: all calculations (stock, roast loss, costs, prices, discounts, VAT, totals), and adding, editing,
   deleting (soft-delete) and importing records (RoasTime import, CSV), including reading and writing rows by header name and migrations.
-- Tool: **Vitest** (made for Vite). Tests sit next to the code as `*.test.ts`; `src/testing/fakeGoogle.ts` fakes the Sheets API.
+- Tool: **Vitest** (made for Vite). Tests sit next to the code as `*.test.ts`; `src/testing/fakeGoogle.ts` fakes single Sheets replies; `src/testing/fakeGoogleDrive.ts` is an in-memory Sheets + Drive for whole flows.
   CI and the deploy workflow run them, so failing tests block a PR and are never published.
 - Keep logic in plain functions separate from the UI and from the Google API, so it can be tested without a browser or network
   (Sheets calls are faked in tests). Use made-up test data only.
@@ -92,8 +93,12 @@ Everything must be **migration-proof**; full rules in `docs/REQUIREMENTS.md` sec
 - Structure changes only through versioned migrations: full backup copy of the spreadsheet first, then migrate, then check
   no rows were lost, and only then raise `schema_version` in `_meta`. Only add or rename; never drop columns without the owner's OK.
 - Everyday edits: soft delete only, row IDs, `created_at` / `updated_at` / `created_by`; read columns by header name.
-- Raise `APP_SCHEMA_VERSION` in `src/schema/meta.ts` only together with a migration and its tests. An app that sees a newer
-  schema version than it knows must not write.
+- Migrations run in the browser when a user clicks "Update now" (never on merge; GitHub has no access to the sheet).
+  One file per migration in `src/schema/migrations/` (`NNN-what.ts`, listed in `index.ts`); steps are data
+  (`migrationTypes.ts`: only `add-tab` so far, no delete step exists). The runner is `src/schema/migrate.ts`. Never edit a
+  released migration: add a new one. New sheets are built from the same migration steps in one request (`initialTabs`).
+- Raise `APP_SCHEMA_VERSION` in `src/schema/meta.ts` only together with a migration and its tests (a test checks they match).
+  An app that sees a newer schema version than it knows must not write.
 
 ## Security rules
 - Never commit secrets, API keys with write power, or OAuth client secrets. The OAuth Client ID is public by design and is fine.

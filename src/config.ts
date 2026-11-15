@@ -14,5 +14,3 @@ export const GOOGLE_PROJECT_NUMBER = '931901713438';
 /** drive.file: Kraken can only use files it created or that the user picked in Kraken. */
 export const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-/** Title of a newly created Kraken spreadsheet. */
-export const NEW_SHEET_TITLE = 'Kraken';

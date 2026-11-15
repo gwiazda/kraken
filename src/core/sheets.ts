@@ -37,7 +37,8 @@ export function errorKindForStatus(status: number): SheetsErrorKind {
   return 'other';
 }
 
-async function call<T>(client: SheetsClient, url: string, init: RequestInit = {}): Promise<T> {
+/** One authorised call to a Google API (Sheets or Drive). Errors become a SheetsError the UI can act on. */
+export async function callGoogle<T>(client: SheetsClient, url: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${client.getToken()}`);
   if (init.body !== undefined) headers.set('Content-Type', 'application/json');
@@ -51,7 +52,7 @@ async function call<T>(client: SheetsClient, url: string, init: RequestInit = {}
     } catch {
       // Body was not JSON; keep the status text.
     }
-    throw new SheetsError(errorKindForStatus(response.status), response.status, `Google Sheets error ${response.status}: ${detail}`);
+    throw new SheetsError(errorKindForStatus(response.status), response.status, `Google error ${response.status}: ${detail}`);
   }
   return (await response.json()) as T;
 }
@@ -92,40 +93,43 @@ export function isGoogleSheetsUrl(url: string): boolean {
 export interface InitialTab {
   title: string;
   rows: string[][];
+  /** Rows kept visible when scrolling (1 for a header row). */
+  frozenRows?: number;
 }
 
-/** The request body that creates a new spreadsheet with one filled tab, in one step. */
-export function newSpreadsheetBody(title: string, firstTab: InitialTab): object {
+/** The request body that creates a new spreadsheet with filled tabs, in one step. */
+export function newSpreadsheetBody(title: string, tabs: readonly InitialTab[]): object {
   return {
     properties: { title },
-    sheets: [
-      {
-        properties: { title: firstTab.title },
-        data: [
-          {
-            startRow: 0,
-            startColumn: 0,
-            rowData: firstTab.rows.map((row) => ({
-              values: row.map((text) => ({ userEnteredValue: { stringValue: text } })),
-            })),
-          },
-        ],
+    sheets: tabs.map((tab) => ({
+      properties: {
+        title: tab.title,
+        ...(tab.frozenRows ? { gridProperties: { frozenRowCount: tab.frozenRows, columnCount: Math.max(26, ...tab.rows.map((r) => r.length)) } } : {}),
       },
-    ],
+      data: [
+        {
+          startRow: 0,
+          startColumn: 0,
+          rowData: tab.rows.map((row) => ({
+            values: row.map((text) => ({ userEnteredValue: { stringValue: text } })),
+          })),
+        },
+      ],
+    })),
   };
 }
 
-/** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with its first tab or not at all. */
-export async function createSpreadsheet(client: SheetsClient, title: string, firstTab: InitialTab): Promise<SpreadsheetInfo> {
-  const resource = await call<SpreadsheetResource>(client, `${SHEETS_API}?fields=${INFO_FIELDS}`, {
+/** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with all its tabs or not at all. */
+export async function createSpreadsheet(client: SheetsClient, title: string, tabs: readonly InitialTab[]): Promise<SpreadsheetInfo> {
+  const resource = await callGoogle<SpreadsheetResource>(client, `${SHEETS_API}?fields=${INFO_FIELDS}`, {
     method: 'POST',
-    body: JSON.stringify(newSpreadsheetBody(title, firstTab)),
+    body: JSON.stringify(newSpreadsheetBody(title, tabs)),
   });
   return toInfo(resource);
 }
 
 export async function getSpreadsheetInfo(client: SheetsClient, id: string): Promise<SpreadsheetInfo> {
-  const resource = await call<SpreadsheetResource>(
+  const resource = await callGoogle<SpreadsheetResource>(
     client,
     `${SHEETS_API}/${encodeURIComponent(id)}?fields=${INFO_FIELDS}`,
   );
@@ -140,6 +144,59 @@ export function tabRange(tab: string, cells: string): string {
 /** Reads the cells of a tab. Every error is passed on, so the caller never mistakes a Google problem for data. */
 export async function readValues(client: SheetsClient, id: string, tab: string, cells: string): Promise<unknown[][]> {
   const range = encodeURIComponent(tabRange(tab, cells));
-  const result = await call<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}`);
+  const result = await callGoogle<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}`);
   return result.values ?? [];
+}
+
+/** Reads several whole tabs in one request. Returns the rows of each tab, in the order asked. */
+export async function readTabs(client: SheetsClient, id: string, tabs: readonly string[]): Promise<unknown[][][]> {
+  if (tabs.length === 0) return [];
+  const query = tabs.map((tab) => `ranges=${encodeURIComponent(tabRange(tab, 'A:ZZ'))}`).join('&');
+  const result = await callGoogle<{ valueRanges?: { values?: unknown[][] }[] }>(
+    client,
+    `${SHEETS_API}/${encodeURIComponent(id)}/values:batchGet?${query}`,
+  );
+  const ranges = result.valueRanges ?? [];
+  if (ranges.length !== tabs.length) throw new Error(`Google returned ${ranges.length} tabs instead of ${tabs.length}`);
+  return ranges.map((range) => range.values ?? []);
+}
+
+/**
+ * Adds a tab with a frozen header row, in one request: Google applies all of it or none of it,
+ * so a tab never exists without its headers.
+ */
+export async function addTab(client: SheetsClient, id: string, title: string, headers: readonly string[]): Promise<void> {
+  const existing = await callGoogle<{ sheets?: { properties?: { sheetId?: number } }[] }>(
+    client,
+    `${SHEETS_API}/${encodeURIComponent(id)}?fields=sheets.properties.sheetId`,
+  );
+  const sheetId = Math.max(0, ...(existing.sheets ?? []).map((sheet) => sheet.properties?.sheetId ?? 0)) + 1;
+  await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(id)}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [
+        {
+          addSheet: {
+            properties: { sheetId, title, gridProperties: { frozenRowCount: 1, columnCount: Math.max(26, headers.length) } },
+          },
+        },
+        {
+          updateCells: {
+            start: { sheetId, rowIndex: 0, columnIndex: 0 },
+            rows: [{ values: headers.map((text) => ({ userEnteredValue: { stringValue: text } })) }],
+            fields: 'userEnteredValue',
+          },
+        },
+      ],
+    }),
+  });
+}
+
+/** Writes values into cells exactly as given (RAW: Google does not turn text into numbers or dates). */
+export async function writeValues(client: SheetsClient, id: string, tab: string, cells: string, values: string[][]): Promise<void> {
+  const range = encodeURIComponent(tabRange(tab, cells));
+  await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values }),
+  });
 }
