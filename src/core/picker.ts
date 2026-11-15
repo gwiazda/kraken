@@ -1,6 +1,6 @@
 // Google's "choose a file" window. Picking a spreadsheet here is what gives Kraken (drive.file) access to it.
 
-import { GOOGLE_PICKER_API_KEY, GOOGLE_PROJECT_NUMBER } from './config';
+import { GOOGLE_PICKER_API_KEY, GOOGLE_PROJECT_NUMBER } from '../config';
 import { loadScript } from './loadScript';
 
 const GAPI_SCRIPT = 'https://apis.google.com/js/api.js';
