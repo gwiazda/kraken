@@ -5,18 +5,18 @@ export {
   LOT_COLUMNS,
   emptyLotForm,
   formFromLot,
-  greenPricePerKg,
   isDeleted,
   lotFromFields,
   lotSource,
-  priceMissing,
   sortLots,
   suggestCode,
-  validateLotDetails,
+  typedPricePerKg,
+  validateLotPrice,
   validateLotForm,
   type Lot,
   type LotForm,
   type LotFormErrors,
+  type LotPriceForm,
 } from './model';
 export { sheetLotsRepository, type LotsRepository } from './repo';
 export { showLotsPage, type LotsPageDeps } from './page';

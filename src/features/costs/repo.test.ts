@@ -52,14 +52,6 @@ describe('sheetCostsRepository (in-memory Google)', () => {
     expect((await repo.load()).costs[0]?.deletedAt).toBe(later.toISOString());
   });
 
-  it('works on a sheet whose unused Bag sizes tab was deleted by hand', async () => {
-    const { google, repo } = await setup();
-    const file = [...google.files.values()][0];
-    if (!file) throw new Error('setup');
-    file.tabs = file.tabs.filter((t) => t.title !== 'Bag sizes');
-    expect((await repo.load()).problems).toEqual([]);
-  });
-
   it("saves a lot's own roast loss, changes it, and clears it back to the average", async () => {
     const { repo } = await setup();
     await repo.saveLoss('L1', '', undefined, notAsked, now); // nothing to clear: nothing written

@@ -4,7 +4,7 @@
 
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
-import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotDetails, type Lot, type LotForm, type LotFormErrors } from './model';
+import { PRICE_FIX_NOTE, changedFields, emptyLotForm, formFromLot, lotSource, validateLotDetails, type Lot, type LotForm, type LotFormErrors } from './model';
 import { codeAfterChange, deletedCount, lotListRows, type LotListRow, type StockByLot } from './present';
 import type { LotsRepository } from './repo';
 
@@ -302,7 +302,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       ...problems.map((text) => message(text, 'error')),
       ...rows
         .filter((row) => row.problems.length > 0 && !row.deleted)
-        .map((row) => message(`${row.code}: ${row.problems.join(' ')} Open Edit to correct it.`, 'error')),
+        .map((row) => {
+          const elsewhere = row.problems.every((p) => p.endsWith(PRICE_FIX_NOTE)); // prices are fixed under Costs & prices
+          return message(`${row.code}: ${row.problems.join(' ')}${elsewhere ? '' : ' Open Edit to correct it.'}`, 'error');
+        }),
       ...rows.filter((row) => row.overdrawn && !row.deleted).map((row) => message(row.stockNote, 'error')),
       table,
       ...(hidden > 0
@@ -451,7 +454,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
             ? 'Entered by hand. Imports from RoasTime never change it. Fields marked * are required.'
             : 'Fields marked * are required. One lot = one delivery of green coffee.',
       ),
-      ...(mode.kind === 'edit' && mode.lot.problems.length > 0 ? mode.lot.problems.map((text) => message(text, 'error')) : []),
+      // Price problems are not shown here: this form has no price fields (they are fixed under Costs & prices).
+      ...(mode.kind === 'edit' ? mode.lot.problems.filter((text) => !text.endsWith(PRICE_FIX_NOTE)).map((text) => message(text, 'error')) : []),
       banner,
       formNode,
     );

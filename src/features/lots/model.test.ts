@@ -16,7 +16,9 @@ import {
   priceMissing,
   sortLots,
   suggestCode,
+  typedPricePerKg,
   validateLotDetails,
+  validateLotPrice,
   validateLotForm,
   type Lot,
   type LotForm,
@@ -109,6 +111,12 @@ describe('lotFromFields', () => {
     expect(broken.problems).toEqual([
       'Delivery date "3.11.2026" in row 7 is not a date (YYYY-MM-DD).',
       'Quantity "sixty" in row 7 is not a number Kraken can read.',
+    ]);
+  });
+
+  it('says that a broken price is fixed under Costs & prices (the Lots form has no price fields)', () => {
+    expect(lot({ coffee_price_net_pln: 'about 4500' }, 5).problems).toEqual([
+      'Coffee price "about 4500" in row 5 is not a number Kraken can read. Correct it under Costs & prices (Edit price).',
     ]);
   });
 
@@ -342,5 +350,42 @@ describe('sortLots', () => {
       lot({ id: 'c', code: 'ALPHA-26-11', delivery_date: '2026-11-03' }),
     ];
     expect(sortLots(lots).map((l) => l.id)).toEqual(['c', 'b', 'a']);
+  });
+});
+
+describe("the lot's price, edited under Costs & prices", () => {
+  const initial = { coffeePrice: '4500', deliveryCost: '120' };
+
+  it('gives only the columns that changed', () => {
+    expect(validateLotPrice({ coffeePrice: '4600,50', deliveryCost: '120' }, initial)).toEqual({ ok: true, fields: { coffee_price_net_pln: '4600.5' } });
+    expect(validateLotPrice({ coffeePrice: '4500', deliveryCost: '' }, initial)).toEqual({ ok: true, fields: { delivery_cost_net_pln: '' } });
+    expect(validateLotPrice(initial, initial)).toEqual({ ok: true, fields: {} });
+  });
+
+  it('never rewrites a cell it showed as typed (unreadable) when only the other one changed', () => {
+    const odd = { coffeePrice: 'about 4500', deliveryCost: '120' };
+    expect(validateLotPrice({ coffeePrice: 'about 4500', deliveryCost: '130' }, odd)).toEqual({
+      ok: false,
+      errors: { coffeePrice: 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.' },
+    });
+  });
+
+  it('explains wrong amounts', () => {
+    expect(validateLotPrice({ coffeePrice: 'x', deliveryCost: '-5' }, initial)).toEqual({
+      ok: false,
+      errors: {
+        coffeePrice: 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.',
+        deliveryCost: 'Enter an amount, e.g. 120 — or leave it empty if there was none.',
+      },
+    });
+  });
+
+  it('shows the green price per kg while typing, once price and kg are readable', () => {
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '120' }, 60000)).toBe(7700);
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '' }, 60000)).toBe(7500);
+    expect(typedPricePerKg({ coffeePrice: '', deliveryCost: '120' }, 60000)).toBeNull();
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: 'abc' }, 60000)).toBeNull();
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '' }, null)).toBeNull();
+    expect(typedPricePerKg({ coffeePrice: '4500', deliveryCost: '' }, 0)).toBeNull();
   });
 });

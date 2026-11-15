@@ -1,6 +1,6 @@
 // Costs & prices: the tabs, what a row means, and checking what the owner types. Pure: no Google, no screen.
-// Settings (VAT, markups, default roast loss), the cost items of each bag size, a per-lot roast loss override, and
-// the lot's price (stored on the Lots tab, edited here: owner, 2026-11-16).
+// Settings (VAT, markups, default roast loss), the cost items of each bag size (fixed sizes), and a per-lot roast
+// loss override. The lot's price is checked by the Lots feature (validateLotPrice), stored on the Lots tab.
 // Rules agreed with the owner on 2026-11-16 (docs/REQUIREMENTS.md section 6): all costs are net; markups give the
 // net price; gross = net × (1 + VAT); roast loss = the average of the lot's roasts unless the owner types one.
 
@@ -247,38 +247,4 @@ export function validateLoss(value: string): { ok: true; value: string } | { ok:
   const tenths = percentFromCell(value);
   if (typeof tenths !== 'number') return { ok: false, error: 'Enter a percentage from 1 to 99, e.g. 15,5 (or leave empty to use the average).' };
   return { ok: true, value: percentText(tenths) };
-}
-
-// ---- The lot's price (stored on the Lots tab) ----
-
-export interface PriceForm {
-  coffeePrice: string;
-  deliveryCost: string;
-}
-
-export type PriceErrors = Partial<Record<keyof PriceForm, string>>;
-
-/**
- * Checks the price of a lot (whole delivery, net). Gives only the columns whose value changed compared with
- * `initial` (what the form showed), so an untouched cell is never rewritten.
- */
-export function validatePriceForm(form: PriceForm, initial: PriceForm): { ok: true; fields: Record<string, string> } | { ok: false; errors: PriceErrors } {
-  const errors: PriceErrors = {};
-  const price = parseMoney(form.coffeePrice);
-  if (price === undefined) errors.coffeePrice = 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.';
-  const delivery = parseMoney(form.deliveryCost);
-  if (delivery === undefined) errors.deliveryCost = 'Enter an amount, e.g. 120 — or leave it empty if there was none.';
-  if (price === undefined || delivery === undefined) return { ok: false, errors };
-  const fields: Record<string, string> = {};
-  if (form.coffeePrice.trim() !== initial.coffeePrice.trim()) fields.coffee_price_net_pln = price === null ? '' : moneyText(price);
-  if (form.deliveryCost.trim() !== initial.deliveryCost.trim()) fields.delivery_cost_net_pln = delivery === null ? '' : moneyText(delivery);
-  return { ok: true, fields };
-}
-
-/** The live "green price per kg" while typing, in grosze; null until price and kg are readable. */
-export function typedPricePerKg(form: PriceForm, quantityGrams: number | null): number | null {
-  const price = parseMoney(form.coffeePrice);
-  const delivery = parseMoney(form.deliveryCost);
-  if (typeof price !== 'number' || delivery === undefined || quantityGrams === null || quantityGrams <= 0) return null;
-  return Math.round(((price + (delivery ?? 0)) * 1000) / quantityGrams);
 }

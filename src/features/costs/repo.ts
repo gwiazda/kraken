@@ -1,5 +1,4 @@
-// Reads and writes the Costs & prices tabs (the "Bag sizes" tab of data version 4 is no longer used: the sizes
-// are fixed, owner 2026-11-16) through the shared record table (IDs, times, soft delete, "changed
+// Reads and writes the Costs & prices tabs (the bag sizes are fixed in the code, owner 2026-11-16) through the shared record table (IDs, times, soft delete, "changed
 // meanwhile" check). The page depends on the CostsRepository interface.
 
 import { sheetRecordTable, type RecordTable } from '../../core/records';

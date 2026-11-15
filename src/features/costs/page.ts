@@ -1,11 +1,13 @@
-// The Costs & prices screen: per lot, what one bag costs and the suggested prices; below, the settings for the
-// calculation (VAT, markups, default roast loss, bag sizes and their cost items). Everything from outside comes
-// through CostsPageDeps (main.ts provides it).
+// The Costs & prices screen, in two parts (owner, 2026-11-16):
+// - "Prices per lot": per lot its price (edited here, stored on the Lots tab), what one bag of 250 g, 500 g and 1 kg
+//   costs, and the suggested prices;
+// - "Bag costs & settings": what goes into one bag of each (fixed) size, and VAT, markups and the default roast loss.
+// Everything from outside comes through CostsPageDeps (main.ts provides it).
 
 import { formatKg, formatPln } from '../../core/numbers';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { formFromLot, type Lot, type LotsRepository } from '../lots';
+import { formFromLot, typedPricePerKg, validateLotPrice, type Lot, type LotPriceForm, type LotsRepository } from '../lots';
 import type { Roast, RoastsRepository } from '../roasts';
 import {
   formFromBagCost,
@@ -14,14 +16,11 @@ import {
   percentText,
   readSettings,
   validateBagCostForm,
-  typedPricePerKg,
   validateLoss,
-  validatePriceForm,
   validateSettingsForm,
   type BagCost,
   type BagCostForm,
   type CostSettings,
-  type PriceForm,
   type SettingsForm,
 } from './model';
 import { bagSizeViews, lotCards, type BagSizeView, type LotCard } from './present';
@@ -125,7 +124,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     if (!data) return;
     const loaded = data;
     const { settings, problems: settingProblems } = readSettings(loaded.settings);
-    const { views, problems: sizeProblems } = bagSizeViews(loaded.costs);
+    const { views, unplaced, problems: sizeProblems } = bagSizeViews(loaded.costs);
     const { cards, problems: cardProblems } = lotCards(lots, roasts, loaded.lotCosts, views, settings);
     const problems = [...loaded.problems, ...settingProblems, ...sizeProblems, ...cardProblems];
     const noBagCosts = views.every((v) => v.costs.length === 0);
@@ -152,7 +151,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
               : []),
             ...(cards.length === 0 ? [el('p', { class: 'muted' }, 'No lots yet. Add them on the Lots page.')] : cards.map(cardNode)),
           ]
-        : [bagsNode(views), settingsNode(settings)]),
+        : [bagsNode(views, unplaced), settingsNode(settings)]),
     );
   }
 
@@ -273,7 +272,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
 
   function priceNode(card: LotCard): HTMLElement {
     const lot = card.lot;
-    const initial: PriceForm = (({ coffeePrice, deliveryCost }) => ({ coffeePrice, deliveryCost }))(formFromLot(lot));
+    const initial: LotPriceForm = (({ coffeePrice, deliveryCost }) => ({ coffeePrice, deliveryCost }))(formFromLot(lot));
     const holder = el('div', {});
     const amount = (grosze: number | null, typed: string) => (grosze !== null ? formatPln(grosze) : typed !== '' ? `"${typed}"` : '—');
     const showPrice = () => {
@@ -287,12 +286,12 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
             : [el('strong', {}, amount(lot.coffeePriceGrosze, initial.coffeePrice)), ` + delivery ${amount(lot.deliveryCostGrosze, initial.deliveryCost)}`]),
           ...(lot.quantityGrams !== null ? [` for ${formatKg(lot.quantityGrams)}`] : []),
           ' ',
-          button(lot.coffeePriceGrosze === null ? 'Add price' : 'Edit price', editPrice, 'link'),
+          button(initial.coffeePrice === '' ? 'Add price' : 'Edit price', editPrice, 'link'),
         ),
       );
     };
     const editPrice = () => {
-      const input = (key: keyof PriceForm, label: string) => {
+      const input = (key: keyof LotPriceForm, label: string) => {
         const node = el('input', { id: `${key}-${lot.id}`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-money' });
         node.value = initial[key];
         return { node, label: el('label', { for: node.id }, label) };
@@ -300,10 +299,15 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       const price = input('coffeePrice', 'Coffee price (zł net)');
       const delivery = input('deliveryCost', 'Delivery cost (zł net)');
       const perKg = el('output', { class: 'muted small', 'aria-live': 'polite' });
-      const read = (): PriceForm => ({ coffeePrice: price.node.value, deliveryCost: delivery.node.value });
+      const read = (): LotPriceForm => ({ coffeePrice: price.node.value, deliveryCost: delivery.node.value });
       const update = () => {
         const value = typedPricePerKg(read(), lot.quantityGrams);
-        perKg.textContent = value === null ? 'Green price per kg: shown when the price is filled in.' : `Green price per kg: ${formatPln(value)}`;
+        perKg.textContent =
+          value !== null
+            ? `Green price per kg: ${formatPln(value)}`
+            : lot.quantityGrams === null || lot.quantityGrams === 0
+              ? 'Green price per kg: add the kg delivered on the Lots page first.'
+              : 'Green price per kg: shown when the price is filled in.';
       };
       price.node.addEventListener('input', update);
       delivery.node.addEventListener('input', update);
@@ -325,7 +329,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       );
       form.addEventListener('submit', (event) => {
         event.preventDefault();
-        const result = validatePriceForm(read(), initial);
+        const result = validateLotPrice(read(), initial);
         errorLine.textContent = result.ok ? '' : [result.errors.coffeePrice, result.errors.deliveryCost].filter((t) => t).join(' ');
         if (!result.ok) return;
         if (Object.keys(result.fields).length === 0) {
@@ -343,13 +347,36 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
 
   // ---- Bag costs & settings ----
 
-  function bagsNode(views: readonly BagSizeView[]): HTMLElement {
+  function bagsNode(views: readonly BagSizeView[], unplaced: readonly BagCost[]): HTMLElement {
     return el(
       'section',
       {},
       el('h3', {}, 'What goes into one bag'),
       el('p', { class: 'muted small' }, 'Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost" on the lot cards.'),
       el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
+      ...(unplaced.length > 0 ? [unplacedNode(unplaced)] : []),
+    );
+  }
+
+  /** Items saved for a bag size Kraken does not use (e.g. from before the sizes were fixed): only Delete. */
+  function unplacedNode(items: readonly BagCost[]): HTMLElement {
+    return el(
+      'div',
+      { class: 'bag-size' },
+      el('h4', {}, 'Not used (an old bag size)'),
+      el(
+        'table',
+        { class: 'data-table' },
+        el(
+          'tbody',
+          {},
+          ...items.map((item) => {
+            const actions = el('td', { class: 'row-actions nowrap' });
+            actions.replaceChildren(button('Delete', () => save(actions, 'Deleting…', () => deps.repo.removeBagCost(item, deps.now()), `${item.item} deleted.`), 'link'));
+            return el('tr', {}, el('td', {}, item.item || '—'), el('td', { class: 'num nowrap' }, item.costGrosze === null ? `"${item.costText}"` : formatPln(item.costGrosze)), actions);
+          }),
+        ),
+      ),
     );
   }
 

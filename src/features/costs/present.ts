@@ -19,12 +19,15 @@ export interface BagSizeView {
 }
 
 /** The fixed bag sizes (250 g, 500 g, 1 kg) with their active cost items. Items Kraken cannot place are reported. */
-export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[]; problems: string[] } {
+export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[]; unplaced: BagCost[]; problems: string[] } {
   const problems: string[] = [];
   const active = costs.filter((c) => c.deletedAt === '');
   const ids = BAG_SIZES_G.map(String);
-  for (const c of active.filter((c) => !ids.includes(c.bagSizeId))) {
-    problems.push(`Row ${c.row} of the Bag costs tab (${c.item || 'no item name'}) is for a bag size Kraken does not use ("${c.bagSizeId}"); it is left out.`);
+  const unplaced = active.filter((c) => !ids.includes(c.bagSizeId));
+  if (unplaced.length > 0) {
+    problems.push(
+      `${unplaced.length} bag cost item${unplaced.length === 1 ? ' is' : 's are'} for a bag size Kraken does not use, so ${unplaced.length === 1 ? 'it is' : 'they are'} left out. Delete ${unplaced.length === 1 ? 'it' : 'them'} under "Bag costs & settings" and add ${unplaced.length === 1 ? 'it' : 'them'} again to 250 g, 500 g or 1 kg.`,
+    );
   }
   const views = BAG_SIZES_G.map((grams): BagSizeView => {
     const id = String(grams);
@@ -36,7 +39,7 @@ export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[];
     const sum = own.reduce((total, c) => total + (c.costGrosze ?? 0), 0);
     return { grams, id, label: formatBagSize(grams), costs: own, itemsText: own.length === 0 || unreadable ? 'missing cost' : formatPln(sum), unreadable };
   });
-  return { views, problems };
+  return { views, unplaced, problems };
 }
 
 export interface BagLine {
@@ -137,7 +140,7 @@ export function lotCards(
     if (!calc) {
       const missing =
         lot.coffeePriceGrosze === null
-          ? 'Price missing: add the coffee price on the Lots page (Edit).'
+          ? 'Price missing: click "Add price" below.'
           : 'Quantity missing: add the kg delivered on the Lots page (Edit).';
       return { ...base, missing, greenPerKg: '', roastedFromKg: '', roastedPerKg: '', bags: [] };
     }

@@ -37,10 +37,12 @@ describe('bagSizeViews', () => {
   });
 
   it('marks a size with a cost it cannot read as missing, and reports items of a size Kraken does not use', () => {
-    const { views, problems } = bagSizeViews([cost('250', 'Bag', 'about 1 zł'), cost('3f2a-old-size', 'Label', '0.3')]);
+    const old = cost('3f2a-old-size', 'Label', '0.3');
+    const { views, unplaced, problems } = bagSizeViews([cost('250', 'Bag', 'about 1 zł'), old]);
     expect(views[0]).toMatchObject({ itemsText: 'missing cost', unreadable: true });
+    expect(unplaced).toEqual([old]);
     expect(problems).toEqual([
-      'Row 2 of the Bag costs tab (Label) is for a bag size Kraken does not use ("3f2a-old-size"); it is left out.',
+      '1 bag cost item is for a bag size Kraken does not use, so it is left out. Delete it under "Bag costs & settings" and add it again to 250 g, 500 g or 1 kg.',
       'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Edit it under "Bag costs & settings".',
     ]);
   });
@@ -104,7 +106,7 @@ describe('lotCards', () => {
     const { cards } = lotCards(lots, [], [], sizes, DEFAULT_SETTINGS);
     expect(cards.map((c) => [c.lot.id, c.missing])).toEqual([
       ['B', 'Quantity missing: add the kg delivered on the Lots page (Edit).'],
-      ['A', 'Price missing: add the coffee price on the Lots page (Edit).'],
+      ['A', 'Price missing: click "Add price" below.'],
     ]);
     expect(cards[0]?.bags).toEqual([]);
   });

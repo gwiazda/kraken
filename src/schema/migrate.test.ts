@@ -103,17 +103,16 @@ describe('version 4', () => {
     const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
     expect(MIGRATIONS[2]?.steps).toEqual([
       { kind: 'add-tab', tab: 'Cost settings', headers: ['id', 'name', 'value', ...safety] },
-      { kind: 'add-tab', tab: 'Bag sizes', headers: ['id', 'size_g', ...safety] },
       { kind: 'add-tab', tab: 'Bag costs', headers: ['id', 'bag_size_id', 'item', 'cost_net_pln', ...safety] },
       { kind: 'add-tab', tab: 'Lot costs', headers: ['id', 'lot_id', 'roast_loss_percent', ...safety] },
     ]);
   });
 
-  it('updates a version 3 sheet with all four tabs, keeping the data', async () => {
+  it('updates a version 3 sheet with the three tabs, keeping the data', async () => {
     const google = sheetAt(3, [{ title: 'Lots', sheetId: 3, rows: [['id', 'code'], ['L1', 'KENYA-26-09']] }]);
     const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
     expect(result.toVersion).toBe(4);
-    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Lots', 'Cost settings', 'Bag sizes', 'Bag costs', 'Lot costs']);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Lots', 'Cost settings', 'Bag costs', 'Lot costs']);
     expect(tab(google, 'Lots')?.rows).toEqual([['id', 'code'], ['L1', 'KENYA-26-09']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '4']);
   });

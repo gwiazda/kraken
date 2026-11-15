@@ -293,8 +293,8 @@ Flexible enough to generate prices for any discount.
   net and gross price at each markup.
 - **Bag costs & settings:** the cost items of each bag size (add, edit, delete); VAT, markups, default loss.
 Tabs (data version 4): `Cost settings` (name, value), `Bag costs` (bag_size_id = the size in grams, item,
-cost_net_pln), `Lot costs` (lot_id, roast_loss_percent). The `Bag sizes` tab version 4 also added is not used
-(sizes are fixed; the owner may delete it).
+cost_net_pln), `Lot costs` (lot_id, roast_loss_percent). (A first test of version 4 on the owner's sheet also made a
+"Bag sizes" tab; the owner deleted it, and Kraken never reads it.)
 **Next (part 2):** the final gross price per lot and bag size (typed), with the net price and B2B −15 %; old prices kept.
 
 ---
