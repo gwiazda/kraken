@@ -54,6 +54,8 @@ function trimmed(rows: string[][]): string[][] {
   return out;
 }
 
+const columnNumber = (letters: string) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+
 const cellText = (cell: unknown) => String((cell as { userEnteredValue?: { stringValue?: unknown } }).userEnteredValue?.stringValue ?? '');
 
 export function fakeGoogleDrive(): FakeDrive {
@@ -139,6 +141,17 @@ export function fakeGoogleDrive(): FakeDrive {
       return json(200, { valueRanges });
     }
 
+    const append = /^\/values\/(.+):append$/.exec(rest);
+    if (append && method === 'POST') {
+      const found = tab(parseRange(append[1] ?? '').tab);
+      if (!found) return fail(400, `Unable to parse range: ${append[1]}`);
+      if (url.searchParams.get('valueInputOption') !== 'RAW') return fail(400, 'Fake Google: only RAW writes');
+      // Like the real API: the new rows go after the last filled row.
+      found.rows = trimmed(found.rows);
+      for (const row of (body as { values: unknown[][] }).values) found.rows.push(row.map((cell) => String(cell ?? '')));
+      return json(200, { updates: {} });
+    }
+
     const values = /^\/values\/(.+)$/.exec(rest);
     if (values) {
       const { tab: title, cells } = parseRange(values[1] ?? '');
@@ -149,14 +162,22 @@ export function fakeGoogleDrive(): FakeDrive {
         return json(200, rows.length > 0 ? { values: rows } : {});
       }
       if (method === 'PUT') {
-        const cell = /^([A-Z])(\d+)$/.exec(cells);
-        if (!cell || url.searchParams.get('valueInputOption') !== 'RAW') return fail(400, 'Fake Google: only RAW single-cell writes');
-        const column = (cell[1] ?? 'A').charCodeAt(0) - 65;
-        const row = Number(cell[2]) - 1;
+        // A single cell ("B3") or one row ("A5:U5"); the values must fit the range, as with the real API.
+        const range = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(cells);
+        if (!range || url.searchParams.get('valueInputOption') !== 'RAW') return fail(400, 'Fake Google: only RAW writes to a cell or a row');
+        const startColumn = columnNumber(range[1] ?? 'A') - 1;
+        const row = Number(range[2]) - 1;
+        const width = range[3] ? columnNumber(range[3]) - startColumn : 1;
+        const written = (body as { values: unknown[][] }).values;
+        if (written.length !== 1 || (written[0]?.length ?? 0) > width || (range[4] && Number(range[4]) - 1 !== row)) {
+          return fail(400, 'Requested writing outside the given range');
+        }
         while (found.rows.length <= row) found.rows.push([]);
         const target = found.rows[row] ?? [];
-        while (target.length <= column) target.push('');
-        target[column] = String((body as { values: unknown[][] }).values[0]?.[0] ?? '');
+        (written[0] ?? []).forEach((cell, i) => {
+          while (target.length <= startColumn + i) target.push('');
+          target[startColumn + i] = String(cell ?? '');
+        });
         return json(200, {});
       }
     }

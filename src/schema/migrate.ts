@@ -198,3 +198,8 @@ export function updatePlan(fromVersion: number, now = new Date(), all: readonly 
     backupName: backupName(now, fromVersion + 1),
   };
 }
+
+/** The columns a tab has after all migrations (empty if no migration adds it). Lets features check they match. */
+export function columnsOf(tab: string, all: readonly Migration[] = MIGRATIONS): string[] {
+  return all.flatMap((m) => m.steps).filter((step) => step.tab === tab).flatMap((step) => [...step.headers]);
+}

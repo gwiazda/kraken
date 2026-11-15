@@ -23,7 +23,7 @@ const isTest = (file: string) => file.endsWith('.test.ts') || file.startsWith('/
 
 /** Pure-logic files: calculations and validation, no Google and no screen. */
 const isModelFile = (file: string) => /^\/src\/features\/[^/]+\/model[^/]*\.ts$/.test(file) && !isTest(file);
-const PURE_CORE = ['/src/core/money.ts', '/src/core/ids.ts', '/src/core/dates.ts'];
+const PURE_CORE = ['/src/core/numbers.ts', '/src/core/dates.ts'];
 const BROWSER = /\b(document|window|globalThis|self|navigator|fetch|XMLHttpRequest|localStorage|sessionStorage|indexedDB|location)\b/;
 
 /** Non-code files that may be imported (styles, images, data). Anything else must resolve to a .ts file. */
@@ -137,12 +137,12 @@ describe('the checker itself catches broken rules', () => {
     expect(
       check({
         '/src/core/sheets.ts': '',
-        '/src/core/money.ts': '',
+        '/src/core/numbers.ts': '',
         '/src/auth/index.ts': '',
         '/src/ui/button.ts': "import { GOOGLE_CLIENT_ID } from '../config';",
         '/src/features/lots/index.ts': "export { x } from './page';",
         '/src/features/lots/page.ts': "import { a } from '../../core/sheets';\nimport {\n  b,\n  c,\n} from '../../auth';\nimport { m } from './model';",
-        '/src/features/lots/model.ts': "import { money } from '../../core/money';\nimport { code } from './modelCode';\n/** rounds like the window on the label */",
+        '/src/features/lots/model.ts': "import { money } from '../../core/numbers';\nimport { code } from './modelCode';\n/** rounds like the window on the label */",
         '/src/features/lots/modelCode.ts': '',
         '/src/features/costs/page.ts': "import { lots } from '../lots';",
         '/src/main.ts': "import { x } from './features/lots';\nimport './style.css';\nimport logo from './logo.svg?url';",
