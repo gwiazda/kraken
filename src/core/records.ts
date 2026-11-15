@@ -3,9 +3,10 @@
 // - columns are found by header name, never by position; columns Kraken does not know are kept as they are
 // - every record gets a permanent `id`, `created_at`, `updated_at` and `created_by`
 // - nothing is ever deleted: `deleted_at` is set instead (and can be cleared to restore)
-// - an edit is refused if someone else changed the record since it was loaded (no silent overwrite)
+// - an edit writes only the cells the user changed, and is refused if someone else changed the record (or one of
+//   those cells by hand) since it was loaded: nothing is overwritten silently
 
-import { callGoogle, readTabs, tabRange, type SheetsClient } from './sheets';
+import { SHEETS_API, callGoogle, readTabs, readValues, tabRange, writeCells, type SheetsClient } from './sheets';
 
 export const ID = 'id';
 /** Columns every record table has. Features may not write these directly. */
@@ -97,17 +98,47 @@ function refuseSafetyColumns(fields: Fields): void {
   if (touched.length > 0) throw new Error(`Features may not write ${touched.join(', ')} directly`);
 }
 
+function refuseUnknownColumns(tab: string, headers: readonly string[], fields: Fields): void {
+  const unknown = Object.keys(fields).filter((name) => !headers.includes(name));
+  if (unknown.length > 0) throw new TableError(`Tab "${tab}" has no column(s) ${unknown.join(', ')}, so Kraken saved nothing.`);
+}
+
+const same = (a: string | undefined, b: string | undefined) => (a ?? '') === (b ?? '');
+
+/**
+ * Decides what an edit writes. Only fields the user actually changed (compared with the record as it was loaded)
+ * are written, so values typed directly in the sheet meanwhile are kept. If someone changed the record through
+ * Kraken (`updated_at`) or changed one of the same cells by hand, the edit is refused: nothing is overwritten silently.
+ */
+export function planChange(current: Fields, loaded: Fields, changes: Fields): { write: Record<string, string> } | { conflict: string } {
+  const write: Record<string, string> = {};
+  for (const [name, value] of Object.entries(changes)) {
+    if (!same(value, loaded[name])) write[name] = value;
+  }
+  if (!same(current.updated_at, loaded.updated_at)) {
+    return { conflict: 'Someone else changed this record in the meantime. Reload the page to see their change, then try again.' };
+  }
+  const touchedByHand = Object.keys(write).filter((name) => !same(current[name], loaded[name]));
+  if (touchedByHand.length > 0) {
+    return { conflict: `Someone changed ${touchedByHand.join(', ')} directly in the sheet in the meantime. Reload the page, then try again.` };
+  }
+  return { write };
+}
+
 /** What a feature needs from a table. The real one is below; it is tested against an in-memory Google. */
 export interface RecordTable {
   load(): Promise<TableContents>;
   /** Adds a record with a new ID. Returns all its fields as stored. */
   add(fields: Fields, by: string, now: Date): Promise<Fields>;
-  /** Changes some fields. `loadedUpdatedAt` is the record's `updated_at` when it was loaded (optimistic lock). */
-  update(id: string, fields: Fields, loadedUpdatedAt: string, now: Date): Promise<Fields>;
+  /**
+   * Changes fields. `loaded` is the record exactly as it was loaded (its fields), used to write only what the user
+   * changed and to refuse overwriting someone else's change.
+   */
+  update(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields>;
   /** Soft delete: sets `deleted_at`. */
-  remove(id: string, loadedUpdatedAt: string, now: Date): Promise<Fields>;
+  remove(id: string, loaded: Fields, now: Date): Promise<Fields>;
   /** Clears `deleted_at`. */
-  restore(id: string, loadedUpdatedAt: string, now: Date): Promise<Fields>;
+  restore(id: string, loaded: Fields, now: Date): Promise<Fields>;
 }
 
 export function sheetRecordTable(
@@ -117,28 +148,38 @@ export function sheetRecordTable(
   needed: readonly string[],
   newId: () => string = () => crypto.randomUUID(),
 ): RecordTable {
-  const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
-  const base = `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}`;
+  const allNeeded = [...SAFETY_COLUMNS, ...needed];
 
   async function readAll() {
-    const [values = []] = await readTabs(client, spreadsheetId, [tab]);
-    return { values, headers: readHeaders(tab, values, [...SAFETY_COLUMNS, ...needed]) };
+    // Unformatted: numbers come without their display format, so "4 500,00 zł" typed by hand reads as 4500.
+    const [values = []] = await readTabs(client, spreadsheetId, [tab], 'unformatted');
+    return { values, headers: readHeaders(tab, values, allNeeded) };
   }
 
-  async function change(id: string, fields: Fields, loadedUpdatedAt: string, now: Date): Promise<Fields> {
-    // Read again just before writing, so the row number and the lock check are current.
+  async function change(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields> {
+    // Read again just before writing, so the row number and the checks are current.
     const { values, headers } = await readAll();
-    const { records } = parseTable(tab, values, needed);
-    const record = records.find((r) => r.fields[ID] === id);
+    refuseUnknownColumns(tab, headers, changes);
+    const record = parseTable(tab, values, needed).records.find((r) => (r.fields[ID] ?? '').trim() === id.trim());
     if (!record) throw new ConflictError(`This record is no longer in "${tab}". Reload the page.`);
-    if ((record.fields.updated_at ?? '') !== loadedUpdatedAt) {
-      throw new ConflictError('Someone else changed this record in the meantime. Reload the page to see their change, then try again.');
+    const plan = planChange(record.fields, loaded, changes);
+    if ('conflict' in plan) throw new ConflictError(plan.conflict);
+    if (Object.keys(plan.write).length === 0) return record.fields; // nothing changed: nothing written
+
+    const write = { ...plan.write, updated_at: now.toISOString() };
+    const cellOf = (name: string) => `${columnLetters(headers.indexOf(name) + 1)}${record.row}`;
+    await writeCells(client, spreadsheetId, Object.entries(write).map(([name, value]) => ({ tab, cell: cellOf(name), value })));
+
+    // Check the cells landed in the right record (rows can move if someone inserts or deletes rows by hand).
+    const [rowNow = []] = await readValues(client, spreadsheetId, tab, `A${record.row}:${columnLetters(headers.length)}${record.row}`, 'unformatted');
+    const idNow = String(rowNow[headers.indexOf(ID)] ?? '').trim();
+    if (idNow !== id.trim()) {
+      throw new Error(
+        `Kraken saved into row ${record.row} of "${tab}", but that row now holds another record (rows were moved in the sheet at the same moment). ` +
+          'Open the sheet and use File → Version history to check that row.',
+      );
     }
-    const stored = { ...record.fields, ...fields, updated_at: now.toISOString() };
-    const cells = rowCells(headers, stored, values[record.row - 1]);
-    const range = encodeURIComponent(tabRange(tab, `A${record.row}:${columnLetters(headers.length)}${record.row}`));
-    await callGoogle(client, `${base}/values/${range}?valueInputOption=RAW`, { method: 'PUT', body: JSON.stringify({ values: [cells] }) });
-    return stored;
+    return { ...record.fields, ...write };
   }
 
   return {
@@ -148,25 +189,26 @@ export function sheetRecordTable(
     },
     async add(fields, by, now) {
       refuseSafetyColumns(fields);
-      const { headers } = await readAll();
+      const headers = readHeaders(tab, await readValues(client, spreadsheetId, tab, '1:1'), allNeeded);
+      refuseUnknownColumns(tab, headers, fields);
       const time = now.toISOString();
       const stored: Fields = { ...fields, id: newId(), created_at: time, updated_at: time, created_by: by, deleted_at: '' };
       const range = encodeURIComponent(tabRange(tab, 'A1'));
-      await callGoogle(client, `${base}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
         method: 'POST',
         body: JSON.stringify({ values: [rowCells(headers, stored)] }),
       });
       return stored;
     },
-    async update(id, fields, loadedUpdatedAt, now) {
-      refuseSafetyColumns(fields);
-      return change(id, fields, loadedUpdatedAt, now);
+    async update(id, changes, loaded, now) {
+      refuseSafetyColumns(changes);
+      return change(id, changes, loaded, now);
     },
-    remove(id, loadedUpdatedAt, now) {
-      return change(id, { deleted_at: now.toISOString() }, loadedUpdatedAt, now);
+    remove(id, loaded, now) {
+      return change(id, { deleted_at: now.toISOString() }, loaded, now);
     },
-    restore(id, loadedUpdatedAt, now) {
-      return change(id, { deleted_at: '' }, loadedUpdatedAt, now);
+    restore(id, loaded, now) {
+      return change(id, { deleted_at: '' }, loaded, now);
     },
   };
 }

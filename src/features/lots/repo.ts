@@ -21,9 +21,9 @@ export function lotsRepository(table: RecordTable): LotsRepository {
       return { lots: records.map((r) => lotFromFields(r.fields, r.row)), problems };
     },
     add: async (fields, by, now) => lotFromFields(await table.add(fields, by, now), 0),
-    update: async (lot, fields, now) => lotFromFields(await table.update(lot.id, fields, lot.updatedAt, now), lot.row),
-    remove: async (lot, now) => lotFromFields(await table.remove(lot.id, lot.updatedAt, now), lot.row),
-    restore: async (lot, now) => lotFromFields(await table.restore(lot.id, lot.updatedAt, now), lot.row),
+    update: async (lot, fields, now) => lotFromFields(await table.update(lot.id, fields, lot.source, now), lot.row),
+    remove: async (lot, now) => lotFromFields(await table.remove(lot.id, lot.source, now), lot.row),
+    restore: async (lot, now) => lotFromFields(await table.restore(lot.id, lot.source, now), lot.row),
   };
 }
 

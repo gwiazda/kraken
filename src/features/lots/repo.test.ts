@@ -52,7 +52,7 @@ describe('sheetLotsRepository', () => {
     expect(added.id).not.toBe('');
 
     const { lots } = await repo.load();
-    expect(lots).toEqual([{ ...added, row: 2 }]);
+    expect(lots.map((l) => ({ ...l, source: {} }))).toEqual([{ ...added, row: 2, source: {} }]);
   });
 
   it('enters the price later, keeping everything else', async () => {
@@ -60,7 +60,7 @@ describe('sheetLotsRepository', () => {
     const added = await repo.add(fieldsOf(form), 'me', t1);
     const priced = await repo.update(added, fieldsOf({ ...form, coffeePrice: '4500', deliveryCost: '120,50' }), t2);
     expect(priced).toMatchObject({ coffeePriceGrosze: 450000, deliveryCostGrosze: 12050, createdAt: added.createdAt, createdBy: 'me' });
-    expect((await repo.load()).lots[0]).toEqual({ ...priced, row: 2 });
+    expect({ ...(await repo.load()).lots[0], source: {} }).toEqual({ ...priced, row: 2, source: {} });
   });
 
   it('soft-deletes and restores: the row stays in the sheet', async () => {
@@ -73,6 +73,16 @@ describe('sheetLotsRepository', () => {
 
     const restored = await repo.restore(deleted, t3);
     expect(restored.deletedAt).toBe('');
+  });
+
+  it('keeps a quantity the partner corrected directly in the sheet while the form was open', async () => {
+    const { repo, lotsRows } = await setup();
+    const added = await repo.add(fieldsOf(form), 'me', t1);
+    const header = lotsRows()?.[0] ?? [];
+    const row = lotsRows()?.[1];
+    if (row) row[header.indexOf('quantity_kg')] = '59.5';
+    await repo.update(added, fieldsOf({ ...form, notes: 'my note' }), t2);
+    expect((await repo.load()).lots[0]).toMatchObject({ quantityGrams: 59500, notes: 'my note' });
   });
 
   it("refuses to overwrite the partner's newer change", async () => {

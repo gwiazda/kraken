@@ -58,7 +58,8 @@ Modules with small public interfaces, like Java packages. Enforced by `src/archi
 test that reads every import line), so CI fails if a rule is broken.
 - `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `drive.ts` backup copy, `storage.ts` remembered sheet ID,
   `picker.ts` file picker, `loadScript.ts`. `dates.ts` local date. `numbers.ts` exact money (grosze) and weight (grams),
-  `records.ts` a tab as a table of records (by header name; IDs, times, soft delete and the "changed by someone else" check built in once).
+  `records.ts` a tab as a table of records (by header name; IDs, times, soft delete; an edit writes only the changed cells
+  and is refused if someone changed the record or those cells meanwhile).
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (built: `lots` model + repository; screen next): `model.ts` types, validation and calculations (pure: no Google, no screen),

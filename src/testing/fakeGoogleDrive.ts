@@ -141,14 +141,57 @@ export function fakeGoogleDrive(): FakeDrive {
       return json(200, { valueRanges });
     }
 
+    /** Writes one row of values starting at a cell ("B3"), or into a row range ("A5:U5"). Returns an error text or null. */
+    const writeAt = (title: string, cells: string, written: unknown[][]): string | null => {
+      const found = tab(title);
+      if (!found) return `Unable to parse range: ${title}`;
+      const range = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(cells);
+      if (!range) return 'Fake Google: only writes to a cell or a row';
+      const startColumn = columnNumber(range[1] ?? 'A') - 1;
+      const row = Number(range[2]) - 1;
+      const width = range[3] ? columnNumber(range[3]) - startColumn : 1;
+      if (written.length !== 1 || (written[0]?.length ?? 0) > width || (range[4] && Number(range[4]) - 1 !== row)) {
+        return 'Requested writing outside the given range';
+      }
+      while (found.rows.length <= row) found.rows.push([]);
+      const target = found.rows[row] ?? [];
+      (written[0] ?? []).forEach((cell, i) => {
+        while (target.length <= startColumn + i) target.push('');
+        target[startColumn + i] = String(cell ?? '');
+      });
+      return null;
+    };
+
+    if (rest === '/values:batchUpdate' && method === 'POST') {
+      const request = body as { valueInputOption?: string; data: { range: string; values: unknown[][] }[] };
+      if (request.valueInputOption !== 'RAW') return fail(400, 'Fake Google: only RAW writes');
+      // All or nothing, like the real API.
+      const before = structuredClone(file.tabs);
+      for (const item of request.data) {
+        const { tab: title, cells } = parseRange(item.range);
+        const error = writeAt(title, cells, item.values);
+        if (error) {
+          file.tabs = before;
+          return fail(400, error);
+        }
+      }
+      return json(200, {});
+    }
+
     const append = /^\/values\/(.+):append$/.exec(rest);
     if (append && method === 'POST') {
       const found = tab(parseRange(append[1] ?? '').tab);
       if (!found) return fail(400, `Unable to parse range: ${append[1]}`);
-      if (url.searchParams.get('valueInputOption') !== 'RAW') return fail(400, 'Fake Google: only RAW writes');
-      // Like the real API: the new rows go after the last filled row.
-      found.rows = trimmed(found.rows);
-      for (const row of (body as { values: unknown[][] }).values) found.rows.push(row.map((cell) => String(cell ?? '')));
+      if (url.searchParams.get('valueInputOption') !== 'RAW' || url.searchParams.get('insertDataOption') !== 'INSERT_ROWS') {
+        return fail(400, 'Fake Google: only RAW writes with INSERT_ROWS');
+      }
+      // Like the real API with range A1: the "table" is the block of filled rows from row 1; new rows are inserted
+      // right after it, pushing any rows below (after an empty row) further down.
+      const isEmpty = (row: string[] | undefined) => !row || row.every((cell) => cell === '');
+      let end = 0;
+      while (end < found.rows.length && !isEmpty(found.rows[end])) end++;
+      const added = (body as { values: unknown[][] }).values.map((row) => row.map((cell) => String(cell ?? '')));
+      found.rows.splice(end, 0, ...added);
       return json(200, { updates: {} });
     }
 
@@ -158,27 +201,16 @@ export function fakeGoogleDrive(): FakeDrive {
       const found = tab(title);
       if (!found) return fail(400, `Unable to parse range: ${values[1]}`);
       if (method === 'GET') {
-        const rows = trimmed(found.rows);
-        return json(200, rows.length > 0 ? { values: rows } : {});
+        // Whole tab, or the rows of a row range like "1:1" or "A5:U5".
+        const rowRange = /^[A-Z]*(\d+):[A-Z]*(\d+)$/.exec(cells);
+        const rows = rowRange ? found.rows.slice(Number(rowRange[1]) - 1, Number(rowRange[2])) : found.rows;
+        const result = trimmed(rows.map((row) => [...row]));
+        return json(200, result.length > 0 ? { values: result } : {});
       }
       if (method === 'PUT') {
-        // A single cell ("B3") or one row ("A5:U5"); the values must fit the range, as with the real API.
-        const range = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(cells);
-        if (!range || url.searchParams.get('valueInputOption') !== 'RAW') return fail(400, 'Fake Google: only RAW writes to a cell or a row');
-        const startColumn = columnNumber(range[1] ?? 'A') - 1;
-        const row = Number(range[2]) - 1;
-        const width = range[3] ? columnNumber(range[3]) - startColumn : 1;
-        const written = (body as { values: unknown[][] }).values;
-        if (written.length !== 1 || (written[0]?.length ?? 0) > width || (range[4] && Number(range[4]) - 1 !== row)) {
-          return fail(400, 'Requested writing outside the given range');
-        }
-        while (found.rows.length <= row) found.rows.push([]);
-        const target = found.rows[row] ?? [];
-        (written[0] ?? []).forEach((cell, i) => {
-          while (target.length <= startColumn + i) target.push('');
-          target[startColumn + i] = String(cell ?? '');
-        });
-        return json(200, {});
+        if (url.searchParams.get('valueInputOption') !== 'RAW') return fail(400, 'Fake Google: only RAW writes');
+        const error = writeAt(title, cells, (body as { values: unknown[][] }).values);
+        return error ? fail(400, error) : json(200, {});
       }
     }
 

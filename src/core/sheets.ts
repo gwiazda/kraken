@@ -2,7 +2,7 @@
 // No server is involved. `fetch` and the token are passed in so tests can replace them with fakes.
 // Generic building block: knows nothing about Kraken's tabs (those live in `schema/`).
 
-const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
+export const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -142,16 +142,23 @@ export function tabRange(tab: string, cells: string): string {
 }
 
 /** Reads the cells of a tab. Every error is passed on, so the caller never mistakes a Google problem for data. */
-export async function readValues(client: SheetsClient, id: string, tab: string, cells: string): Promise<unknown[][]> {
+export async function readValues(client: SheetsClient, id: string, tab: string, cells: string, render: ValueRender = 'formatted'): Promise<unknown[][]> {
   const range = encodeURIComponent(tabRange(tab, cells));
-  const result = await callGoogle<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}`);
+  const result = await callGoogle<{ values?: unknown[][] }>(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}${render === 'unformatted' ? `?${renderQuery(render).slice(1)}` : ''}`);
   return result.values ?? [];
 }
 
+/**
+ * How cells are read. 'formatted': as shown in Google Sheets. 'unformatted': numbers without their display format
+ * (a number shown as "4 500,00 zł" reads as 4500), dates still as shown. Record tables use 'unformatted'.
+ */
+export type ValueRender = 'formatted' | 'unformatted';
+const renderQuery = (render: ValueRender) => (render === 'unformatted' ? '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING' : '');
+
 /** Reads several whole tabs in one request. Returns the rows of each tab, in the order asked. */
-export async function readTabs(client: SheetsClient, id: string, tabs: readonly string[]): Promise<unknown[][][]> {
+export async function readTabs(client: SheetsClient, id: string, tabs: readonly string[], render: ValueRender = 'formatted'): Promise<unknown[][][]> {
   if (tabs.length === 0) return [];
-  const query = tabs.map((tab) => `ranges=${encodeURIComponent(tabRange(tab, 'A:ZZ'))}`).join('&');
+  const query = tabs.map((tab) => `ranges=${encodeURIComponent(tabRange(tab, 'A:ZZ'))}`).join('&') + renderQuery(render);
   const result = await callGoogle<{ valueRanges?: { values?: unknown[][] }[] }>(
     client,
     `${SHEETS_API}/${encodeURIComponent(id)}/values:batchGet?${query}`,
@@ -198,5 +205,20 @@ export async function writeValues(client: SheetsClient, id: string, tab: string,
   await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(id)}/values/${range}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values }),
+  });
+}
+
+/**
+ * Writes single cells as given (RAW), in one request: Google applies all or none. Each range is one cell on a tab,
+ * e.g. { tab: 'Lots', cell: 'L5', value: '4500' }. Cells not listed are not touched (formulas elsewhere stay).
+ */
+export async function writeCells(client: SheetsClient, id: string, cells: readonly { tab: string; cell: string; value: string }[]): Promise<void> {
+  if (cells.length === 0) return;
+  await callGoogle(client, `${SHEETS_API}/${encodeURIComponent(id)}/values:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: cells.map(({ tab, cell, value }) => ({ range: tabRange(tab, cell), values: [[value]] })),
+    }),
   });
 }

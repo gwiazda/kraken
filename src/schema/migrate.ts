@@ -199,7 +199,7 @@ export function updatePlan(fromVersion: number, now = new Date(), all: readonly 
   };
 }
 
-/** The columns a tab has after all migrations (empty if no migration adds it). Lets features check they match. */
-export function columnsOf(tab: string, all: readonly Migration[] = MIGRATIONS): string[] {
-  return all.flatMap((m) => m.steps).filter((step) => step.tab === tab).flatMap((step) => [...step.headers]);
+/** The columns a tab has in the final layout (the same one a new sheet gets). Lets features check they match. */
+export function columnsOf(tab: string): string[] {
+  return [...(initialTabs(new Date(0)).find((t) => t.title === tab)?.rows[0] ?? [])];
 }

@@ -55,6 +55,8 @@ export interface Lot {
   readonly deletedAt: string;
   /** Cells Kraken could not read (e.g. "abc" typed in the kg column), explained for the user. */
   readonly problems: readonly string[];
+  /** The row's fields exactly as loaded, so an edit writes only what changed and spots changes made meanwhile. */
+  readonly source: Readonly<Record<string, string>>;
 }
 
 type Fields = Readonly<Record<string, string>>;
@@ -95,6 +97,7 @@ export function lotFromFields(fields: Fields, row: number): Lot {
     createdBy: text('created_by'),
     deletedAt: text('deleted_at'),
     problems,
+    source: fields,
   };
 }
 
@@ -199,6 +202,7 @@ export function formFromLot(lot: Lot): LotForm {
 
 export type LotFormErrors = Partial<Record<keyof LotForm, string>>;
 
+const MAX_CODE = 40;
 const MAX_TEXT = 200;
 const MAX_NOTES = 2000;
 
@@ -213,6 +217,7 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
   const code = f.code.toUpperCase().replace(/\s+/g, '-');
   if (code === '') errors.code = 'Enter a code, e.g. KENYA-26-11.';
   else if (!/^[A-Z0-9]+(-[A-Z0-9]+)*$/.test(code)) errors.code = 'Use only letters A–Z, digits and dashes.';
+  else if (code.length > MAX_CODE) errors.code = `Use at most ${MAX_CODE} characters.`;
   else if (others.some((lot) => lot.code.toUpperCase() === code)) errors.code = `Another lot already has the code ${code}.`;
 
   if (f.name === '') errors.name = 'Enter the coffee name.';
@@ -231,9 +236,9 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
   if (delivery === undefined) errors.deliveryCost = 'Enter an amount, e.g. 120 — or leave it empty if there was none.';
 
   for (const key of ['name', 'country', 'region', 'altitude', 'process', 'variety', 'supplier'] as const) {
-    if (f[key].length > MAX_TEXT) errors[key] = `Keep it under ${MAX_TEXT} characters.`;
+    if (f[key].length > MAX_TEXT) errors[key] = `Use at most ${MAX_TEXT} characters.`;
   }
-  if (f.notes.length > MAX_NOTES) errors.notes = `Keep notes under ${MAX_NOTES} characters.`;
+  if (f.notes.length > MAX_NOTES) errors.notes = `Use at most ${MAX_NOTES} characters.`;
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return {

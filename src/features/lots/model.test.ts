@@ -92,6 +92,7 @@ describe('lotFromFields', () => {
       createdBy: 'owner@example.com',
       deletedAt: '',
       problems: [],
+      source: row(),
     });
   });
 
@@ -254,7 +255,10 @@ describe('validateLotForm', () => {
 
   it('limits the length of texts', () => {
     const result = validateLotForm(form({ supplier: 'x'.repeat(201), notes: 'y'.repeat(2001) }), []);
-    expect(result.ok ? {} : result.errors).toEqual({ supplier: 'Keep it under 200 characters.', notes: 'Keep notes under 2000 characters.' });
+    expect(result.ok ? {} : result.errors).toEqual({ supplier: 'Use at most 200 characters.', notes: 'Use at most 2000 characters.' });
+    expect(validateLotForm(form({ supplier: 'x'.repeat(200) }), []).ok).toBe(true);
+    const long = validateLotForm(form({ code: 'A'.repeat(41) }), []);
+    expect(long.ok ? '' : long.errors.code).toBe('Use at most 40 characters.');
   });
 
   it('stores a formula-looking text as plain text (Kraken writes RAW, so it never runs)', () => {
@@ -270,7 +274,7 @@ describe('forms', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const saved = lotFromFields({ ...row(), ...result.fields }, 2);
-    expect(saved).toEqual(original);
+    expect({ ...saved, source: {} }).toEqual({ ...original, source: {} });
   });
 
   it('a new form starts with today as the delivery date', () => {
