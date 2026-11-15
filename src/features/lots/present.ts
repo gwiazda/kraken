@@ -1,0 +1,58 @@
+// What the Lots screen shows, as plain text. Pure (no screen, no Google), so it is tested directly.
+
+import { formatKg, formatPln, parseKg, parseMoney } from '../../core/numbers';
+import { greenPricePerKg, isDeleted, priceMissing, sortLots, suggestCode, type Lot, type LotForm } from './model';
+
+export interface LotListRow {
+  readonly lot: Lot;
+  readonly code: string;
+  readonly name: string;
+  readonly country: string;
+  readonly delivered: string;
+  readonly quantity: string;
+  /** "77,01 zł", or null when the price (or quantity) is missing. */
+  readonly pricePerKg: string | null;
+  readonly priceMissing: boolean;
+  readonly supplier: string;
+  /** Problems with this lot's cells, one sentence each. */
+  readonly problems: readonly string[];
+}
+
+const DASH = '—';
+
+/** The active lots, newest delivery first, ready to show. */
+export function lotListRows(lots: readonly Lot[]): LotListRow[] {
+  return sortLots(lots.filter((lot) => !isDeleted(lot))).map((lot) => {
+    const perKg = greenPricePerKg(lot);
+    return {
+      lot,
+      code: lot.code || DASH,
+      name: lot.name || DASH,
+      country: lot.country || DASH,
+      delivered: lot.deliveryDate || DASH,
+      quantity: lot.quantityGrams === null ? DASH : formatKg(lot.quantityGrams),
+      pricePerKg: perKg === null ? null : formatPln(perKg),
+      priceMissing: priceMissing(lot),
+      supplier: lot.supplier || DASH,
+      problems: lot.problems,
+    };
+  });
+}
+
+/** The live "Green price per kg" line under the form, or null until price and quantity are readable. */
+export function formPricePerKg(form: Pick<LotForm, 'coffeePrice' | 'deliveryCost' | 'quantityKg'>): string | null {
+  const price = parseMoney(form.coffeePrice);
+  const delivery = parseMoney(form.deliveryCost);
+  const grams = parseKg(form.quantityKg);
+  if (typeof price !== 'number' || delivery === undefined || typeof grams !== 'number') return null;
+  const perKg = greenPricePerKg({ coffeePriceGrosze: price, deliveryCostGrosze: delivery, quantityGrams: grams });
+  return perKg === null ? null : formatPln(perKg);
+}
+
+/**
+ * The code field after the country or date changed: Kraken keeps suggesting a code until the user types one
+ * themselves (`codeTyped`). `otherCodes` are the codes of all other lots, deleted ones included.
+ */
+export function codeAfterChange(form: LotForm, codeTyped: boolean, otherCodes: readonly string[]): string {
+  return codeTyped ? form.code : suggestCode(form.country, form.deliveryDate, otherCodes);
+}

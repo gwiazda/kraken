@@ -3,3 +3,4 @@
 
 export { createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updateSpreadsheet, type ConnectResult } from './connect';
 export { MigrationError, columnsOf, updatePlan } from './migrate';
+export { APP_SCHEMA_VERSION } from './meta';
