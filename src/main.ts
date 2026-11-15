@@ -12,7 +12,6 @@ import {
   signOut,
   withFreshToken,
 } from './auth';
-import { NEW_SHEET_TITLE } from './config';
 import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
@@ -182,7 +181,7 @@ async function chooseSheet(): Promise<void> {
 }
 
 async function createSheet(): Promise<void> {
-  const info = await createKrakenSpreadsheet(client, NEW_SHEET_TITLE);
+  const info = await createKrakenSpreadsheet(client);
   remember(info.id);
   await connect(info.id);
 }

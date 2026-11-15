@@ -1,5 +1,6 @@
 // Creates a Kraken spreadsheet, or opens one and decides whether Kraken may use it. Opening never writes to the sheet.
 
+import { localDate } from '../core/dates';
 import { createSpreadsheet, getSpreadsheetInfo, readValues, type SheetsClient, type SpreadsheetInfo } from '../core/sheets';
 import { META_TAB, checkMeta, type MetaCheck } from './meta';
 import { googleSheetOps, initialTabs, migrateSpreadsheet, type MigrateResult } from './migrate';
@@ -8,8 +9,13 @@ import { googleSheetOps, initialTabs, migrateSpreadsheet, type MigrateResult } f
  * Creates a new Kraken spreadsheet with `_meta` and every tab the migrations add, in one request: it either fully
  * exists or not at all (no half-made sheet if something fails).
  */
-export function createKrakenSpreadsheet(client: SheetsClient, title: string, now = new Date()): Promise<SpreadsheetInfo> {
-  return createSpreadsheet(client, title, initialTabs(now));
+export function createKrakenSpreadsheet(client: SheetsClient, now = new Date()): Promise<SpreadsheetInfo> {
+  return createSpreadsheet(client, newSheetTitle(now), initialTabs(now));
+}
+
+/** "Kraken 2026-11-15": Google Drive allows two files with the same name, so the date tells them apart. */
+export function newSheetTitle(now: Date): string {
+  return `Kraken ${localDate(now)}`;
 }
 
 /** Updates an existing sheet to this app's data version, with a checked backup copy first. */

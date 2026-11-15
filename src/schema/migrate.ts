@@ -2,6 +2,7 @@
 // 1. full backup copy, checked (same tabs, rows and headers); 2. the migration's steps; 3. check no rows were lost and the new
 // headers are there; 4. only then raise `schema_version`. Every step is safe to run again after a failure.
 
+import { localDate } from '../core/dates';
 import { copyFile } from '../core/drive';
 import { addTab, getSpreadsheetInfo, readTabs, writeValues, type InitialTab, type SheetsClient } from '../core/sheets';
 import { APP_SCHEMA_VERSION, BASE_SCHEMA_VERSION, META_TAB, checkMeta, initialMetaRows, schemaVersionCell } from './meta';
@@ -58,9 +59,7 @@ export interface MigrateResult {
 
 /** "Kraken backup 2026-11-15 (before v2)", using the local date. */
 export function backupName(now: Date, nextVersion: number): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return `Kraken backup ${date} (before v${nextVersion})`;
+  return `Kraken backup ${localDate(now)} (before v${nextVersion})`;
 }
 
 /** Rows that have at least one filled cell. */

@@ -139,7 +139,7 @@ describe('the checker itself catches broken rules', () => {
         '/src/core/sheets.ts': '',
         '/src/core/money.ts': '',
         '/src/auth/index.ts': '',
-        '/src/ui/button.ts': "import { NEW_SHEET_TITLE } from '../config';",
+        '/src/ui/button.ts': "import { GOOGLE_CLIENT_ID } from '../config';",
         '/src/features/lots/index.ts': "export { x } from './page';",
         '/src/features/lots/page.ts': "import { a } from '../../core/sheets';\nimport {\n  b,\n  c,\n} from '../../auth';\nimport { m } from './model';",
         '/src/features/lots/model.ts': "import { money } from '../../core/money';\nimport { code } from './modelCode';\n/** rounds like the window on the label */",

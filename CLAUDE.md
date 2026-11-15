@@ -57,12 +57,12 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
 test that reads every import line), so CI fails if a rule is broken.
 - `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `drive.ts` backup copy, `storage.ts` remembered sheet ID,
-  `picker.ts` file picker, `loadScript.ts`. Later `money.ts` (exact maths in grosze), `ids.ts`, `dates.ts`.
+  `picker.ts` file picker, `loadScript.ts`. `dates.ts` local date. Later `money.ts` (exact maths in grosze), `ids.ts`.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (e.g. `lots`): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs.
+- `ui/`: shared screen helpers (`devLog.ts` dev-only sign-in log; more with the first page). `main.ts`: start file and wiring only; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
 - Rules: imports only point down (feature → ui/schema/auth → core → config); `auth`, `schema` and each feature are imported
   only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 
