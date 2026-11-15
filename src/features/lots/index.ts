@@ -3,10 +3,13 @@
 export {
   LOTS_TAB,
   LOT_COLUMNS,
+  countryCode,
   emptyLotForm,
   formFromLot,
   greenPricePerKg,
   isDeleted,
+  lotFromFields,
+  lotSource,
   priceMissing,
   sortLots,
   suggestCode,

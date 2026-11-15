@@ -49,8 +49,13 @@ describe('lotListRows', () => {
       pricePerKg: '77,01 zł',
       priceMissing: false,
       supplier: '—',
+      source: 'By hand',
       problems: [],
     });
+  });
+
+  it('shows lots imported from RoasTime as such', () => {
+    expect(lotListRows([lot({ roastime_container_id: 'C1' })])[0]?.source).toBe('RoasTime');
   });
 
   it('marks a lot without a price, and shows no price per kg', () => {

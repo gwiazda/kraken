@@ -112,6 +112,9 @@ export function isValidDate(text: string): boolean {
 
 export const isDeleted = (lot: Lot) => lot.deletedAt !== '';
 
+/** Where a lot came from: imported from RoasTime (it has RoasTime's delivery ID) or entered by hand in Kraken. */
+export const lotSource = (lot: Lot): 'RoasTime' | 'By hand' => (lot.roastime.containerId !== '' ? 'RoasTime' : 'By hand');
+
 /** "Price missing": the coffee price has not been entered yet (it is never imported from RoasTime). */
 export const priceMissing = (lot: Lot) => lot.coffeePriceGrosze === null;
 

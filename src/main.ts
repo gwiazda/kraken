@@ -17,6 +17,7 @@ import { pickSpreadsheet } from './core/picker';
 import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo } from './core/sheets';
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
+import { showRoastimeImport } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, message, type Child } from './ui/dom';
@@ -269,7 +270,17 @@ function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
     isIgnorable: (error) => error instanceof SignInSuperseded,
     describeError: errorText,
     now: () => new Date(),
+    openImport: () => showImport(info),
   };
+}
+
+function showImport(info: SpreadsheetInfo): void {
+  const deps = lotsPageDeps(info);
+  showRoastimeImport(showApp(info, 'lots'), {
+    ...deps,
+    copyText: (text) => navigator.clipboard.writeText(text),
+    backToLots: (note) => showLots(info, note, true),
+  });
 }
 
 /** The sheet Kraken uses, and signing out. Kept off the main page (owner, 2026-11-15). */

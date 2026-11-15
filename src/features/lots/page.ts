@@ -4,7 +4,7 @@
 
 import { ConflictError, TableError } from '../../core/records';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
-import { changedFields, emptyLotForm, formFromLot, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
+import { changedFields, emptyLotForm, formFromLot, lotSource, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
 import { codeAfterChange, deletedCount, formPricePerKg, lotListRows, type LotListRow } from './present';
 import type { LotsRepository } from './repo';
 
@@ -21,6 +21,8 @@ export interface LotsPageDeps {
   isIgnorable: (error: unknown) => boolean;
   describeError: (error: unknown) => string;
   now: () => Date;
+  /** Opens the "Import from RoasTime" screen. */
+  openImport: () => void;
 }
 
 const PRICE_TIP = 'Entered by hand. Not imported from RoasTime.';
@@ -205,6 +207,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: 'num nowrap' }, row.pricePerKg ?? (row.priceMissing ? el('span', { class: 'badge' }, 'Price missing') : '—')),
         el('td', {}, row.supplier),
+        el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,
       );
       const inRow = (text: string) => () => {
@@ -231,7 +234,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         confirmRow.replaceChildren(
           el(
             'td',
-            { colspan: '8' },
+            { colspan: '9' },
             el('span', {}, `Delete ${row.code}? It can be restored later under "Show deleted". `),
             button(
               'Yes, delete',
@@ -267,7 +270,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 el(
                   'tr',
                   {},
-                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Green price / kg', 'Supplier', ''].map((h) => el('th', { scope: 'col' }, h)),
+                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Green price / kg', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
@@ -282,7 +285,12 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     });
 
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Green coffee lots'), button('Add lot', () => showForm({ kind: 'add' }))),
+      el(
+        'div',
+        { class: 'page-head' },
+        el('h2', {}, 'Green coffee lots'),
+        el('div', { class: 'head-actions' }, button('Import from RoasTime', () => deps.openImport(), 'secondary'), button('Add lot', () => showForm({ kind: 'add' }))),
+      ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
@@ -441,7 +449,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
 
     render(
       el('h2', {}, mode.kind === 'add' ? 'Add lot' : `Edit ${mode.lot.code}`),
-      el('p', { class: 'muted small' }, 'Fields marked * are required. One lot = one delivery of green coffee.'),
+      el(
+        'p',
+        { class: 'muted small' },
+        mode.kind === 'edit' && lotSource(mode.lot) === 'RoasTime'
+          ? 'Imported from RoasTime. A later import may update the name, country, region, process and quantity (you are asked first). Fields marked * are required.'
+          : mode.kind === 'edit'
+            ? 'Entered by hand. Imports from RoasTime never change it. Fields marked * are required.'
+            : 'Fields marked * are required. One lot = one delivery of green coffee.',
+      ),
       ...(mode.kind === 'edit' && mode.lot.problems.length > 0 ? mode.lot.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,
