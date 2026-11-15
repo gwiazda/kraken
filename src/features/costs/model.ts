@@ -142,7 +142,7 @@ export function validateSettingsForm(form: SettingsForm): { ok: true; values: Re
   const vat = percentFromCell(form.vat);
   if (typeof vat !== 'number') errors.vat = 'Enter the VAT rate, e.g. 23.';
   const markups = parseMarkups(form.markups);
-  if (!markups) errors.markups = 'Enter 1 to 5 markups separated by ";", e.g. 2; 2,5; 3.';
+  if (!markups) errors.markups = 'Enter 1 to 5 multipliers separated by ";", e.g. 2; 2,5; 3.';
   const loss = percentFromCell(form.defaultLoss);
   if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage from 1 to 99, e.g. 15.';
   if (typeof vat !== 'number' || !markups || typeof loss !== 'number') return { ok: false, errors };

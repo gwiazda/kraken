@@ -93,7 +93,7 @@ describe('settings', () => {
       ok: false,
       errors: {
         vat: 'Enter the VAT rate, e.g. 23.',
-        markups: 'Enter 1 to 5 markups separated by ";", e.g. 2; 2,5; 3.',
+        markups: 'Enter 1 to 5 multipliers separated by ";", e.g. 2; 2,5; 3.',
         defaultLoss: 'Enter a percentage from 1 to 99, e.g. 15.',
       },
     });

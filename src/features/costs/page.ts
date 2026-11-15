@@ -352,7 +352,11 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       'section',
       {},
       el('h3', {}, 'What goes into one bag'),
-      el('p', { class: 'muted small' }, 'Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost" on the lot cards.'),
+      el(
+        'p',
+        { class: 'muted small' },
+        'The same for every coffee: entered once here, used on every lot card. Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost" on the lot cards.',
+      ),
       el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
       ...(unplaced.length > 0 ? [unplacedNode(unplaced)] : []),
     );
@@ -388,13 +392,20 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     const initial = formFromSettings(settings);
     const errors = new Map<keyof SettingsForm, HTMLParagraphElement>();
     const inputs = new Map<keyof SettingsForm, HTMLInputElement>();
-    const field = (key: keyof SettingsForm, label: string, hint: string) => {
+    const field = (key: keyof SettingsForm, label: string, hint: string, tip?: string) => {
       const input = el('input', { id: `setting-${key}`, type: 'text', inputmode: key === 'markups' ? 'text' : 'decimal', autocomplete: 'off' });
       input.value = initial[key];
       inputs.set(key, input);
       const error = el('p', { class: 'field-error', role: 'alert' });
       errors.set(key, error);
-      return el('div', { class: 'field' }, el('label', { for: input.id }, label), input, el('p', { class: 'field-hint' }, hint), error);
+      return el(
+        'div',
+        { class: 'field' },
+        el('div', { class: 'label-row' }, el('label', { for: input.id }, label), ...(tip ? [infoTip(tip)] : [])),
+        input,
+        el('p', { class: 'field-hint' }, hint),
+        error,
+      );
     };
     const status = el('div', { class: 'save-status' });
     const form = el(
@@ -404,7 +415,12 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
         'div',
         { class: 'fields' },
         field('vat', 'VAT %', 'Added to net prices.'),
-        field('markups', 'Markups', 'Separated by ";", e.g. 2; 2,5; 3.'),
+        field(
+          'markups',
+          'Price multipliers (markup)',
+          'Separated by ";", e.g. 2; 2,5; 3.',
+          'How many times the cost of one bag the suggested price is. E.g. 2 means: a bag that costs 24 zł to make is offered at 48 zł net. Each multiplier gives one suggested price on the lot cards.',
+        ),
         field('defaultLoss', 'Default roast loss %', 'For a lot with no roasts yet.'),
       ),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),
