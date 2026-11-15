@@ -55,7 +55,7 @@ function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElemen
     return b;
   };
   app.replaceChildren(
-    el('nav', { class: 'app-nav', 'aria-label': 'Kraken' }, tab('Lots', 'lots', () => showLots(info)), tab('Settings', 'settings', () => showSettings(info))),
+    el('nav', { class: 'app-nav', 'aria-label': 'Kraken' }, tab('Lots', 'lots', () => showLots(info, undefined, true)), tab('Settings', 'settings', () => showSettings(info))),
     page,
   );
   return page;
@@ -255,16 +255,14 @@ function remember(id: string): void {
   }
 }
 
-function showLots(info: SpreadsheetInfo, note?: string): void {
-  showLotsPage(showApp(info, 'lots'), lotsPageDeps(info), note);
+function showLots(info: SpreadsheetInfo, note?: string, fromClick = false): void {
+  showLotsPage(showApp(info, 'lots'), lotsPageDeps(info), note, fromClick);
 }
-
-let myEmail: string | null = null;
 
 function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
   return {
     repo: sheetLotsRepository(client, info.id),
-    whoAmI: async () => (myEmail ??= await whoAmI(client)),
+    whoAmI: () => whoAmI(client), // asked each time: the person signed in can change on renewal
     withGoogle: (action) => withFreshToken(action),
     signIn,
     isSignedOut: (error) => error instanceof SheetsError && error.kind === 'signed-out',
@@ -299,7 +297,6 @@ function showSettings(info: SpreadsheetInfo): void {
         'Sign out',
         () => {
           signOut();
-          myEmail = null;
           showSignIn();
         },
         'secondary',

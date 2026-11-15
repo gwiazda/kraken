@@ -56,7 +56,7 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 ## Code structure (owner agreed 2026-11-15)
 Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
 test that reads every import line), so CI fails if a rule is broken.
-- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `drive.ts` backup copy, `storage.ts` remembered sheet ID,
+- `core/`: shared toolbox, knows nothing about Kraken's tabs. `sheets.ts` Sheets API calls, `storage.ts` remembered sheet ID,
   `picker.ts` file picker, `loadScript.ts`. `dates.ts` local date. `numbers.ts` exact money (grosze) and weight (grams),
   `drive.ts` backup copy and `whoAmI` (signed-in email for `created_by`; works with `drive.file`, checked live 2026-11-15),
   `records.ts` a tab as a table of records (by header name; IDs, times, soft delete; an edit writes only the changed cells

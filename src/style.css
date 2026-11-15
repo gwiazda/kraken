@@ -358,3 +358,14 @@ h2 {
   font-weight: 600;
   color: var(--yellow);
 }
+
+.label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+
+.label-row label {
+  font-weight: 600;
+}

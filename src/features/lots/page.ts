@@ -4,7 +4,7 @@
 
 import { ConflictError, TableError } from '../../core/records';
 import { button, el, infoTip, message } from '../../ui/dom';
-import { emptyLotForm, formFromLot, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
+import { changedFields, emptyLotForm, formFromLot, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
 import { codeAfterChange, formPricePerKg, lotListRows } from './present';
 import type { LotsRepository } from './repo';
 
@@ -72,7 +72,8 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[]; pricePer
 
 const FIELDS: readonly FieldSpec[] = SECTIONS.flatMap((section) => section.fields);
 
-export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: string): void {
+/** `fromClick`: opened by a click (e.g. the Lots menu), so the sign-in may be renewed before loading. */
+export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: string, fromClick = false): void {
   let lots: Lot[] = [];
   let problems: string[] = [];
 
@@ -80,16 +81,18 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     root.replaceChildren(...children);
   }
 
-  function load(note?: string): void {
+  /** `fromClick`: started by a click, so the sign-in may be renewed first (renew on the next click). */
+  function load(note?: string, fromClick = false): void {
     render(message('Loading lots…'));
-    deps.repo
-      .load()
+    (fromClick ? deps.withGoogle(() => deps.repo.load()) : deps.repo.load())
       .then((result) => {
         lots = result.lots;
         problems = result.problems;
         showList(note);
       })
-      .catch((error: unknown) => showLoadError(error));
+      .catch((error: unknown) => {
+        if (!deps.isIgnorable(error)) showLoadError(error);
+      });
   }
 
   function showLoadError(error: unknown): void {
@@ -107,7 +110,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       );
       return;
     }
-    render(message(deps.describeError(error), 'error'), button('Try again', () => load(), 'secondary'));
+    render(message(deps.describeError(error), 'error'), button('Try again', () => load(undefined, true), 'secondary'));
   }
 
   function showList(note?: string): void {
@@ -141,7 +144,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                       'td',
                       { class: 'code' },
                       row.code,
-                      ...(row.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn' }, 'Check'), infoTip(row.problems.join(' '))] : []),
+                      ...(row.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: row.problems.join(' ') }, 'Check')] : []),
                     ),
                     el('td', {}, row.name),
                     el('td', {}, row.country),
@@ -159,6 +162,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       el('div', { class: 'page-head' }, el('h2', {}, 'Green coffee lots'), button('Add lot', () => showForm({ kind: 'add' }))),
       ...(note ? [message(note)] : []),
       ...problems.map((text) => message(text, 'error')),
+      ...rows.filter((row) => row.problems.length > 0).map((row) => message(`${row.code}: ${row.problems.join(' ')} Open Edit to correct it.`, 'error')),
       table,
     );
   }
@@ -186,7 +190,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       const node = el(
         'div',
         { class: `field${spec.type === 'textarea' ? ' field-wide' : ''}` },
-        el('label', { for: id }, spec.label, spec.required ? ' *' : '', ...(spec.tip ? [' ', infoTip(spec.tip)] : [])),
+        el('div', { class: 'label-row' }, el('label', { for: id }, spec.label, spec.required ? ' *' : ''), ...(spec.tip ? [infoTip(spec.tip)] : [])),
         input,
         ...(spec.hint ? [el('p', { class: 'field-hint' }, spec.hint)] : []),
         error,
@@ -225,7 +229,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     updatePreview();
 
     const banner = el('div', { class: 'form-banner' });
-    const saveButton = button(mode.kind === 'add' ? 'Save lot' : 'Save changes', () => save());
+    // A real submit button inside the form: clicking it or pressing Enter in a field both save.
+    const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, mode.kind === 'add' ? 'Save lot' : 'Save changes');
     const cancelButton = button('Cancel', () => showList(), 'secondary');
 
     const showErrors = (errors: LotFormErrors) => {
@@ -245,7 +250,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
 
     // Called directly inside the Save click, so a sign-in renewal can open Google's window.
     function save(): void {
-      const result = validateLotForm(readForm(), others);
+      const form = readForm();
+      const result = validateLotForm(form, others);
       if (!result.ok) {
         showErrors(result.errors);
         banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
@@ -258,7 +264,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         .withGoogle(async () =>
           mode.kind === 'add'
             ? deps.repo.add(result.fields, await deps.whoAmI(), deps.now())
-            : deps.repo.update(mode.lot, result.fields, deps.now()),
+            : deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now()),
         )
         .then((saved) => load(`Saved ${saved.code}.`))
         .catch((error: unknown) => {
@@ -282,7 +288,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           }),
         );
       } else if (error instanceof ConflictError) {
-        banner.replaceChildren(message(error.message, 'error'), button('Reload lots (drops this form)', () => load(), 'secondary'));
+        banner.replaceChildren(message(error.message, 'error'), button('Reload lots (drops this form)', () => load(undefined, true), 'secondary'));
       } else if (error instanceof TableError) {
         banner.replaceChildren(message(error.message, 'error'));
       } else {
@@ -307,9 +313,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           ),
         ),
       ),
+      el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     formNode.addEventListener('submit', (event) => {
-      event.preventDefault(); // Enter in a field saves, like the button
+      event.preventDefault(); // Kraken saves through Google itself; the browser never sends the form anywhere
       if (!saveButton.disabled) save();
     });
 
@@ -319,10 +326,9 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       ...(mode.kind === 'edit' && mode.lot.problems.length > 0 ? mode.lot.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,
-      el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     inputs.name.focus();
   }
 
-  load(note);
+  load(note, fromClick);
 }
