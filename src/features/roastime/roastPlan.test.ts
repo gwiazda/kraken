@@ -91,10 +91,9 @@ describe('planRoasts', () => {
     }
   });
 
-  it('keeps a roast whose coffee was removed in RoasTime later (never empties Kraken)', () => {
-    const plan = planRoasts([rt({ beanId: '' })], [kraken()], coffees);
-    expect(plan.removed).toEqual([]);
-    expect(plan.unchanged).toBe(1);
+  it('removes a roast whose coffee was taken away in RoasTime later (it is a sample now)', () => {
+    const roast = kraken();
+    expect(planRoasts([rt({ beanId: '' })], [roast], coffees).removed).toEqual([roast]);
   });
 
   it('brings back a roast removed for having no coffee once RoasTime has its coffee', () => {
@@ -121,13 +120,17 @@ describe('planRoasts', () => {
     expect(plan.samples).toEqual([`Kenia 03.11.2026-1 (${roastTimeText(new Date('2026-11-03T08:15:00.000Z'))}): its coffee has no delivery in RoasTime`]);
   });
 
-  it('removes a roast imported earlier whose coffee has no delivery, but never one now of another coffee', () => {
+  it('removes a roast imported earlier whose coffee has no delivery, also when RoasTime moved it to such a coffee', () => {
     const sample = kraken({ roastime_bean_id: 'B4' });
     expect(planRoasts([rt({ beanId: 'B4' })], [sample], coffees).removed).toEqual([sample]);
-    const real = kraken({ roastime_bean_id: 'B1' });
-    const plan = planRoasts([rt({ beanId: 'B4' })], [real], coffees);
-    expect(plan.removed).toEqual([]);
-    expect(plan.changed.map((c) => c.fields)).toEqual([{ roastime_bean_id: 'B4' }]);
+    const moved = kraken({ roastime_bean_id: 'B1' });
+    expect(planRoasts([rt({ beanId: 'B4' })], [moved], coffees)).toMatchObject({ removed: [moved], changed: [] });
+  });
+
+  it('never offers back a roast deleted by hand whose coffee had a lot, even if RoasTime moves it to a new coffee', () => {
+    const deleted = kraken({ roastime_bean_id: 'B1', deleted_at: '2026-11-15T10:00:00.000Z' });
+    const newCoffee = { delivered: new Set(['B1', 'B5']), withLot: new Set(['B1']) };
+    expect(planRoasts([rt({ beanId: 'B5' })], [deleted], newCoffee).restored).toEqual([]);
   });
 
   it("offers back a removed roast when its coffee's first delivery comes in this sync", () => {
@@ -140,8 +143,12 @@ describe('planRoasts', () => {
   });
 
   it('knows the delivered coffees from the RoasTime folder and the coffees with a lot from Kraken', () => {
-    const result = coffeesOf([{ beanId: 'B1' }, { beanId: '' }], [{ roastime: { beanId: 'B2' } }, { roastime: { beanId: '' } }]);
-    expect(result).toEqual({ delivered: new Set(['B1']), withLot: new Set(['B2']) });
+    const result = coffeesOf(
+      [{ beanId: 'B1', deleted: false }, { beanId: 'B6', deleted: true }, { beanId: '', deleted: false }],
+      [{ roastime: { beanId: 'B2' } }, { roastime: { beanId: '' } }],
+    );
+    // B2: a lot in Kraken counts even if its file is missing from the folder; B6: deleted in RoasTime, never a lot.
+    expect(result).toEqual({ delivered: new Set(['B2', 'B1']), withLot: new Set(['B2']) });
   });
 
   it('lists a kept sample, and still gives it the RoasTime changes', () => {

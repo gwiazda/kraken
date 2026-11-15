@@ -12,7 +12,7 @@ export interface SyncWrites {
   readonly lotOps: readonly Operation[];
   readonly roastAdds: readonly Fields[];
   readonly roastUpdates: readonly { roast: Roast; fields: Fields }[];
-  /** Roasts without a coffee (samples) to soft-delete. */
+  /** Samples (no coffee, or a coffee with no delivery, in RoasTime) to soft-delete. */
   readonly roastRemovals: readonly Roast[];
   /** Roasts to bring back, with the RoasTime fields that changed. */
   readonly roastRestores: readonly { roast: Roast; fields: Fields }[];
@@ -107,7 +107,7 @@ export function summaryOf(result: SyncResult): string {
     result.lotsUpdated > 0 ? `${plural(result.lotsUpdated, 'lot')} updated` : '',
     result.roastsAdded > 0 ? `${plural(result.roastsAdded, 'roast')} added` : '',
     result.roastsUpdated > 0 ? `${plural(result.roastsUpdated, 'roast')} updated` : '',
-    result.roastsRemoved > 0 ? `${plural(result.roastsRemoved, 'roast')} without a coffee removed` : '',
+    result.roastsRemoved > 0 ? `${plural(result.roastsRemoved, 'sample')} removed` : '',
     result.roastsRestored > 0 ? `${plural(result.roastsRestored, 'roast')} brought back` : '',
   ].filter((p) => p !== '');
   return parts.length > 0 ? parts.join(', ') : 'nothing changed';

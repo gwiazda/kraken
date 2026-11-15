@@ -108,7 +108,7 @@ describe('summaryOf and changeCount', () => {
   it('describes what was saved', () => {
     expect(summaryOf({ lotsAdded: 2, lotsUpdated: 1, roastsAdded: 38, roastsUpdated: 1, roastsRemoved: 0, roastsRestored: 0 })).toBe('2 lots added, 1 lot updated, 38 roasts added, 1 roast updated');
     expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 0, roastsRestored: 0 })).toBe('nothing changed');
-    expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 53, roastsRestored: 1 })).toBe('53 roasts without a coffee removed, 1 roast brought back');
+    expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 53, roastsRestored: 1 })).toBe('53 samples removed, 1 roast brought back');
   });
 
   it('counts the changes', () => {

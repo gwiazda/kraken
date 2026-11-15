@@ -256,7 +256,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
             'restore-roasts',
             restoreRoasts,
             (checked) => (restoreRoasts = checked),
-            `Bring back ${n} deleted roast${n === 1 ? '' : 's'}: a coffee is now chosen for ${n === 1 ? 'it' : 'them'} in RoasTime (untick if you deleted ${n === 1 ? 'it' : 'them'} on purpose)`,
+            `Bring back ${n} deleted sample${n === 1 ? '' : 's'} that ${n === 1 ? 'is a real roast' : 'are real roasts'} now (a coffee chosen, or its first delivery entered, in RoasTime). Untick if you deleted ${n === 1 ? 'it' : 'them'} on purpose.`,
           ),
           details('Show them', withChanges(roastPlan.restored)),
         );

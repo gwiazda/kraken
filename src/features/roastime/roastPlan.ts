@@ -3,8 +3,9 @@
 // - a roast with no green weight is skipped and listed
 // - a roast with no coffee chosen in RoasTime, or whose coffee has no delivery in RoasTime, is a sample and is not
 //   tracked (owner, 2026-11-15): it is skipped, and one imported earlier is soft-deleted unless the owner touched it in
-//   Kraken (chose a lot, marked a sample, own notes); when it becomes a real roast later (a coffee chosen, or the
-//   coffee's first delivery entered), a deleted one is offered back (own tick box: the owner may have deleted it by hand)
+//   Kraken (chose a lot, marked a sample, own notes); a deleted roast that was a sample in Kraken and is a real roast
+//   now (a coffee chosen, or the coffee's first delivery entered) is offered back (own tick box: the owner may have
+//   deleted it by hand)
 // - a roast changed in RoasTime (time, name, coffee, weights) is listed; one tick box updates them all
 // - Kraken's own fields (lot, sample, notes) are never changed by a sync; an empty RoasTime value never empties Kraken's
 // - a roast that is no longer in RoasTime stays in Kraken (only a note); other roasts deleted in Kraken are left alone
@@ -99,24 +100,37 @@ function roastimeFields(rt: RoastimeRoast): Record<string, string> {
 
 /** Which RoasTime coffees (bean IDs) are real stock. */
 export interface Coffees {
-  /** Coffees with at least one delivery (container) in RoasTime, deleted ones included. */
+  /** Coffees with a delivery: a container in RoasTime (not deleted there) or a lot in Kraken that came from RoasTime. */
   readonly delivered: ReadonlySet<string>;
   /** Coffees that already had a lot in Kraken before this sync (deleted lots included). */
   readonly withLot: ReadonlySet<string>;
 }
 
-/** The coffees for planRoasts, from the RoasTime folder and the lots in Kraken. */
-export function coffeesOf(containers: readonly { beanId: string }[], lots: readonly { roastime: { beanId: string } }[]): Coffees {
-  return {
-    delivered: new Set(containers.map((c) => c.beanId).filter((id) => id !== '')),
-    withLot: new Set(lots.map((l) => l.roastime.beanId).filter((id) => id !== '')),
-  };
+/**
+ * The coffees for planRoasts, from the RoasTime folder and the lots in Kraken. A coffee with a lot in Kraken always
+ * counts as delivered, so a delivery file missing from the folder (or one Kraken cannot read) never turns real roasts
+ * into samples.
+ */
+export function coffeesOf(
+  containers: readonly { beanId: string; deleted: boolean }[],
+  lots: readonly { roastime: { beanId: string } }[],
+): Coffees {
+  const withLot = new Set(lots.map((l) => l.roastime.beanId).filter((id) => id !== ''));
+  const inFolder = containers.filter((c) => !c.deleted && c.beanId !== '').map((c) => c.beanId);
+  return { delivered: new Set([...withLot, ...inFolder]), withLot };
 }
 
+/** Why a RoasTime roast is a sample, or '' if it is a real roast. */
+const sampleReason = (rt: RoastimeRoast, coffees: Coffees) =>
+  rt.beanId === '' ? 'no coffee chosen' : coffees.delivered.has(rt.beanId) ? '' : 'its coffee has no delivery in RoasTime';
+
+/**
+ * True if a roast deleted in Kraken was a sample there (no coffee, or a coffee that had no lot): only such a roast is
+ * offered back when it becomes real. One of a coffee with a lot was deleted for another reason, so it is left alone.
+ */
+const wasSample = (roast: Roast, coffees: Coffees) => roast.roastime.beanId === '' || !coffees.withLot.has(roast.roastime.beanId);
+
 export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: readonly Roast[], coffees: Coffees): RoastPlan {
-  /** Why a RoasTime roast is a sample, or '' if it is a real roast. */
-  const sampleReason = (rt: RoastimeRoast) =>
-    rt.beanId === '' ? 'no coffee chosen' : coffees.delivered.has(rt.beanId) ? '' : 'its coffee has no delivery in RoasTime';
   const problems: string[] = [];
   const byRoastimeId = new Map<string, Roast[]>();
   for (const roast of roasts) {
@@ -150,22 +164,17 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
     seen.add(rt.id);
     const group = byRoastimeId.get(rt.id) ?? [];
     const existing = group.find((r) => r.deletedAt === '') ?? group[0];
+    const reason = sampleReason(rt, coffees);
     if (existing) {
-      const reason = sampleReason(rt);
-      // The Kraken roast is of the same coffee (or none yet), so the RoasTime coffee decides; a different coffee in
-      // Kraken is never replaced by "no coffee" (a sync never empties a value).
-      const sameCoffee = (roast: Roast) => roast.roastime.beanId === '' || roast.roastime.beanId === rt.beanId;
       if (existing.deletedAt !== '') {
-        // Deleted in Kraken: left alone, unless it was a sample and is a real roast now (a coffee chosen, or the
-        // coffee's first delivery comes in this sync).
-        if (reason !== '') {
-          if (sameCoffee(existing)) samples.push(`${label}: ${reason}`);
-        } else if ((existing.roastime.beanId === '' || !coffees.withLot.has(rt.beanId)) && rt.greenGrams && rt.roastedAt !== null) {
+        // Deleted in Kraken: left alone, unless it was a sample and is a real roast now.
+        if (reason !== '') samples.push(`${label}: ${reason}`);
+        else if (wasSample(existing, coffees) && rt.greenGrams && rt.roastedAt !== null) {
           restored.push({ roast: existing, ...differences(existing, rt, label, problems) });
         }
         continue;
       }
-      if (reason !== '' && sameCoffee(existing)) {
+      if (reason !== '') {
         // A sample: every active copy goes (a duplicate is reported above), unless the owner touched it in Kraken.
         for (const roast of group.filter((r) => r.deletedAt === '')) {
           if (touchedInKraken(roast, rt)) keptSamples.push(roast);
@@ -187,7 +196,6 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
       skipped.push(`${label}: no roast time`);
       continue;
     }
-    const reason = sampleReason(rt);
     if (reason !== '') {
       samples.push(`${label}: ${reason}`);
       continue;
