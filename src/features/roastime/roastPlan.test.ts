@@ -84,6 +84,7 @@ describe('planRoasts', () => {
     for (const own of owned) {
       const plan = planRoasts([rt({ beanId: '' })], [kraken({ roastime_bean_id: '', ...own })]);
       expect(plan.removed).toEqual([]);
+      expect(plan.keptNoCoffee).toHaveLength(1);
       expect(plan.unchanged).toBe(1);
     }
   });
@@ -98,7 +99,7 @@ describe('planRoasts', () => {
     const removed = kraken({ roastime_bean_id: '', deleted_at: '2026-11-15T10:00:00.000Z' });
     const plan = planRoasts([rt({ beanId: 'B2', roastedDecigrams: 10300 })], [removed]);
     expect(plan.restored).toEqual([
-      { roast: removed, fields: { roasted_g: '1030', roastime_bean_id: 'B2' }, changes: ['Coffee chosen in RoasTime: brought back'] },
+      { roast: removed, fields: { roasted_g: '1030', roastime_bean_id: 'B2' }, changes: ['Roasted weight: 1,027\u00a0kg → 1,03\u00a0kg', 'Coffee: chosen in RoasTime'] },
     ]);
     expect(plan).toMatchObject({ added: [], changed: [], removed: [] });
   });
@@ -107,7 +108,27 @@ describe('planRoasts', () => {
     const deletedWithCoffee = kraken({ deleted_at: '2026-11-10T00:00:00.000Z' });
     expect(planRoasts([rt({ beanId: 'B2' })], [deletedWithCoffee]).restored).toEqual([]);
     const deletedSample = kraken({ roastime_bean_id: '', deleted_at: '2026-11-10T00:00:00.000Z' });
-    expect(planRoasts([rt({ beanId: '' })], [deletedSample])).toMatchObject({ restored: [], removed: [], added: [], noCoffee: [] });
+    const plan = planRoasts([rt({ beanId: '' })], [deletedSample]);
+    expect(plan).toMatchObject({ restored: [], removed: [], added: [] });
+    expect(plan.noCoffee).toHaveLength(1); // still counted as a sample in the preview
+  });
+
+  it('lists a kept sample, and still gives it the RoasTime changes', () => {
+    const kept = kraken({ roastime_bean_id: '', lot_id: 'L1' });
+    const plan = planRoasts([rt({ beanId: '', roastedDecigrams: 10300 })], [kept]);
+    expect(plan.keptNoCoffee).toEqual([kept]);
+    expect(plan.changed.map((c) => c.fields)).toEqual([{ roasted_g: '1030' }]);
+  });
+
+  it('removes every untouched copy of a sample imported twice', () => {
+    const a = kraken({ roastime_bean_id: '' }, 2);
+    const b = kraken({ roastime_bean_id: '' }, 3);
+    expect(planRoasts([rt({ beanId: '' })], [a, b]).removed).toEqual([a, b]);
+  });
+
+  it('ignores line-ending and space differences when comparing notes with the RoasTime comment', () => {
+    const sample = kraken({ roastime_bean_id: '', notes: 'line one\nline two' });
+    expect(planRoasts([rt({ beanId: '', comment: 'line one\r\nline two ' })], [sample]).removed).toEqual([sample]);
   });
 
   it('skips roasts with no green weight or no time, and lists them', () => {

@@ -126,8 +126,9 @@ Keep the data design open for this: the Bag sizes list and invoice lines already
   RoasTime has no sample mark that Kraken can read, so samples are marked in Kraken.
 - **Roasts with no coffee chosen in RoasTime are samples and are not tracked** (owner, 2026-11-15): the sync does not
   import them (listed in the preview). One imported earlier is soft-deleted by the sync unless the owner gave it
-  something in Kraken (a chosen lot, a sample mark or own notes). If a coffee is chosen for it later in RoasTime, the
-  sync brings it back. Risk accepted: a real roast saved without a coffee would make stock look higher.
+  something in Kraken (a chosen lot, a sample mark or own notes; those are listed as kept). If a coffee is chosen for a
+  deleted one later in RoasTime, the preview offers to bring it back (own tick box, ticked; untick it if the roast was
+  deleted on purpose). Risk accepted: a real roast saved without a coffee would make stock look higher.
 - **Stock left** per lot = delivered − green used, shown on the Lots page (below zero in yellow, with a note). A roast
   dated before the delivery of a lot it uses is marked "Before delivery".
 - **Roasts page:** newest first, roast loss %, the lot(s) used, marks (Sample, Needs a lot, Chosen, Before delivery);

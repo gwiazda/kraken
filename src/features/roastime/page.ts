@@ -145,12 +145,13 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     const importButton = button('Sync', () => apply());
     const summary = el('span', { class: 'muted small' });
     let updateRoasts = true;
+    let restoreRoasts = true;
     const writes = (): SyncWrites => ({
       lotOps: operations(plan, decisions),
       roastAdds: roastPlan.added.map((r) => r.fields),
       roastUpdates: updateRoasts ? roastPlan.changed.map((c) => ({ roast: c.roast, fields: c.fields })) : [],
       roastRemovals: roastPlan.removed,
-      roastRestores: roastPlan.restored.map((r) => ({ roast: r.roast, fields: r.fields })),
+      roastRestores: restoreRoasts ? roastPlan.restored.map((r) => ({ roast: r.roast, fields: r.fields })) : [],
     });
     /** The code shown next to "Add as a new lot", updated when deliveries are skipped (codes have no gaps). */
     const codeLabels = new Map<string, HTMLElement>();
@@ -231,14 +232,34 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       el('details', { class: 'small' }, el('summary', {}, title), el('ul', {}, ...lines.map((line) => el('li', {}, line))));
 
     const roastEdits = roastPlan.added.length + roastPlan.changed.length + roastPlan.removed.length + roastPlan.restored.length;
+    const roastLabel = (r: Roast) => `${r.name || 'Roast'} (${roastTimeText(r.roastedAt) || 'no date'})`;
+    const listed = (roasts: readonly Roast[]) => roasts.map(roastLabel);
     const roastNodes = (): Node[] => {
       const nodes: Node[] = [];
       const added = roastPlan.added.length;
       if (added > 0) nodes.push(el('p', {}, `${added} new roast${added === 1 ? '' : 's'} will be added.`));
-      const listed = (roasts: readonly Roast[]) => roasts.map((r) => `${r.name || 'Roast'} (${roastTimeText(r.roastedAt) || 'no date'})`);
+      const tickBox = (id: string, checked: boolean, onChange: (checked: boolean) => void, label: string) => {
+        const box = el('input', { type: 'checkbox', id });
+        box.checked = checked;
+        box.addEventListener('change', () => {
+          onChange(box.checked);
+          refresh();
+        });
+        return el('p', {}, box, ' ', el('label', { for: id }, label));
+      };
+      const withChanges = (list: readonly { roast: Roast; changes: readonly string[] }[]) =>
+        list.map((c) => `${roastLabel(c.roast)}: ${c.changes.join('; ')}`);
       if (roastPlan.restored.length > 0) {
         const n = roastPlan.restored.length;
-        nodes.push(details(`${n} roast${n === 1 ? '' : 's'} brought back: a coffee was chosen for ${n === 1 ? 'it' : 'them'} in RoasTime`, listed(roastPlan.restored.map((r) => r.roast))));
+        nodes.push(
+          tickBox(
+            'restore-roasts',
+            restoreRoasts,
+            (checked) => (restoreRoasts = checked),
+            `Bring back ${n} deleted roast${n === 1 ? '' : 's'}: a coffee is now chosen for ${n === 1 ? 'it' : 'them'} in RoasTime (untick if you deleted ${n === 1 ? 'it' : 'them'} on purpose)`,
+          ),
+          details('Show them', withChanges(roastPlan.restored)),
+        );
       }
       if (roastPlan.removed.length > 0) {
         const n = roastPlan.removed.length;
@@ -250,23 +271,24 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
         );
       }
       if (roastPlan.changed.length > 0) {
-        const box = el('input', { type: 'checkbox', id: 'update-roasts' });
-        box.checked = updateRoasts;
-        box.addEventListener('change', () => {
-          updateRoasts = box.checked;
-          refresh();
-        });
+        const n = roastPlan.changed.length;
         nodes.push(
-          el('p', {}, box, ' ', el('label', { for: 'update-roasts' }, `Update ${roastPlan.changed.length} roast${roastPlan.changed.length === 1 ? '' : 's'} changed in RoasTime`)),
+          tickBox('update-roasts', updateRoasts, (checked) => (updateRoasts = checked), `Update ${n} roast${n === 1 ? '' : 's'} changed in RoasTime`),
+          details('Show the changes', withChanges(roastPlan.changed)),
+        );
+      }
+      if (roastPlan.keptNoCoffee.length > 0) {
+        const n = roastPlan.keptNoCoffee.length;
+        nodes.push(
           details(
-            'Show the changes',
-            roastPlan.changed.map((c) => `${c.roast.name || 'Roast'} (${roastTimeText(c.roast.roastedAt) || 'no date'}): ${c.changes.join('; ')}`),
+            `${n} roast${n === 1 ? '' : 's'} without a coffee kept, because you gave ${n === 1 ? 'it' : 'them'} a lot, a sample mark or notes in Kraken (delete ${n === 1 ? 'it' : 'them'} on the Roasts page if not needed)`,
+            listed(roastPlan.keptNoCoffee),
           ),
         );
       }
       if (roastPlan.unchanged > 0) nodes.push(el('p', { class: 'muted' }, `${roastPlan.unchanged} roast${roastPlan.unchanged === 1 ? '' : 's'} already match RoasTime.`));
       if (roastPlan.noCoffee.length > 0) {
-        nodes.push(details(`${roastPlan.noCoffee.length} without a coffee in RoasTime (samples, not imported)`, roastPlan.noCoffee));
+        nodes.push(details(`${roastPlan.noCoffee.length} without a coffee in RoasTime (samples, not tracked)`, roastPlan.noCoffee));
       }
       if (roastPlan.skipped.length > 0) nodes.push(details(`${roastPlan.skipped.length} skipped (not imported)`, roastPlan.skipped));
       if (roastPlan.goneFromRoastime.length > 0) {

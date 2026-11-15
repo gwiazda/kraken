@@ -2,11 +2,12 @@
 // - roasts are matched by RoasTime's roast ID; new ones are added (no choice per roast: the log should be complete)
 // - a roast with no green weight is skipped and listed
 // - a roast with no coffee chosen in RoasTime is a sample and is not tracked (owner, 2026-11-15): it is skipped, and one
-//   imported earlier is soft-deleted unless the owner touched it in Kraken (chose a lot, marked a sample, changed notes);
-//   if a coffee is chosen for it later, the sync brings it back
+//   imported earlier is soft-deleted unless the owner touched it in Kraken (chose a lot, marked a sample, own notes);
+//   a deleted roast without a coffee that gets one in RoasTime later is offered back (own tick box: the owner may have
+//   deleted it by hand)
 // - a roast changed in RoasTime (time, name, coffee, weights) is listed; one tick box updates them all
 // - Kraken's own fields (lot, sample, notes) are never changed by a sync; an empty RoasTime value never empties Kraken's
-// - a roast that is no longer in RoasTime stays in Kraken (only a note); roasts deleted in Kraken are left alone
+// - a roast that is no longer in RoasTime stays in Kraken (only a note); other roasts deleted in Kraken are left alone
 
 import { formatKg } from '../../core/numbers';
 import { gramsText, parseGrams, parseRoastedGrams, roastTimeText, roastedGramsText, type Roast } from '../roasts';
@@ -30,11 +31,13 @@ export interface RoastPlan {
   readonly unchanged: number;
   /** Roasts not imported, with the reason, e.g. "Kenia 03.11 (2026-11-03): no green weight". */
   readonly skipped: readonly string[];
-  /** Roasts with no coffee chosen in RoasTime (samples), not imported. */
+  /** Roasts with no coffee chosen in RoasTime (samples), not tracked: not imported, or already deleted in Kraken. */
   readonly noCoffee: readonly string[];
   /** Roasts imported earlier with no coffee and untouched in Kraken: soft-deleted by the sync. */
   readonly removed: readonly Roast[];
-  /** Roasts removed earlier for having no coffee that now have one in RoasTime: brought back, with these fields. */
+  /** Roasts with no coffee kept because the owner gave them a lot, a sample mark or own notes in Kraken. */
+  readonly keptNoCoffee: readonly Roast[];
+  /** Deleted roasts that had no coffee and now have one in RoasTime: offered back, with the RoasTime changes. */
   readonly restored: readonly ChangedRoast[];
   /** Roasts in Kraken (from RoasTime) that are no longer in the RoasTime folder. Kept; only reported. */
   readonly goneFromRoastime: readonly Roast[];
@@ -57,9 +60,31 @@ const roastedShown = (text: string) => shownGrams(text, parseRoastedGrams, (n) =
 /** The notes a sync writes for a new roast. */
 const importedNotes = (rt: RoastimeRoast) => rt.comment.slice(0, 2000);
 
+const sameText = (a: string, b: string) => a.replace(/\r\n?/g, '\n').trim() === b.replace(/\r\n?/g, '\n').trim();
+
 /** True if the owner gave the roast something of their own in Kraken (then a sync never removes it). */
-const touchedInKraken = (roast: Roast, rt: RoastimeRoast) =>
-  roast.lotId !== '' || roast.sample || roast.notes.trim() !== importedNotes(rt).trim();
+const touchedInKraken = (roast: Roast, rt: RoastimeRoast) => roast.lotId !== '' || roast.sample || !sameText(roast.notes, importedNotes(rt));
+
+/** What RoasTime has that differs from the Kraken roast (never empties a Kraken value), and one sentence per change. */
+function differences(existing: Roast, rt: RoastimeRoast, label: string, problems: string[]): { fields: Record<string, string>; changes: string[] } {
+  const now = roastimeFields(rt);
+  const fields: Record<string, string> = {};
+  const changes: string[] = [];
+  const offer = (column: string, describe: (from: string, to: string) => string) => {
+    const from = (existing.source[column] ?? '').trim();
+    const to = now[column] ?? '';
+    if (to === '' || to === from) return; // never empty a Kraken value
+    fields[column] = to;
+    changes.push(describe(from, to));
+  };
+  offer('roasted_at', () => `Time: ${when(existing.roastedAt)} → ${when(rt.roastedAt)}`);
+  offer('roast_name', (from, to) => `Name: ${from || '(empty)'} → ${to}`);
+  if (rt.greenGrams === 0) problems.push(`RoasTime now has no green weight for ${label}; Kraken keeps its value.`);
+  else offer('green_g', (from, to) => `Green weight: ${greenShown(from)} → ${greenShown(to)}`);
+  offer('roasted_g', (from, to) => `Roasted weight: ${roastedShown(from)} → ${roastedShown(to)}`);
+  offer('roastime_bean_id', (from) => (from === '' ? 'Coffee: chosen in RoasTime' : 'Coffee: a different coffee was chosen in RoasTime'));
+  return { fields, changes };
+}
 
 /** The Kraken fields for a RoasTime roast (without Kraken's own fields). */
 function roastimeFields(rt: RoastimeRoast): Record<string, string> {
@@ -90,6 +115,7 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   const skipped: string[] = [];
   const noCoffee: string[] = [];
   const removed: Roast[] = [];
+  const keptNoCoffee: Roast[] = [];
   const restored: ChangedRoast[] = [];
   let unchanged = 0;
   const seen = new Set<string>();
@@ -106,35 +132,23 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
     const group = byRoastimeId.get(rt.id) ?? [];
     const existing = group.find((r) => r.deletedAt === '') ?? group[0];
     if (existing) {
-      const now = roastimeFields(rt);
-      const fields: Record<string, string> = {};
-      const changes: string[] = [];
       if (existing.deletedAt !== '') {
         // Deleted in Kraken: left alone, unless it had no coffee and RoasTime now has one (a real roast after all).
-        if (existing.roastime.beanId !== '' || rt.beanId === '' || !rt.greenGrams || rt.roastedAt === null) continue;
-        for (const [column, value] of Object.entries(now)) {
-          if (value !== '' && value !== (existing.source[column] ?? '').trim()) fields[column] = value;
+        const hadNoCoffee = existing.roastime.beanId === '';
+        if (hadNoCoffee && rt.beanId === '') noCoffee.push(label);
+        else if (hadNoCoffee && rt.greenGrams && rt.roastedAt !== null) restored.push({ roast: existing, ...differences(existing, rt, label, problems) });
+        continue;
+      }
+      if (rt.beanId === '' && existing.roastime.beanId === '') {
+        // A sample: every active copy goes (a duplicate is reported above), unless the owner touched it in Kraken.
+        for (const roast of group.filter((r) => r.deletedAt === '')) {
+          if (touchedInKraken(roast, rt)) keptNoCoffee.push(roast);
+          else removed.push(roast);
         }
-        restored.push({ roast: existing, fields, changes: ['Coffee chosen in RoasTime: brought back'] });
-        continue;
+        // A kept one stays tracked, so it still gets RoasTime's changes below.
+        if (!keptNoCoffee.includes(existing)) continue;
       }
-      if (rt.beanId === '' && existing.roastime.beanId === '' && !touchedInKraken(existing, rt)) {
-        removed.push(existing);
-        continue;
-      }
-      const offer = (column: string, describe: (from: string, to: string) => string) => {
-        const from = (existing.source[column] ?? '').trim();
-        const to = now[column] ?? '';
-        if (to === '' || to === from) return; // never empty a Kraken value
-        fields[column] = to;
-        changes.push(describe(from, to));
-      };
-      offer('roasted_at', () => `Time: ${when(existing.roastedAt)} → ${when(rt.roastedAt)}`);
-      offer('roast_name', (from, to) => `Name: ${from || '(empty)'} → ${to}`);
-      if (rt.greenGrams === 0) problems.push(`RoasTime now has no green weight for ${label}; Kraken keeps its value.`);
-      else offer('green_g', (from, to) => `Green weight: ${greenShown(from)} → ${greenShown(to)}`);
-      offer('roasted_g', (from, to) => `Roasted weight: ${roastedShown(from)} → ${roastedShown(to)}`);
-      offer('roastime_bean_id', () => 'Coffee: a different coffee was chosen in RoasTime');
+      const { fields, changes } = differences(existing, rt, label, problems);
       if (Object.keys(fields).length > 0) changed.push({ roast: existing, fields, changes });
       else unchanged++;
       continue;
@@ -158,5 +172,5 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   }
 
   const goneFromRoastime = roasts.filter((r) => r.roastime.roastId !== '' && r.deletedAt === '' && !seen.has(r.roastime.roastId));
-  return { added, changed, unchanged, skipped, noCoffee, removed, restored, goneFromRoastime, problems };
+  return { added, changed, unchanged, skipped, noCoffee, removed, keptNoCoffee, restored, goneFromRoastime, problems };
 }
