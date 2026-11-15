@@ -207,7 +207,8 @@ async function connect(id: string, note?: string): Promise<void> {
 
 /** The sheet is older than this app. Nothing changes until the user clicks "Update now". */
 function showUpdate(info: SpreadsheetInfo, fromVersion: number, error?: string): void {
-  const plan = updatePlan(fromVersion);
+  const shownAt = new Date(); // the backup gets the name shown here, even if the click comes after midnight
+  const plan = updatePlan(fromVersion, shownAt);
   show(
     el('p', {}, `Your Kraken sheet "${info.title}" needs an update (data version ${fromVersion} → ${plan.toVersion}):`),
     el('ul', {}, ...plan.changes.map((change) => el('li', {}, change))),
@@ -221,7 +222,7 @@ function showUpdate(info: SpreadsheetInfo, fromVersion: number, error?: string):
     el(
       'div',
       { class: 'actions' },
-      button('Update now', onClickWithGoogle('Starting the update…', () => runUpdate(info, fromVersion))),
+      button('Update now', onClickWithGoogle('Starting the update…', () => runUpdate(info, fromVersion, shownAt))),
       button(
         'Change sheet',
         () => {
@@ -234,9 +235,9 @@ function showUpdate(info: SpreadsheetInfo, fromVersion: number, error?: string):
   );
 }
 
-async function runUpdate(info: SpreadsheetInfo, fromVersion: number): Promise<void> {
+async function runUpdate(info: SpreadsheetInfo, fromVersion: number, shownAt: Date): Promise<void> {
   try {
-    const result = await updateSpreadsheet(client, info.id, (text) => show(message(text)));
+    const result = await updateSpreadsheet(client, info.id, (text) => show(message(text)), shownAt);
     await connect(info.id, result.backupName ? `Updated. Backup copy saved in your Google Drive: "${result.backupName}".` : undefined);
   } catch (error) {
     if (error instanceof SignInSuperseded || (error instanceof SheetsError && error.kind === 'signed-out')) throw error;

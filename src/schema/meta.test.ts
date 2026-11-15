@@ -4,20 +4,19 @@ import { APP_MARKER, APP_SCHEMA_VERSION, BASE_SCHEMA_VERSION, checkMeta, initial
 const created = new Date('2026-01-15T10:00:00.000Z');
 
 describe('initialMetaRows', () => {
-  it('writes a header, the Kraken marker, version 1 and the creation time (migrations then bring it up to date)', () => {
+  it('writes a header, the Kraken marker, the current schema version and the creation time', () => {
     expect(BASE_SCHEMA_VERSION).toBe(1);
     expect(initialMetaRows(created)).toEqual([
       ['key', 'value'],
       ['app', APP_MARKER],
-      ['schema_version', '1'],
+      ['schema_version', String(APP_SCHEMA_VERSION)],
       ['created_at', '2026-01-15T10:00:00.000Z'],
     ]);
   });
 
-  it('is read back by checkMeta as a version 1 Kraken sheet (what we write is what we read)', () => {
-    expect(checkMeta(initialMetaRows(created), 1)).toEqual({ kind: 'ok', schemaVersion: 1 });
-    expect(checkMeta(initialMetaRows(created))).toEqual({ kind: 'needs-migration', schemaVersion: 1 });
-    expect(APP_SCHEMA_VERSION).toBeGreaterThan(1);
+  it('is accepted by checkMeta as an up-to-date Kraken sheet (what we write is what we read)', () => {
+    expect(checkMeta(initialMetaRows(created))).toEqual({ kind: 'ok', schemaVersion: APP_SCHEMA_VERSION });
+    expect(checkMeta(initialMetaRows(created, 1), 1)).toEqual({ kind: 'ok', schemaVersion: 1 });
   });
 });
 
@@ -67,6 +66,10 @@ describe('schemaVersionCell', () => {
   it('finds the schema_version row by its key', () => {
     expect(schemaVersionCell(initialMetaRows(created))).toBe('B3');
     expect(schemaVersionCell([['app', 'Kraken'], ['other', 'x'], [' schema_version ', '1']])).toBe('B3');
+  });
+
+  it('ignores a schema_version row without a value, like checkMeta does', () => {
+    expect(schemaVersionCell([['schema_version'], ['app', 'Kraken'], ['schema_version', '1']])).toBe('B3');
   });
 
   it('refuses to guess when the key is missing or appears twice', () => {

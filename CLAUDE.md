@@ -96,7 +96,7 @@ Everything must be **migration-proof**; full rules in `docs/REQUIREMENTS.md` sec
 - Migrations run in the browser when a user clicks "Update now" (never on merge; GitHub has no access to the sheet).
   One file per migration in `src/schema/migrations/` (`NNN-what.ts`, listed in `index.ts`); steps are data
   (`migrationTypes.ts`: only `add-tab` so far, no delete step exists). The runner is `src/schema/migrate.ts`. Never edit a
-  released migration: add a new one. New sheets start at version 1 and run the same migrations.
+  released migration: add a new one. New sheets are built from the same migration steps in one request (`initialTabs`).
 - Raise `APP_SCHEMA_VERSION` in `src/schema/meta.ts` only together with a migration and its tests (a test checks they match).
   An app that sees a newer schema version than it knows must not write.
 

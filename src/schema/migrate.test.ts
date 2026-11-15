@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SheetsError } from '../core/sheets';
 import { fakeGoogleDrive, type FakeDrive, type FakeFile } from '../testing/fakeGoogleDrive';
 import { APP_SCHEMA_VERSION, META_TAB, initialMetaRows } from './meta';
-import { MigrationError, backupName, countRows, googleSheetOps, migrateSpreadsheet, pendingMigrations, updatePlan, type MigrateOptions } from './migrate';
+import { MigrationError, backupName, countRows, googleSheetOps, initialTabs, migrateSpreadsheet, pendingMigrations, updatePlan, type MigrateOptions } from './migrate';
 import type { Migration } from './migrationTypes';
 import { MIGRATIONS } from './migrations';
 
@@ -14,7 +14,7 @@ const addA: Migration = { toVersion: 2, description: 'adds A', steps: [{ kind: '
 const addB: Migration = { toVersion: 3, description: 'adds B', steps: [{ kind: 'add-tab', tab: 'B', headers: ['id', 'kg'] }] };
 
 function metaRows(version: number): string[][] {
-  return initialMetaRows(created).map((row) => (row[0] === 'schema_version' ? ['schema_version', String(version)] : row));
+  return initialMetaRows(created, version);
 }
 
 /** A Kraken sheet at `version`, plus a tab with real rows that must never be touched. */
@@ -69,6 +69,16 @@ describe('the real migration list', () => {
           'roastime_bean_id', 'roastime_supplier_code', 'created_at', 'updated_at', 'created_by', 'deleted_at',
         ],
       },
+    ]);
+  });
+});
+
+describe('initialTabs', () => {
+  it('is _meta at the app version plus every tab the migrations add, in order', () => {
+    expect(initialTabs(created, [addA, addB], 3)).toEqual([
+      { title: META_TAB, rows: initialMetaRows(created, 3) },
+      { title: 'A', rows: [['id', 'name']], frozenRows: 1 },
+      { title: 'B', rows: [['id', 'kg']], frozenRows: 1 },
     ]);
   });
 });
@@ -190,6 +200,27 @@ describe('migrateSpreadsheet', () => {
       expect(writes(google)).toEqual([]);
     });
 
+    it('accepts a backup whose formulas show different values (e.g. =TODAY())', async () => {
+      const google = sheetAt(1);
+      google.afterCopy = (copy) => {
+        const notes = copy.tabs[1];
+        if (notes) notes.rows[1] = ['roast Kenya', '2026-11-16'];
+      };
+      await run(google);
+      expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '3']);
+    });
+
+    it('stops before any change if the backup copy has different headers', async () => {
+      const google = sheetAt(1);
+      const before = original(google);
+      google.afterCopy = (copy) => {
+        const notes = copy.tabs[1];
+        if (notes) notes.rows[0] = ['what', 'WHEN'];
+      };
+      await expect(run(google)).rejects.toThrow('does not match');
+      expect(google.files.get(ID)).toEqual(before);
+    });
+
     it('keeps the old version if adding a tab fails, and a second try finishes the job', async () => {
       const google = sheetAt(1);
       const failing = (r: { url: string }) => (r.url.includes(':batchUpdate') ? 500 : undefined);
@@ -230,11 +261,19 @@ describe('migrateSpreadsheet', () => {
       expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '1']);
     });
 
-    it('does not raise the version when _meta has two schema_version rows', async () => {
+    it('stops before any backup or change when _meta has two schema_version rows', async () => {
       const google = sheetAt(1);
       tab(google, META_TAB)?.rows.push(['schema_version', '1']);
       await expect(run(google)).rejects.toThrow('no single schema_version row');
-      expect(writes(google).filter((r) => r.method === 'PUT')).toEqual([]);
+      expect(writes(google)).toEqual([]);
+      expect(backups(google)).toEqual([]);
+    });
+
+    it('ignores a stray schema_version row without a value', async () => {
+      const google = sheetAt(1);
+      tab(google, META_TAB)?.rows.push(['schema_version']);
+      await run(google);
+      expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '3']);
     });
 
     it('stops if the other person moved the sheet to a newer version meanwhile', async () => {
@@ -248,6 +287,17 @@ describe('migrateSpreadsheet', () => {
       });
       await expect(run(google)).rejects.toThrow('changed while updating');
       expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '5']);
+    });
+
+    it('finishes without error if the other person completed the whole update meanwhile', async () => {
+      const google = sheetAt(1);
+      google.failWhen.push((r) => {
+        const meta = tab(google, META_TAB);
+        if (r.url.includes(':batchUpdate') && meta) meta.rows[2] = ['schema_version', '3'];
+        return undefined;
+      });
+      expect((await run(google)).toVersion).toBe(3);
+      expect(writes(google).filter((r) => r.method === 'PUT')).toEqual([]);
     });
 
     it('carries on if the other person already finished the same step', async () => {

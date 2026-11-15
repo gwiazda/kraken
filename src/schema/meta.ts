@@ -5,26 +5,23 @@
 export const META_TAB = '_meta';
 
 /**
- * The data structure version this app version expects: the version of the last migration in `migrations.ts`
+ * The data structure version this app version expects: the version of the last migration in `migrations/index.ts`
  * (a test checks they match). Raise it only together with a new migration and its tests.
  */
 export const APP_SCHEMA_VERSION = 2;
 
-/**
- * Every new spreadsheet starts at version 1 (only `_meta`) and is brought up to date by the same migrations as an
- * existing sheet, so there is one single description of the structure.
- */
+/** Version 1 is a sheet with only `_meta`; every later structure comes from the migrations. */
 export const BASE_SCHEMA_VERSION = 1;
 
 /** Marker that identifies a Kraken spreadsheet. */
 export const APP_MARKER = 'Kraken';
 
-/** Rows written to `_meta` when Kraken creates a new spreadsheet (version 1; migrations then run). */
-export function initialMetaRows(createdAt: Date): string[][] {
+/** Rows written to `_meta` when Kraken creates a new spreadsheet. */
+export function initialMetaRows(createdAt: Date, version = APP_SCHEMA_VERSION): string[][] {
   return [
     ['key', 'value'],
     ['app', APP_MARKER],
-    ['schema_version', String(BASE_SCHEMA_VERSION)],
+    ['schema_version', String(version)],
     ['created_at', createdAt.toISOString()],
   ];
 }
@@ -64,9 +61,12 @@ export function checkMeta(rows: readonly (readonly unknown[])[] | undefined, app
 
 /**
  * The cell that holds `schema_version` (e.g. `B3`), found by its key like `checkMeta` does.
- * Returns null if the key is missing or appears more than once (then Kraken must not guess which one to change).
+ * Rows without a value are ignored, as in `checkMeta`. Returns null if the key is missing or appears more than once
+ * (then Kraken must not guess which one to change).
  */
 export function schemaVersionCell(rows: readonly (readonly unknown[])[]): string | null {
-  const found = rows.flatMap((row, index) => (typeof row[0] === 'string' && row[0].trim() === 'schema_version' ? [index] : []));
+  const found = rows.flatMap((row, index) =>
+    typeof row[0] === 'string' && row[0].trim() === 'schema_version' && row[1] !== undefined && row[1] !== null ? [index] : [],
+  );
   return found.length === 1 && found[0] !== undefined ? `B${found[0] + 1}` : null;
 }

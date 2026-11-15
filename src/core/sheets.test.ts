@@ -15,7 +15,7 @@ describe('createSpreadsheet', () => {
 
   it('creates the spreadsheet with its first tab filled, in a single request', async () => {
     const client = fakeClient([{ body: resource }]);
-    const info = await createSpreadsheet(client, 'Kraken', tab);
+    const info = await createSpreadsheet(client, 'Kraken', [tab]);
 
     expect(info).toEqual({ id: ID, title: 'Kraken', url: resource.spreadsheetUrl, tabs: ['_meta', 'Lots'] });
     expect(client.requests).toHaveLength(1);
@@ -23,11 +23,11 @@ describe('createSpreadsheet', () => {
     expect(request?.method).toBe('POST');
     expect(request?.url).toMatch(/^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\?/);
     expect(request?.headers.get('Authorization')).toBe('Bearer test-token');
-    expect(request?.body).toEqual(newSpreadsheetBody('Kraken', tab));
+    expect(request?.body).toEqual(newSpreadsheetBody('Kraken', [tab]));
   });
 
   it('writes every cell as plain text (so Google never reinterprets it)', () => {
-    expect(newSpreadsheetBody('Kraken', tab)).toEqual({
+    expect(newSpreadsheetBody('Kraken', [tab])).toEqual({
       properties: { title: 'Kraken' },
       sheets: [
         {
@@ -45,6 +45,20 @@ describe('createSpreadsheet', () => {
         },
       ],
     });
+  });
+});
+
+describe('newSpreadsheetBody with several tabs', () => {
+  it('freezes header rows when asked and makes room for every column', () => {
+    const headers = Array.from({ length: 30 }, (_, i) => `c${i}`);
+    const body = newSpreadsheetBody('Kraken', [
+      { title: 'First', rows: [['a']] },
+      { title: 'Wide', rows: [headers], frozenRows: 1 },
+    ]) as { sheets: { properties: Record<string, unknown> }[] };
+    expect(body.sheets.map((s) => s.properties)).toEqual([
+      { title: 'First' },
+      { title: 'Wide', gridProperties: { frozenRowCount: 1, columnCount: 30 } },
+    ]);
   });
 });
 

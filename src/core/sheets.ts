@@ -93,34 +93,37 @@ export function isGoogleSheetsUrl(url: string): boolean {
 export interface InitialTab {
   title: string;
   rows: string[][];
+  /** Rows kept visible when scrolling (1 for a header row). */
+  frozenRows?: number;
 }
 
-/** The request body that creates a new spreadsheet with one filled tab, in one step. */
-export function newSpreadsheetBody(title: string, firstTab: InitialTab): object {
+/** The request body that creates a new spreadsheet with filled tabs, in one step. */
+export function newSpreadsheetBody(title: string, tabs: readonly InitialTab[]): object {
   return {
     properties: { title },
-    sheets: [
-      {
-        properties: { title: firstTab.title },
-        data: [
-          {
-            startRow: 0,
-            startColumn: 0,
-            rowData: firstTab.rows.map((row) => ({
-              values: row.map((text) => ({ userEnteredValue: { stringValue: text } })),
-            })),
-          },
-        ],
+    sheets: tabs.map((tab) => ({
+      properties: {
+        title: tab.title,
+        ...(tab.frozenRows ? { gridProperties: { frozenRowCount: tab.frozenRows, columnCount: Math.max(26, ...tab.rows.map((r) => r.length)) } } : {}),
       },
-    ],
+      data: [
+        {
+          startRow: 0,
+          startColumn: 0,
+          rowData: tab.rows.map((row) => ({
+            values: row.map((text) => ({ userEnteredValue: { stringValue: text } })),
+          })),
+        },
+      ],
+    })),
   };
 }
 
-/** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with its first tab or not at all. */
-export async function createSpreadsheet(client: SheetsClient, title: string, firstTab: InitialTab): Promise<SpreadsheetInfo> {
+/** Creates a new spreadsheet in the user's Drive. One request, so it either fully exists with all its tabs or not at all. */
+export async function createSpreadsheet(client: SheetsClient, title: string, tabs: readonly InitialTab[]): Promise<SpreadsheetInfo> {
   const resource = await callGoogle<SpreadsheetResource>(client, `${SHEETS_API}?fields=${INFO_FIELDS}`, {
     method: 'POST',
-    body: JSON.stringify(newSpreadsheetBody(title, firstTab)),
+    body: JSON.stringify(newSpreadsheetBody(title, tabs)),
   });
   return toInfo(resource);
 }
