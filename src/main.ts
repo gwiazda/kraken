@@ -21,6 +21,7 @@ import { showRoastimeImport } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, message, type Child } from './ui/dom';
+import { screenOf, stateFor, type Screen } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -43,12 +44,49 @@ let resume: Resume | null = null;
 
 function show(...children: Child[]): void {
   resume = null;
+  openSheet = null; // Back no longer leads into the connected screens
   app.replaceChildren(el('h1', {}, 'Kraken'), ...children);
 }
+
+// ---- Browser Back / Forward between Kraken's screens ----
+
+/** The connected sheet, while one of its screens is shown. */
+let openSheet: SpreadsheetInfo | null = null;
+/** History moves Kraken makes itself (e.g. leaving a form) whose popstate must be ignored. */
+let ownMoves = 0;
+
+/** 'push': a new history entry (a click); 'replace': this entry becomes the screen; 'none': came from Back/Forward. */
+type HistoryMove = 'push' | 'replace' | 'none';
+
+function record(screen: Screen, move: HistoryMove): void {
+  if (move === 'push') window.history.pushState(stateFor(screen), '', `#${screen}`);
+  if (move === 'replace') window.history.replaceState(stateFor(screen), '', `#${screen}`);
+}
+
+/** Steps back over a history entry Kraken itself added (the form, the import), without reacting to it. */
+function leave(screen: Screen): void {
+  if (screenOf(window.history.state) !== screen) return;
+  ownMoves++;
+  window.history.back();
+}
+
+window.addEventListener('popstate', (event) => {
+  if (ownMoves > 0) {
+    ownMoves--;
+    return;
+  }
+  const info = openSheet;
+  if (!info) return;
+  const screen = screenOf(event.state);
+  if (screen === 'settings') showSettings(info, 'none');
+  else if (screen === 'import') showImport(info, 'none');
+  else showLots(info, undefined, false, 'none'); // a form cannot be brought back: Forward shows the list
+});
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
 function showApp(info: SpreadsheetInfo, active: 'lots' | 'settings'): HTMLElement {
   resume = null;
+  openSheet = info;
   const page = el('section', { class: 'page' });
   const tab = (label: string, name: 'lots' | 'settings', open: () => void) => {
     const b = button(label, open, 'link');
@@ -205,7 +243,7 @@ async function connect(id: string, note?: string): Promise<void> {
       return;
     }
     remember(info.id);
-    showLots(info, note);
+    showLots(info, note, false, 'replace');
   });
 }
 
@@ -256,7 +294,8 @@ function remember(id: string): void {
   }
 }
 
-function showLots(info: SpreadsheetInfo, note?: string, fromClick = false): void {
+function showLots(info: SpreadsheetInfo, note?: string, fromClick = false, move: HistoryMove = 'push'): void {
+  record('lots', move);
   showLotsPage(showApp(info, 'lots'), lotsPageDeps(info), note, fromClick);
 }
 
@@ -271,20 +310,27 @@ function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
     describeError: errorText,
     now: () => new Date(),
     openImport: () => showImport(info),
+    formOpened: () => record('lot-form', 'push'),
+    formClosed: () => leave('lot-form'),
   };
 }
 
-function showImport(info: SpreadsheetInfo): void {
+function showImport(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
+  record('import', move);
   const deps = lotsPageDeps(info);
   showRoastimeImport(showApp(info, 'lots'), {
     ...deps,
     copyText: (text) => navigator.clipboard.writeText(text),
-    backToLots: (note) => showLots(info, note, true),
+    backToLots: (note) => {
+      leave('import');
+      showLots(info, note, true, 'none');
+    },
   });
 }
 
 /** The sheet Kraken uses, and signing out. Kept off the main page (owner, 2026-11-15). */
-function showSettings(info: SpreadsheetInfo): void {
+function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
+  record('settings', move);
   // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
   const link = isGoogleSheetsUrl(info.url)
     ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)

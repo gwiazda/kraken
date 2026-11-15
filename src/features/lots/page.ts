@@ -23,6 +23,9 @@ export interface LotsPageDeps {
   now: () => Date;
   /** Opens the "Import from RoasTime" screen. */
   openImport: () => void;
+  /** The add/edit form opened (so the browser's Back closes it) / closed. */
+  formOpened: () => void;
+  formClosed: () => void;
 }
 
 const PRICE_TIP = 'Entered by hand. Not imported from RoasTime.';
@@ -175,6 +178,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   }
 
   function showList(note?: string, error?: Node[]): void {
+    deps.formClosed(); // the list replaces any open form
     const hidden = deletedCount(lots);
     if (hidden === 0) showDeleted = false; // the switch is not shown, so it must not stay on unseen
     const rows = lotListRows(lots, showDeleted);
@@ -295,6 +299,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   }
 
   function showForm(mode: Mode): void {
+    deps.formOpened();
     const others = mode.kind === 'edit' ? lots.filter((lot) => lot.id !== mode.lot.id) : lots;
     const otherCodes = others.map((lot) => lot.code);
     const initial = mode.kind === 'edit' ? formFromLot(mode.lot) : emptyLotForm(deps.now());

@@ -67,7 +67,8 @@ test that reads every import line), so CI fails if a rule is broken.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore; `present.ts` = pure text for the screen;
   `roastime`: import of deliveries as lots, `model.ts` reads the files, `plan.ts` the preview and changes (pure),
-  `apply.ts` saves (new lots in one request); `ui/googleErrors.ts` explains Google errors the same way on every screen): `model.ts` types, validation and calculations (pure: no Google, no screen),
+  `apply.ts` saves (new lots in one request); `ui/googleErrors.ts` explains Google errors the same way on every screen; `ui/history.ts`: the
+  browser's Back/Forward move between Lots, the lot form, Import and Settings, owner's request 2026-11-15): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
