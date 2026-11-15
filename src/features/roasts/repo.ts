@@ -12,8 +12,8 @@ export interface RoastsRepository {
   /** Several roasts in one request (all or none). */
   addMany(list: readonly Fields[], by: string, now: Date): Promise<Roast[]>;
   update(roast: Roast, fields: Fields, now: Date): Promise<Roast>;
-  /** Several edits in one request; if any roast was changed meanwhile, nothing is written. */
-  updateMany(list: readonly { roast: Roast; fields: Fields }[], now: Date): Promise<Roast[]>;
+  /** Several edits in one request; `deleted` also soft-deletes (true) or restores (false). If any roast was changed meanwhile, nothing is written. */
+  updateMany(list: readonly { roast: Roast; fields: Fields; deleted?: boolean }[], now: Date): Promise<Roast[]>;
   remove(roast: Roast, now: Date): Promise<Roast>;
   restore(roast: Roast, now: Date): Promise<Roast>;
 }
@@ -28,7 +28,7 @@ export function roastsRepository(table: RecordTable): RoastsRepository {
     addMany: async (list, by, now) => (await table.addMany(list, by, now)).map((fields) => roastFromFields(fields, 0)),
     update: async (roast, fields, now) => roastFromFields(await table.update(roast.id, fields, roast.source, now), roast.row),
     updateMany: async (list, now) =>
-      (await table.updateMany(list.map(({ roast, fields }) => ({ id: roast.id, changes: fields, loaded: roast.source })), now)).map((fields, i) =>
+      (await table.updateMany(list.map(({ roast, fields, deleted }) => ({ id: roast.id, changes: fields, loaded: roast.source, ...(deleted === undefined ? {} : { deleted }) })), now)).map((fields, i) =>
         roastFromFields(fields, list[i]?.roast.row ?? 0),
       ),
     remove: async (roast, now) => roastFromFields(await table.remove(roast.id, roast.source, now), roast.row),

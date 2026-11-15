@@ -54,8 +54,60 @@ describe('planRoasts', () => {
     expect(plan).toMatchObject({ changed: [], unchanged: 0, skipped: [], goneFromRoastime: [], problems: [] });
   });
 
-  it('adds a roast without a coffee (it then needs a lot or a sample mark)', () => {
-    expect(planRoasts([rt({ beanId: '' })], []).added[0]?.fields.roastime_bean_id).toBe('');
+  it('does not import a roast without a coffee (a sample), and lists it', () => {
+    const plan = planRoasts([rt({ beanId: '' })], []);
+    expect(plan.added).toEqual([]);
+    expect(plan.noCoffee).toEqual([`Kenia 03.11.2026-1 (${roastTimeText(new Date('2026-11-03T08:15:00.000Z'))})`]);
+    expect(plan.skipped).toEqual([]);
+  });
+
+  it('a roast with no green weight is listed as skipped, not as a sample', () => {
+    const plan = planRoasts([rt({ beanId: '', greenGrams: 0 })], []);
+    expect(plan.noCoffee).toEqual([]);
+    expect(plan.skipped).toHaveLength(1);
+  });
+
+  it('removes a roast imported earlier without a coffee, if it was not touched in Kraken', () => {
+    const sample = kraken({ roastime_bean_id: '' });
+    const plan = planRoasts([rt({ beanId: '' })], [sample]);
+    expect(plan.removed).toEqual([sample]);
+    expect(plan).toMatchObject({ added: [], changed: [], unchanged: 0, goneFromRoastime: [] });
+  });
+
+  it('treats the imported RoasTime comment as untouched notes', () => {
+    const sample = kraken({ roastime_bean_id: '', notes: 'a bit fast' });
+    expect(planRoasts([rt({ beanId: '', comment: 'a bit fast' })], [sample]).removed).toEqual([sample]);
+  });
+
+  it('keeps a roast without a coffee that was given a lot, a sample mark or own notes in Kraken', () => {
+    const owned: Record<string, string>[] = [{ lot_id: 'L1' }, { sample: 'yes' }, { notes: 'for a café' }];
+    for (const own of owned) {
+      const plan = planRoasts([rt({ beanId: '' })], [kraken({ roastime_bean_id: '', ...own })]);
+      expect(plan.removed).toEqual([]);
+      expect(plan.unchanged).toBe(1);
+    }
+  });
+
+  it('keeps a roast whose coffee was removed in RoasTime later (never empties Kraken)', () => {
+    const plan = planRoasts([rt({ beanId: '' })], [kraken()]);
+    expect(plan.removed).toEqual([]);
+    expect(plan.unchanged).toBe(1);
+  });
+
+  it('brings back a roast removed for having no coffee once RoasTime has its coffee', () => {
+    const removed = kraken({ roastime_bean_id: '', deleted_at: '2026-11-15T10:00:00.000Z' });
+    const plan = planRoasts([rt({ beanId: 'B2', roastedDecigrams: 10300 })], [removed]);
+    expect(plan.restored).toEqual([
+      { roast: removed, fields: { roasted_g: '1030', roastime_bean_id: 'B2' }, changes: ['Coffee chosen in RoasTime: brought back'] },
+    ]);
+    expect(plan).toMatchObject({ added: [], changed: [], removed: [] });
+  });
+
+  it('does not bring back a deleted roast that had a coffee, or that still has none', () => {
+    const deletedWithCoffee = kraken({ deleted_at: '2026-11-10T00:00:00.000Z' });
+    expect(planRoasts([rt({ beanId: 'B2' })], [deletedWithCoffee]).restored).toEqual([]);
+    const deletedSample = kraken({ roastime_bean_id: '', deleted_at: '2026-11-10T00:00:00.000Z' });
+    expect(planRoasts([rt({ beanId: '' })], [deletedSample])).toMatchObject({ restored: [], removed: [], added: [], noCoffee: [] });
   });
 
   it('skips roasts with no green weight or no time, and lists them', () => {

@@ -7,7 +7,7 @@ import { formatKg } from '../../core/numbers';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import type { LotsRepository } from '../lots';
-import { roastTimeText, type RoastsRepository } from '../roasts';
+import { roastTimeText, type Roast, type RoastsRepository } from '../roasts';
 import { ImportStopped, applySync, changeCount, summaryOf, type SyncWrites } from './apply';
 import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile, type RoastimeData } from './model';
 import { defaultDecision, newLotCodes, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
@@ -149,6 +149,8 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       lotOps: operations(plan, decisions),
       roastAdds: roastPlan.added.map((r) => r.fields),
       roastUpdates: updateRoasts ? roastPlan.changed.map((c) => ({ roast: c.roast, fields: c.fields })) : [],
+      roastRemovals: roastPlan.removed,
+      roastRestores: roastPlan.restored.map((r) => ({ roast: r.roast, fields: r.fields })),
     });
     /** The code shown next to "Add as a new lot", updated when deliveries are skipped (codes have no gaps). */
     const codeLabels = new Map<string, HTMLElement>();
@@ -228,19 +230,22 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     const details = (title: string, lines: readonly string[]) =>
       el('details', { class: 'small' }, el('summary', {}, title), el('ul', {}, ...lines.map((line) => el('li', {}, line))));
 
+    const roastEdits = roastPlan.added.length + roastPlan.changed.length + roastPlan.removed.length + roastPlan.restored.length;
     const roastNodes = (): Node[] => {
       const nodes: Node[] = [];
       const added = roastPlan.added.length;
-      const noCoffee = roastPlan.added.filter((r) => r.roastime.beanId === '').length;
-      if (added > 0) {
+      if (added > 0) nodes.push(el('p', {}, `${added} new roast${added === 1 ? '' : 's'} will be added.`));
+      const listed = (roasts: readonly Roast[]) => roasts.map((r) => `${r.name || 'Roast'} (${roastTimeText(r.roastedAt) || 'no date'})`);
+      if (roastPlan.restored.length > 0) {
+        const n = roastPlan.restored.length;
+        nodes.push(details(`${n} roast${n === 1 ? '' : 's'} brought back: a coffee was chosen for ${n === 1 ? 'it' : 'them'} in RoasTime`, listed(roastPlan.restored.map((r) => r.roast))));
+      }
+      if (roastPlan.removed.length > 0) {
+        const n = roastPlan.removed.length;
         nodes.push(
-          el(
-            'p',
-            {},
-            `${added} new roast${added === 1 ? '' : 's'} will be added.`,
-            ...(noCoffee > 0
-              ? [' ', el('span', { class: 'badge badge-warn' }, `${noCoffee} without a coffee`), ' Choose their lot (or mark them as samples) on the Roasts page afterwards.']
-              : []),
+          details(
+            `${n} roast${n === 1 ? '' : 's'} without a coffee (samples) will be removed. You can still see ${n === 1 ? 'it' : 'them'} with "Show deleted".`,
+            listed(roastPlan.removed),
           ),
         );
       }
@@ -260,12 +265,15 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
         );
       }
       if (roastPlan.unchanged > 0) nodes.push(el('p', { class: 'muted' }, `${roastPlan.unchanged} roast${roastPlan.unchanged === 1 ? '' : 's'} already match RoasTime.`));
+      if (roastPlan.noCoffee.length > 0) {
+        nodes.push(details(`${roastPlan.noCoffee.length} without a coffee in RoasTime (samples, not imported)`, roastPlan.noCoffee));
+      }
       if (roastPlan.skipped.length > 0) nodes.push(details(`${roastPlan.skipped.length} skipped (not imported)`, roastPlan.skipped));
       if (roastPlan.goneFromRoastime.length > 0) {
         nodes.push(
           details(
             `${roastPlan.goneFromRoastime.length} no longer in RoasTime (kept in Kraken; delete them on the Roasts page if you want)`,
-            roastPlan.goneFromRoastime.map((r) => `${r.name || 'Roast'} (${roastTimeText(r.roastedAt) || 'no date'})`),
+            listed(roastPlan.goneFromRoastime),
           ),
         );
       }
@@ -277,7 +285,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       el(
         'p',
         { class: 'muted small' },
-        'Only lots and roasts that came from RoasTime are compared; anything entered by hand is never changed. Prices, supplier, codes, chosen lots, sample marks and notes are never changed by a sync.',
+        'Only lots and roasts that came from RoasTime are compared; anything entered by hand is never changed. Roasts with no coffee chosen in RoasTime are samples and are not tracked. Prices, supplier, codes, chosen lots, sample marks and notes are never changed by a sync.',
       ),
       ...[...plan.problems, ...roastPlan.problems].map((text) => message(text, 'error')),
       el('h2', { class: 'sub' }, 'Deliveries (lots)'),
@@ -293,9 +301,9 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       ),
       ...(fresh.length + changed.length === 0 ? [el('p', { class: 'muted' }, 'No new or changed deliveries.')] : []),
       el('h2', { class: 'sub' }, 'Roasts'),
-      ...(roastPlan.added.length + roastPlan.changed.length === 0 ? [el('p', { class: 'muted' }, 'No new or changed roasts.')] : []),
+      ...(roastEdits === 0 ? [el('p', { class: 'muted' }, 'No new or changed roasts.')] : []),
       ...roastNodes(),
-      ...(fresh.length + changed.length + roastPlan.added.length + roastPlan.changed.length === 0
+      ...(fresh.length + changed.length + roastEdits === 0
         ? [message('Everything in RoasTime is already in Kraken. Nothing to sync.')]
         : []),
       el('div', { class: 'actions' }, importButton, summary, button('Cancel', () => deps.back(), 'secondary')),

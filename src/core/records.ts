@@ -130,6 +130,8 @@ export interface RecordChange {
   id: string;
   changes: Fields;
   loaded: Fields;
+  /** true: also soft-delete the record; false: also restore it; left out: deletion untouched. */
+  deleted?: boolean;
 }
 
 /** What a feature needs from a table. The real one is below; it is tested against an in-memory Google. */
@@ -144,7 +146,7 @@ export interface RecordTable {
    * changed and to refuse overwriting someone else's change.
    */
   update(id: string, changes: Fields, loaded: Fields, now: Date): Promise<Fields>;
-  /** Several edits at once: all checked first (any conflict writes nothing), then written in one request. */
+  /** Several edits at once (each may also delete or restore): all checked first (any conflict writes nothing), then written in one request. */
   updateMany(list: readonly RecordChange[], now: Date): Promise<Fields[]>;
   /** Soft delete: sets `deleted_at`. */
   remove(id: string, loaded: Fields, now: Date): Promise<Fields>;
@@ -256,7 +258,13 @@ export function sheetRecordTable(
     },
     async updateMany(list, now) {
       for (const item of list) refuseSafetyColumns(item.changes);
-      return changeMany(list, now);
+      const deletedAt = now.toISOString();
+      return changeMany(
+        list.map(({ deleted, ...item }) =>
+          deleted === undefined ? item : { ...item, changes: { ...item.changes, deleted_at: deleted ? deletedAt : '' } },
+        ),
+        now,
+      );
     },
     remove(id, loaded, now) {
       return change(id, { deleted_at: now.toISOString() }, loaded, now);
