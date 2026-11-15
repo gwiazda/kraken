@@ -65,9 +65,9 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
-- `features/<name>/` (built: `lots`: list, add, edit; `present.ts` = pure text for the screen): `model.ts` types, validation and calculations (pure: no Google, no screen),
+- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore; `present.ts` = pure text for the screen): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip, `devLog.ts` dev-only sign-in log).
+- `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
   the app shows the Lots page with a menu (Lots, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only

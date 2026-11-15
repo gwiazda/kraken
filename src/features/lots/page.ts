@@ -97,45 +97,95 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   }
 
   function showLoadError(error: unknown): void {
+    render(
+      ...googleErrorNodes(error, {
+        retry: () => load(),
+        retryLabel: 'Sign in and show lots',
+        show: showLoadError,
+        otherButton: 'try-again',
+        signedOutNote: 'Nothing was lost.',
+      }),
+    );
+  }
+
+  /**
+   * One way to explain a failed Google action, used by loading, saving, deleting and restoring.
+   * - signed out: a button that signs in (inside the click) and repeats the action
+   * - someone else changed the lot: reload
+   * - anything else: Kraken cannot know whether the change reached the sheet, so it says so and offers a reload
+   */
+  function googleErrorNodes(
+    error: unknown,
+    options: {
+      retry: () => void;
+      retryLabel: string;
+      show: (error: unknown) => void;
+      otherButton: 'try-again' | 'reload';
+      reloadLabel?: string;
+      signedOutNote?: string;
+    },
+  ): Node[] {
+    const reload = button(options.reloadLabel ?? 'Reload lots', () => load(undefined, true), 'secondary');
     if (deps.isSignedOut(error)) {
-      render(
-        message('Your Google sign-in ran out. Nothing was lost.', 'error'),
-        button('Sign in and show lots', () => {
-          deps.signIn().then(
-            () => load(),
-            (e: unknown) => {
-              if (!deps.isIgnorable(e)) showLoadError(e);
-            },
-          );
+      return [
+        message(`Your Google sign-in ran out. ${options.signedOutNote ?? 'What you did is still on screen.'}`, 'error'),
+        button(options.retryLabel, () => {
+          deps.signIn().then(options.retry, (e: unknown) => {
+            if (!deps.isIgnorable(e)) options.show(e);
+          });
         }),
-      );
-      return;
+      ];
     }
-    render(message(deps.describeError(error), 'error'), button('Try again', () => load(undefined, true), 'secondary'));
+    if (error instanceof ConflictError) return [message(error.message, 'error'), reload];
+    if (error instanceof TableError) return [message(error.message, 'error')];
+    if (options.otherButton === 'try-again') {
+      return [message(deps.describeError(error), 'error'), button('Try again', () => load(undefined, true), 'secondary')];
+    }
+    return [message(`${deps.describeError(error)} Kraken could not finish. Reload the lots to see whether the change was saved.`, 'error'), reload];
+  }
+
+  /** Disables every button and box on the page while Google works, so nothing else can start meanwhile. */
+  function lockPage(): void {
+    for (const node of root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) node.disabled = true;
+  }
+
+  /**
+   * Delete or Restore. Called inside the click, so a sign-in renewal can open Google's window. `progress` shows the
+   * spinner (in the row, or on the whole page after a sign-in).
+   */
+  function change(lot: Lot, kind: 'remove' | 'restore', progress: () => void): void {
+    progress();
+    deps
+      .withGoogle(() => (kind === 'remove' ? deps.repo.remove(lot, deps.now()) : deps.repo.restore(lot, deps.now())))
+      .then((saved) => {
+        if (!root.isConnected) return; // the user went to another page meanwhile
+        load(kind === 'remove' ? `Deleted ${saved.code}. You can bring it back with "Show deleted", then Restore.` : `Restored ${saved.code}.`);
+      })
+      .catch((error: unknown) => {
+        if (!root.isConnected) return;
+        if (deps.isIgnorable(error)) {
+          showList();
+          return;
+        }
+        const working = kind === 'remove' ? `Deleting ${lot.code}…` : `Restoring ${lot.code}…`;
+        const showError = (e: unknown) =>
+          showList(
+            undefined,
+            googleErrorNodes(e, {
+              retry: () => change(lot, kind, () => render(el('p', {}, busy(working)))),
+              retryLabel: kind === 'remove' ? `Sign in and delete ${lot.code}` : `Sign in and restore ${lot.code}`,
+              show: showError,
+              otherButton: 'reload',
+            }),
+          );
+        showError(error);
+      });
   }
 
   function showList(note?: string, error?: Node[]): void {
-    const rows = lotListRows(lots, showDeleted);
     const hidden = deletedCount(lots);
-
-    // Delete / Restore: called inside the click, so a sign-in renewal can open Google's window.
-    // While Google works, the row shows a spinner and its buttons are gone (nothing to double-click).
-    function change(row: LotListRow, kind: 'remove' | 'restore', tr: HTMLTableRowElement, cell: HTMLElement): void {
-      tr.classList.add('row-busy');
-      cell.replaceChildren(busy(kind === 'remove' ? 'Deleting…' : 'Restoring…'));
-      deps
-        .withGoogle(() => (kind === 'remove' ? deps.repo.remove(row.lot, deps.now()) : deps.repo.restore(row.lot, deps.now())))
-        .then((lot) =>
-          load(kind === 'remove' ? `Deleted ${lot.code}. You can bring it back with "Show deleted", then Restore.` : `Restored ${lot.code}.`),
-        )
-        .catch((error: unknown) => {
-          if (deps.isIgnorable(error)) {
-            showList();
-            return;
-          }
-          showList(undefined, changeError(error, () => showList()));
-        });
-    }
+    if (hidden === 0) showDeleted = false; // the switch is not shown, so it must not stay on unseen
+    const rows = lotListRows(lots, showDeleted);
 
     function rowNodes(row: LotListRow): HTMLTableRowElement[] {
       const cell = el('td', { class: 'row-actions nowrap' });
@@ -157,19 +207,27 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', {}, row.supplier),
         cell,
       );
+      const inRow = (text: string) => () => {
+        lockPage();
+        tr.classList.add('row-busy');
+        cell.replaceChildren(busy(text));
+      };
       // The "Delete …?" question gets its own full-width line under the lot, so the table never gets wider.
       const confirmRow = el('tr', { class: 'confirm-row', hidden: '' });
-      const normal = () => {
+      const normal = (focusDelete = false) => {
         confirmRow.hidden = true;
+        const deleteButton = button('Delete', ask, 'link');
         cell.replaceChildren(
           ...(row.deleted
-            ? [button('Restore', () => change(row, 'restore', tr, cell), 'link')]
-            : [button('Edit', () => showForm({ kind: 'edit', lot: row.lot }), 'link'), button('Delete', ask, 'link')]),
+            ? [button('Restore', () => change(row.lot, 'restore', inRow('Restoring…')), 'link')]
+            : [button('Edit', () => showForm({ kind: 'edit', lot: row.lot }), 'link'), deleteButton]),
         );
+        if (focusDelete) deleteButton.focus();
       };
       // A second click confirms. Deleting only hides the lot (it can be restored), so one short question is enough.
       const ask = () => {
         cell.replaceChildren();
+        const no = button('No', () => normal(true), 'secondary');
         confirmRow.replaceChildren(
           el(
             'td',
@@ -179,15 +237,16 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
               'Yes, delete',
               () => {
                 confirmRow.hidden = true;
-                change(row, 'remove', tr, cell);
+                change(row.lot, 'remove', inRow('Deleting…'));
               },
               'primary',
             ),
             ' ',
-            button('No', normal, 'secondary'),
+            no,
           ),
         );
         confirmRow.hidden = false;
+        no.focus(); // keyboard users land on the question; the safe answer first
       };
       normal();
       return [tr, confirmRow];
@@ -211,11 +270,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                   ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Green price / kg', 'Supplier', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
-              el(
-                'tbody',
-                {},
-                ...rows.flatMap(rowNodes),
-              ),
+              el('tbody', {}, ...rows.flatMap(rowNodes)),
             ),
           );
 
@@ -239,22 +294,6 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         ? [el('p', { class: 'show-deleted small' }, toggle, ' ', el('label', { for: 'show-deleted' }, `Show deleted (${hidden})`))]
         : []),
     );
-  }
-
-  /** The message (and button) after a failed Delete or Restore. */
-  function changeError(error: unknown, retry: () => void): Node[] {
-    if (deps.isSignedOut(error)) {
-      return [
-        message('Your Google sign-in ran out. Nothing was changed. Sign in, then click the button again.', 'error'),
-        button('Sign in', () => {
-          deps.signIn().then(retry, (e: unknown) => {
-            if (!deps.isIgnorable(e)) showList(undefined, changeError(e, retry));
-          });
-        }),
-      ];
-    }
-    if (error instanceof ConflictError) return [message(error.message, 'error'), button('Reload lots', () => load(undefined, true), 'secondary')];
-    return [message(`${deps.describeError(error)} Nothing was changed; try again.`, 'error')];
   }
 
   function showForm(mode: Mode): void {
@@ -365,25 +404,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     }
 
     function showSaveError(error: unknown): void {
-      if (deps.isSignedOut(error)) {
-        banner.replaceChildren(
-          message('Your Google sign-in ran out. What you typed is still here.', 'error'),
-          button('Sign in and save', () => {
-            deps.signIn().then(
-              () => save(),
-              (e: unknown) => {
-                if (!deps.isIgnorable(e)) showSaveError(e);
-              },
-            );
-          }),
-        );
-      } else if (error instanceof ConflictError) {
-        banner.replaceChildren(message(error.message, 'error'), button('Reload lots (drops this form)', () => load(undefined, true), 'secondary'));
-      } else if (error instanceof TableError) {
-        banner.replaceChildren(message(error.message, 'error'));
-      } else {
-        banner.replaceChildren(message(`${deps.describeError(error)} Nothing was saved; try again.`, 'error'));
-      }
+      banner.replaceChildren(
+        ...googleErrorNodes(error, {
+          retry: () => save(),
+          retryLabel: 'Sign in and save',
+          show: showSaveError,
+          otherButton: 'reload',
+          reloadLabel: 'Reload lots (drops this form)',
+        }),
+      );
       banner.scrollIntoView({ block: 'nearest' });
     }
 

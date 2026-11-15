@@ -378,10 +378,6 @@ h2 {
   text-decoration: line-through;
 }
 
-.row-deleted .badge-muted {
-  text-decoration: none;
-}
-
 .badge-muted {
   border-color: var(--grey);
   color: var(--grey);

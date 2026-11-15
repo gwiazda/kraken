@@ -1,5 +1,6 @@
 // What the Lots screen shows, as plain text. Pure (no screen, no Google), so it is tested directly.
 
+import { localDate } from '../../core/dates';
 import { formatKg, formatPln, parseKg, parseMoney } from '../../core/numbers';
 import { greenPricePerKg, isDeleted, priceMissing, sortLots, suggestCode, type Lot, type LotForm } from './model';
 
@@ -40,7 +41,7 @@ export function lotListRows(lots: readonly Lot[], showDeleted = false): LotListR
       supplier: lot.supplier || DASH,
       problems: lot.problems,
       deleted: isDeleted(lot),
-      deletedNote: isDeleted(lot) ? `Deleted ${lot.deletedAt.slice(0, 10)}` : '',
+      deletedNote: isDeleted(lot) ? deletedNote(lot.deletedAt) : '',
     };
   });
 }
@@ -65,3 +66,9 @@ export function codeAfterChange(form: LotForm, codeTyped: boolean, otherCodes: r
 
 /** How many lots are deleted (for the "Show deleted (2)" switch). */
 export const deletedCount = (lots: readonly Lot[]) => lots.filter(isDeleted).length;
+
+/** "Deleted 2026-11-16", on the local calendar (a lot deleted just after midnight shows the right day). */
+export function deletedNote(deletedAt: string): string {
+  const time = new Date(deletedAt);
+  return Number.isNaN(time.getTime()) ? 'Deleted' : `Deleted ${localDate(time)}`;
+}
