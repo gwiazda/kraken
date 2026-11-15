@@ -257,6 +257,10 @@ Flexible enough to generate prices for any discount.
 **[R] Built (2026-11-09):** Kraken creates the spreadsheet with a `_meta` tab (`app` = `Kraken`, `schema_version`,
 `created_at`) and checks it every time it opens a sheet.
 
+**[R] (owner, 2026-11-15)** Creating a sheet is owner-only and rare: the button "Create Kraken sheet" appears only on
+`https://gwiazda.github.io/kraken/?new-sheet`. Everyone else sees only "Choose existing sheet"; Google's file window has
+"All spreadsheets" and "Shared with me" tabs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names).
+
 **[R] Built (2026-11-15): migrations.** When Kraken opens a sheet with an older data version, it shows what will change
 and the backup's name, and does nothing until someone clicks **Update now**. Then, in the browser: (1) a full copy named
 "Kraken backup YYYY-MM-DD (before vN)" is made in Google Drive and checked against the sheet (same tabs, same number of rows, same header rows; not

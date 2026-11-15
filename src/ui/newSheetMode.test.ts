@@ -9,6 +9,7 @@ describe('wantsNewSheet', () => {
     ['?new-sheet', true],
     ['?new-sheet=', true],
     ['?x=1&new-sheet', true],
+    ['?New-Sheet', true],
     ['?newsheet', false],
   ])('%s -> %s', (search, expected) => {
     expect(wantsNewSheet(search)).toBe(expected);

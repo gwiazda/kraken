@@ -142,7 +142,8 @@ function showRetry(retry: () => void, note = 'Your Google sign-in ran out. Nothi
 
 function afterSignIn(): void {
   const savedId = loadSpreadsheetId(store);
-  if (savedId) {
+  // `?new-sheet` always shows the screen with "Create Kraken sheet", even if this browser remembers a sheet.
+  if (savedId && !wantsNewSheet(window.location.search)) {
     void connect(savedId);
   } else {
     showChooseSheet();
@@ -169,8 +170,7 @@ function showChooseSheet(note?: string): void {
       { class: 'muted small' },
       ownerSetup
         ? 'Creates a new, empty Kraken sheet in your Google Drive. Share it in Google Drive with your partner.'
-        : 'First time? Ask the owner to share the Kraken sheet with you in Google Drive, then choose it here once. ' +
-            'Shared sheets are under "Shared with me".',
+        : 'Choose the Kraken sheet once on this computer. If it was shared with you, it is under "Shared with me".',
     ),
   );
 }
