@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { divideRounded, formatKg, formatPln, kgText, moneyText, parseDecimal, parseKg, parseMoney, toDecimalText } from './numbers';
+import { divideRounded, formatKg, formatPln, formatWholePln, kgText, moneyText, parseDecimal, parseKg, parseMoney, toDecimalText } from './numbers';
 
 describe('parseMoney (grosze)', () => {
   it.each([
@@ -91,6 +91,13 @@ describe('screen formats', () => {
     expect(formatPln(123456)).toBe('1 234,56 zł');
     expect(formatPln(5)).toBe('0,05 zł');
     expect(formatPln(100000000)).toBe('1 000 000,00 zł');
+  });
+
+  it('shows whole złoty without the grosze, and other amounts as usual', () => {
+    expect(formatWholePln(5900)).toBe('59\u00a0zł');
+    expect(formatWholePln(123400)).toBe('1\u00a0234\u00a0zł');
+    expect(formatWholePln(0)).toBe('0\u00a0zł');
+    expect(formatWholePln(5940)).toBe('59,40\u00a0zł');
   });
 
   it('shows kg with a comma', () => {

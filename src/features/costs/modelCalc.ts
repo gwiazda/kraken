@@ -8,6 +8,7 @@
 //   coffee in one bag       = cost of 1 kg roasted × bag size in kg
 //   cost of one bag         = coffee in one bag + every cost item of that size (bag, label, ...)
 //   price at a markup       = cost of one bag × markup (net); gross = net × (1 + VAT)
+//   suggested price         = that gross rounded to whole złoty (half up); its net = suggested gross ÷ (1 + VAT)
 
 import type { CostSettings } from './model';
 
@@ -56,8 +57,13 @@ export interface BagInput {
 
 export interface PriceAtMarkup {
   readonly markupHundredths: number;
+  /** Exact net and gross at this markup (grosze, not rounded): shown in the step-by-step calculation. */
   readonly net: number;
   readonly gross: number;
+  /** The suggested price: the gross rounded to whole złoty (grosze, a multiple of 100). */
+  readonly suggestedGross: number;
+  /** The net of the suggested price: suggested gross ÷ (1 + VAT) (grosze, not rounded). */
+  readonly suggestedNet: number;
 }
 
 export interface BagCalculation {
@@ -86,6 +92,10 @@ export interface LotCalculation {
 
 /** Gross from net: net × (1 + VAT). */
 export const grossOf = (net: number, vatTenths: number) => (net * (1000 + vatTenths)) / 1000;
+
+/** Net from gross: gross ÷ (1 + VAT). */
+export const netOf = (gross: number, vatTenths: number) => (gross * 1000) / (1000 + vatTenths);
+
 
 /**
  * The full calculation for one lot. `priceGrosze` is the coffee price plus the delivery cost, `quantityGrams` the
@@ -116,7 +126,9 @@ export function calculateLot(
           ? []
           : settings.markupHundredths.map((m) => {
               const net = (total * m) / 100;
-              return { markupHundredths: m, net, gross: grossOf(net, settings.vatTenths) };
+              const gross = grossOf(net, settings.vatTenths);
+              const suggestedGross = roundToZloty(gross);
+              return { markupHundredths: m, net, gross, suggestedGross, suggestedNet: netOf(suggestedGross, settings.vatTenths) };
             });
       return { id: bag.id, grams: bag.grams, coffee, items, total, prices };
     }),
@@ -125,3 +137,9 @@ export function calculateLot(
 
 /** A calculated amount rounded to the grosz, half up (for the screen). */
 export const roundGrosze = (amount: number) => Math.round(amount + 1e-9);
+
+/**
+ * An amount in grosze rounded to whole złoty, half up (74,50 → 75 zł; 74,49 → 74 zł). Gives grosze. It first rounds to
+ * the grosz, as the screen shows it, so an amount shown as 74,50 zł always becomes 75 zł.
+ */
+export const roundToZloty = (amount: number) => roundGrosze(roundGrosze(amount) / 100) * 100;

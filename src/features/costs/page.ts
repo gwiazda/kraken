@@ -50,6 +50,8 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
   let roasts: Roast[] = [];
   /** Which part of the page is shown; kept when the page reloads after a save. */
   let tab: SubTab = 'lots';
+  /** Lots whose "Show calculation" is open; kept when the page reloads after a save. */
+  const openCalculations = new Set<string>();
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
@@ -144,7 +146,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
             el(
               'p',
               { class: 'muted small' },
-              `All costs are net. A suggested price is the cost of one bag × the markup (net); gross = net + VAT ${formatPercent(settings.vatTenths)}.`,
+              `Costs are net. A suggested price is the cost of one bag × the markup, plus VAT ${formatPercent(settings.vatTenths)}, rounded to whole złoty.`,
             ),
             ...(noBagCosts
               ? [el('p', { class: 'message muted' }, 'Enter what goes into a bag (bag, label, …) to see the cost of one bag. ', button('Go to Bag costs & settings', () => ((tab = 'bags'), showPage()), 'link'))]
@@ -220,11 +222,14 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       ? [message(card.missing, 'error'), priceLine, lossLine]
       : [
           priceLine,
-          line('Green price', card.greenPerKg, 'Coffee price + delivery cost, ÷ kg delivered (net).'),
-          lossLine,
-          line('Roasted from 1 kg green', card.roastedFromKg),
-          line('Cost of 1 kg roasted', card.roastedPerKg, 'Green price per kg ÷ (1 − roast loss).'),
-          ...(card.bags.length > 0 ? [bagTable(card)] : []),
+          ...(card.bags.length > 0 ? [answerTable(card)] : []),
+          calculationNode(card, [
+            line('Green price', card.greenPerKg, 'Coffee price + delivery cost, ÷ kg delivered (net).'),
+            lossLine,
+            line('Roasted from 1 kg green', card.roastedFromKg),
+            line('Cost of 1 kg roasted', card.roastedPerKg, 'Green price per kg ÷ (1 − roast loss).'),
+            ...(card.bags.length > 0 ? [stepsTable(card)] : []),
+          ]),
         ];
     return el(
       'section',
@@ -235,37 +240,60 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     );
   }
 
-  function bagTable(card: LotCard): HTMLElement {
+  /** "Show calculation": folded away; stays open after a save on this page (e.g. a changed roast loss). */
+  function calculationNode(card: LotCard, children: Node[]): HTMLElement {
+    const node = el('details', { class: 'cost-steps' }, el('summary', {}, 'Show calculation'), ...children);
+    node.open = openCalculations.has(card.lot.id);
+    node.addEventListener('toggle', () => (node.open ? openCalculations.add(card.lot.id) : openCalculations.delete(card.lot.id)));
+    return node;
+  }
+
+  function costTable(card: LotCard, rows: HTMLElement[]): HTMLElement {
     const head = el('tr', {}, el('th', { scope: 'col' }, ''), ...card.bags.map((b) => el('th', { scope: 'col', class: 'num' }, b.label)));
-    const row = (label: string, values: readonly string[], strong = false, missing: readonly boolean[] = []) =>
-      el(
-        'tr',
-        strong ? { class: 'row-total' } : {},
-        el('th', { scope: 'row' }, label),
-        ...values.map((v, i) => el('td', { class: `num nowrap${missing[i] ? ' muted' : ''}` }, v)),
-      );
-    const markups = card.bags.find((b) => b.prices.length > 0)?.prices.map((p) => p.markup) ?? [];
-    const priceRows = markups.flatMap((markup, i) => [
-      row(`Price at ${markup}, net`, card.bags.map((b) => b.prices[i]?.net ?? '—'), false, card.bags.map((b) => b.missing)),
-      row(`Price at ${markup}, gross`, card.bags.map((b) => b.prices[i]?.gross ?? '—'), true, card.bags.map((b) => b.missing)),
-    ]);
-    return el(
-      'div',
-      { class: 'table-wrap' },
-      el(
-        'table',
-        { class: 'data-table cost-table' },
-        el('thead', {}, head),
-        el(
-          'tbody',
-          {},
-          row('Roasted coffee', card.bags.map((b) => b.coffee)),
-          row('Bag, label and other items', card.bags.map((b) => b.items), false, card.bags.map((b) => b.missing)),
-          row('Cost of one bag', card.bags.map((b) => b.total), true, card.bags.map((b) => b.missing)),
-          ...priceRows,
+    return el('div', { class: 'table-wrap' }, el('table', { class: 'data-table cost-table' }, el('thead', {}, head), el('tbody', {}, ...rows)));
+  }
+
+  const tableRow = (label: string, cells: readonly (Node | string)[], strong = false, missing: readonly boolean[] = []) =>
+    el(
+      'tr',
+      strong ? { class: 'row-total' } : {},
+      el('th', { scope: 'row' }, label),
+      ...cells.map((v, i) => el('td', { class: `num nowrap${missing[i] ? ' muted' : ''}` }, v)),
+    );
+
+  const markupsOf = (card: LotCard) => card.bags.find((b) => b.prices.length > 0)?.prices.map((p) => p.markup) ?? [];
+
+  /** The short answer: what one bag costs us, and the suggested prices (gross, whole złoty, with their net). */
+  function answerTable(card: LotCard): HTMLElement {
+    const missing = card.bags.map((b) => b.missing);
+    return costTable(card, [
+      tableRow('Cost of one bag (net)', card.bags.map((b) => b.total), false, missing),
+      ...markupsOf(card).map((markup, i) =>
+        tableRow(
+          `Suggested price at ${markup}`,
+          card.bags.map((b) => {
+            const price = b.prices[i];
+            return price ? el('span', {}, el('strong', {}, price.suggestedGross), el('br'), el('span', { class: 'muted small' }, `${price.suggestedNet} net`)) : '—';
+          }),
+          false,
+          missing,
         ),
       ),
-    );
+    ]);
+  }
+
+  /** The steps for one bag of each size, exact to the grosz (before the whole-złoty rounding). */
+  function stepsTable(card: LotCard): HTMLElement {
+    const missing = card.bags.map((b) => b.missing);
+    return costTable(card, [
+      tableRow('Roasted coffee', card.bags.map((b) => b.coffee)),
+      tableRow('Bag, label and other items', card.bags.map((b) => b.items), false, missing),
+      tableRow('Cost of one bag', card.bags.map((b) => b.total), true, missing),
+      ...markupsOf(card).flatMap((markup, i) => [
+        tableRow(`At ${markup}, net`, card.bags.map((b) => b.prices[i]?.net ?? '—'), false, missing),
+        tableRow(`At ${markup}, gross (before rounding)`, card.bags.map((b) => b.prices[i]?.gross ?? '—'), true, missing),
+      ]),
+    ]);
   }
 
   // ---- The lot's price (stored on the Lots tab; edited here, owner 2026-11-16) ----

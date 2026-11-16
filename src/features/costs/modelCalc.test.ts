@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from './model';
-import { averageLoss, calculateLot, chooseLoss, grossOf, roundGrosze } from './modelCalc';
+import { averageLoss, calculateLot, chooseLoss, grossOf, netOf, roundGrosze, roundToZloty } from './modelCalc';
 
 // Example checked by hand: 4 500 zł + 120 zł delivery for 60 kg, 15 % loss, 250 g bag with items 1,20 + 0,30 zł.
 const bag250 = { id: 'S250', grams: 250, itemsGrosze: [120, 30] };
@@ -25,6 +25,16 @@ describe('calculateLot', () => {
     ]);
   });
 
+  it('suggests the gross price rounded to whole złoty, and works out its net from that rounded gross', () => {
+    const small = calc?.bags[0];
+    // 59,40 → 59 zł; 74,25 → 74 zł; 89,10 → 89 zł. Net = gross ÷ 1,23.
+    expect(small?.prices.map((p) => [p.suggestedGross, roundGrosze(p.suggestedNet)])).toEqual([
+      [5900, 4797],
+      [7400, 6016],
+      [8900, 7236],
+    ]);
+  });
+
   it('rounds only at the end (the bag total is not the sum of rounded parts)', () => {
     const small = calc?.bags[0];
     expect(small?.total).toBeCloseTo(2414.7059, 4);
@@ -46,7 +56,7 @@ describe('calculateLot', () => {
   it('uses the markups and VAT from the settings', () => {
     const own = { vatTenths: 80, markupHundredths: [150], defaultLossTenths: 150 };
     const result = calculateLot(100000, 10000, 0, [{ id: 'S', grams: 1000, itemsGrosze: [0] }], own);
-    expect(result?.bags[0]?.prices).toEqual([{ markupHundredths: 150, net: 15000, gross: 16200 }]);
+    expect(result?.bags[0]?.prices).toEqual([{ markupHundredths: 150, net: 15000, gross: 16200, suggestedGross: 16200, suggestedNet: 15000 }]);
   });
 });
 
@@ -84,5 +94,16 @@ describe('helpers', () => {
     expect(grossOf(10000, 230)).toBe(12300);
     expect(roundGrosze(2414.5)).toBe(2415);
     expect(roundGrosze(2414.4999)).toBe(2414);
+  });
+
+  it('rounds to whole złoty half up, and takes VAT out of a gross price', () => {
+    expect(roundToZloty(7450)).toBe(7500); // 74,50 → 75 zł (owner's example)
+    expect(roundToZloty(7449)).toBe(7400);
+    expect(roundToZloty(7449.6)).toBe(7500); // shown as 74,50 zł before rounding, so it becomes 75 zł
+    expect(roundToZloty(7449.4)).toBe(7400); // shown as 74,49 zł
+    expect(roundToZloty(7400)).toBe(7400);
+    expect(roundToZloty(49)).toBe(0);
+    expect(netOf(12300, 230)).toBe(10000);
+    expect(netOf(grossOf(4829, 230), 230)).toBeCloseTo(4829, 9);
   });
 });

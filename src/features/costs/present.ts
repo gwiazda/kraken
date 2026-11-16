@@ -1,7 +1,7 @@
 // What the Costs & prices page shows, as plain text, so it is tested without a browser. Joins the lots, the roasts
 // (for the average roast loss) and the cost tabs, and runs the calculation.
 
-import { formatKg, formatPln } from '../../core/numbers';
+import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
 import { BAG_SIZES_G, formatBagSize, formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
@@ -49,8 +49,17 @@ export interface BagLine {
   /** "missing cost" when the size has no (readable) cost items. */
   readonly total: string;
   readonly missing: boolean;
-  /** One per markup: "2×", net and gross. */
-  readonly prices: readonly { readonly markup: string; readonly net: string; readonly gross: string }[];
+  /**
+   * One per markup: "2×"; the suggested price (gross, whole złoty, e.g. "59 zł") and its net; and the exact net and
+   * gross before rounding (for "Show calculation").
+   */
+  readonly prices: readonly {
+    readonly markup: string;
+    readonly suggestedGross: string;
+    readonly suggestedNet: string;
+    readonly net: string;
+    readonly gross: string;
+  }[];
 }
 
 export interface LotCard {
@@ -156,7 +165,13 @@ export function lotCards(
         items: bag.items === null ? 'missing cost' : money(bag.items),
         total: bag.total === null ? 'missing cost' : money(bag.total),
         missing: bag.total === null,
-        prices: bag.prices.map((p) => ({ markup: formatMarkup(p.markupHundredths), net: money(p.net), gross: money(p.gross) })),
+        prices: bag.prices.map((p) => ({
+          markup: formatMarkup(p.markupHundredths),
+          suggestedGross: formatWholePln(p.suggestedGross),
+          suggestedNet: money(p.suggestedNet),
+          net: money(p.net),
+          gross: money(p.gross),
+        })),
       })),
     };
   });

@@ -71,7 +71,8 @@ test that reads every import line), so CI fails if a rule is broken.
   `roastime`: "Sync with RoasTime" (lots and roasts in one step; roasts with no coffee, or a coffee with no delivery, are samples, not tracked), `model.ts` reads the files, `plan.ts` / `roastPlan.ts` the
   preview (pure), `apply.ts` saves (at most 4 requests: lot adds, lot updates, roast adds, roast edits incl. removals and restores);
   `costs`: "Costs & prices" (sub-tabs "Prices per lot" and "Bag costs & settings"; lot prices are edited here, stored
-  on the Lots tab; bag sizes fixed at 250 g, 500 g, 1 kg; settings and bag cost items;
+  on the Lots tab; bag sizes fixed at 250 g, 500 g, 1 kg; settings and bag cost items; a lot card shows the short answer, the steps fold
+  under "Show calculation"; suggested gross prices rounded to whole złoty, net from the rounded gross;
   `modelCalc.ts` the calculation, pure, exact until rounded for the screen);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
