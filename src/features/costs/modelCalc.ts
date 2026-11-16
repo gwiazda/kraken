@@ -96,8 +96,6 @@ export const grossOf = (net: number, vatTenths: number) => (net * (1000 + vatTen
 /** Net from gross: gross ÷ (1 + VAT). */
 export const netOf = (gross: number, vatTenths: number) => (gross * 1000) / (1000 + vatTenths);
 
-/** An amount in grosze rounded to whole złoty, half up (74,50 → 75 zł; 74,49 → 74 zł). Gives grosze. */
-export const roundToZloty = (amount: number) => Math.round(amount / 100 + 1e-9) * 100;
 
 /**
  * The full calculation for one lot. `priceGrosze` is the coffee price plus the delivery cost, `quantityGrams` the
@@ -139,3 +137,9 @@ export function calculateLot(
 
 /** A calculated amount rounded to the grosz, half up (for the screen). */
 export const roundGrosze = (amount: number) => Math.round(amount + 1e-9);
+
+/**
+ * An amount in grosze rounded to whole złoty, half up (74,50 → 75 zł; 74,49 → 74 zł). Gives grosze. It first rounds to
+ * the grosz, as the screen shows it, so an amount shown as 74,50 zł always becomes 75 zł.
+ */
+export const roundToZloty = (amount: number) => roundGrosze(roundGrosze(amount) / 100) * 100;

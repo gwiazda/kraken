@@ -99,7 +99,8 @@ describe('helpers', () => {
   it('rounds to whole złoty half up, and takes VAT out of a gross price', () => {
     expect(roundToZloty(7450)).toBe(7500); // 74,50 → 75 zł (owner's example)
     expect(roundToZloty(7449)).toBe(7400);
-    expect(roundToZloty(7449.9999)).toBe(7400);
+    expect(roundToZloty(7449.6)).toBe(7500); // shown as 74,50 zł before rounding, so it becomes 75 zł
+    expect(roundToZloty(7449.4)).toBe(7400); // shown as 74,49 zł
     expect(roundToZloty(7400)).toBe(7400);
     expect(roundToZloty(49)).toBe(0);
     expect(netOf(12300, 230)).toBe(10000);

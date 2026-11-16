@@ -253,7 +253,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     return el('div', { class: 'table-wrap' }, el('table', { class: 'data-table cost-table' }, el('thead', {}, head), el('tbody', {}, ...rows)));
   }
 
-  const tableRow = (label: Node | string, cells: readonly (Node | string)[], strong = false, missing: readonly boolean[] = []) =>
+  const tableRow = (label: string, cells: readonly (Node | string)[], strong = false, missing: readonly boolean[] = []) =>
     el(
       'tr',
       strong ? { class: 'row-total' } : {},
