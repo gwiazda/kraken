@@ -309,7 +309,16 @@ in percent off the retail price (see section 5).
   that price) go to one separate **Price list** tab (section 5). That tab is what the partner uses day to day, and
   what an offer is made from.
 
-**[R] Offer generator (owner, 2026-11-16, later):** make an offer as a PDF from the page.
+**[R] Rounding of suggested prices (owner, 2026-11-16):** the suggested **gross** price is rounded to **whole
+złoty** by the usual rule (half up: 74,50 → 75 zł); the net price is calculated from the rounded gross. The exact
+amounts stay visible in the step-by-step calculation. (Not built yet.)
+
+**[R] Offer generator (owner, 2026-11-16, later):** make an offer as a PDF from the page. The offer is saved on
+**Google Drive** so both owners can open it from a link in Kraken and send it themselves, whoever made it.
+**[P]** A "Kraken offers" folder that Kraken creates and the owner shares once with the partner as editor (each owner
+picks it once in Kraken, like the sheet); Kraken writes a row per offer (date, customer, discount, link). A PDF cannot
+be edited in Drive, so either keep an editable Google Doc next to it, or change the offer in Kraken and make a new
+PDF. Both ways of making the PDF (a small PDF library, or a Google Doc exported as PDF) to be tested first.
 **[P]** Without a server: a printable offer page (logo, coffees, sizes, prices for the chosen discount, date) and
 Chrome's **Print → Save as PDF**. No new library and no data leaves the browser. A PDF library could make the file
 directly, but would be a new dependency; only if printing is not good enough.

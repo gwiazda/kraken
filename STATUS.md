@@ -1,34 +1,39 @@
 # Status
 
-_Last updated: 2026-11-09 (end of the Google sign-in session)_
+_Last updated: 2026-11-16 (owner paused after PR #20)_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
-## Done
-- Repo, branch protection, brand assets, requirements, made-up RoasTime samples, owner's Mac set up.
-- Google Cloud project `kraken` set up (APIs, consent screen in Testing, Client ID, Picker key).
-- Data safety rules confirmed (REQUIREMENTS section 7, `CLAUDE.md`). Code review by reviewer agents is a required PR step.
-- PR #10 merged and live at https://gwiazda.github.io/kraken/: Google sign-in (renew on next click), create or choose
-  the Kraken sheet, `_meta` tab with schema version 1, 90 tests in CI. Owner tested it locally and on the live site.
-- The owner's real Kraken sheet exists (created from Kraken, with `_meta`). It is **not shared with the partner yet**
-  (owner's decision, 2026-11-09).
+## Done (all merged and live at https://gwiazda.github.io/kraken/)
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 4**).
+- **Lots:** list, add, edit, delete/restore, stock left (prices are no longer on this page).
+- **Roasts and "Sync with RoasTime"** (PR #19): lots and roasts in one step; stock left per lot (oldest delivery
+  first). Roasts with no coffee, or whose coffee has no delivery in RoasTime, are samples and are not tracked.
+  Owner synced the real data: 89 roasts, 54 samples removed; stock Santa Barbara 21,457 kg, Kenya Kegwa 31,2 kg,
+  Burunga 30,4 kg (matches the owner's numbers).
+- **Costs & prices, part 1** (PR #20): sub-tabs "Prices per lot" (lot price edited here, roast loss, cost of one bag,
+  suggested prices at the price multipliers) and "Bag costs & settings" (fixed sizes 250 g / 500 g / 1 kg, items the
+  same for every coffee, VAT, multipliers, default loss 15 %). Owner tested it locally.
+- The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
 - Nothing. This PR only records the session.
 
 ## Next steps
-1. Green coffee lots, the first real feature:
-   a. Agree the Lots tab columns with the owner (start from REQUIREMENTS section 1; confirm each column).
-   b. Build the migration framework first (backup copy of the spreadsheet via the Drive API, migrate, check row
-      counts, then raise `schema_version`), with tests. Migration 1 -> 2 adds the Lots tab.
-      The Drive copy call will need `https://www.googleapis.com` in the CSP `connect-src`.
-   c. Lots screen: list, add, edit, soft delete; reading and writing rows by header name; tests for every operation.
-2. Later: share the sheet with the partner (partner signs in and picks it once), when the owner decides.
-3. Then the roasting log and RoasTime import.
+1. **Simpler Costs & prices** (agreed, not started):
+   a. Each lot card shows the short answer first: the lot price, cost of one bag, suggested prices per size.
+   b. The step-by-step part folds away under "Show calculation".
+   c. Suggested **gross** prices rounded to **whole złoty** (half up); net calculated from the rounded gross.
+2. **Price list** tab (REQUIREMENTS sections 5 and 6): chosen retail prices; wholesale view with a discount %.
+   Agree the details with the owner first.
+3. **Offer PDF** on Google Drive (REQUIREMENTS section 6): test both ways (PDF library vs Google Docs export) on a
+   sample offer before choosing; shared "Kraken offers" folder.
+4. Roasts filters and paging (later).
 
 ## Open questions for the owners
-- Columns of the Lots tab (to agree at the start of the next session).
-- A RoasTime roast file that contains a note (to learn the notes field name). Not urgent.
+- Price list details (when we get there): rounding of discounted prices, presets, special prices per customer.
+- Offer: which way to make the PDF, and whether to keep an editable Google Doc next to it.
+- Share the Kraken sheet with the partner (owner decides when).
 
 ## Reminders
 - Both owners must have 2-Step Verification on their Gmail accounts before real data goes in.
