@@ -22,8 +22,10 @@ describe('reading price rows', () => {
   it('says which rows it cannot use, and never complains about deleted ones', () => {
     expect(priceProblem(price(3, { price_gross_pln: 'about 70' }))).toBe('Row 3 of the Price list tab has the price "about 70", which Kraken cannot read, so it is left out.');
     expect(priceProblem(price(4, { price_gross_pln: '0' }))).toBe('Row 4 of the Price list tab has the price "0", which Kraken cannot read, so it is left out.');
-    expect(priceProblem(price(5, { bag_size_g: 'big' }))).toBe('Row 5 of the Price list tab has a bag size Kraken cannot read, so it is left out.');
-    expect(priceProblem(price(6, { valid_from: '1.11.2026' }))).toBe('Row 6 of the Price list tab has the date "1.11.2026", which is not YYYY-MM-DD, so it is left out.');
+    expect(priceProblem(price(5, { bag_size_g: 'big' }))).toBe('Row 5 of the Price list tab has the bag size "big", which is not 250 g, 500 g, 1 kg (in grams: 250, 500, 1000), so it is left out.');
+    expect(priceProblem(price(5, { bag_size_g: '300' }))).toBe('Row 5 of the Price list tab has the bag size "300", which is not 250 g, 500 g, 1 kg (in grams: 250, 500, 1000), so it is left out.');
+    expect(priceProblem(price(6, { valid_from: '1.11.2026' }))).toBe('Row 6 of the Price list tab has the date "1.11.2026", which is not a date (YYYY-MM-DD), so it is left out.');
+    expect(priceProblem(price(6, { valid_from: '2026-13-45' }))).toBe('Row 6 of the Price list tab has the date "2026-13-45", which is not a date (YYYY-MM-DD), so it is left out.');
     expect(priceProblem(price(7, { price_gross_pln: 'x', deleted_at: '2026-11-16T10:00:00.000Z' }))).toBeNull();
   });
 });
@@ -79,6 +81,11 @@ describe('wholesalePrice', () => {
     // 123 zł gross → 100 zł net; −24,5 % = 75,50 zł → 76 zł; −24,6 % = 75,40 zł → 75 zł.
     expect(wholesalePrice(12300, 245, 230).net).toBe(7600);
     expect(wholesalePrice(12300, 246, 230).net).toBe(7500);
+  });
+
+  it('rounds once, from the exact net (no double rounding just below x,50)', () => {
+    // 73,07 zł gross → 59,4065 net; −15 % = 50,4955 zł → 50 zł (rounding to 50,50 first would give 51).
+    expect(wholesalePrice(7307, 150, 230).net).toBe(5000);
   });
 
   it('works for the standard discounts', () => {

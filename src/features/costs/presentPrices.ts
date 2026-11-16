@@ -2,7 +2,6 @@
 // coffee name of its active lots), one cell per bag size: the main price in use, or the wholesale price at a discount.
 
 import { formatPln, formatWholePln } from '../../core/numbers';
-import { isDeleted } from '../lots';
 import { BAG_SIZES_G, formatBagSize, type CostSettings } from './model';
 import { netOf, roundGrosze } from './modelCalc';
 import { coffeeKey, currentPrice, priceProblem, wholesalePrice, type PriceEntry } from './modelPrices';
@@ -58,7 +57,6 @@ export function priceListRows(
   const problems = prices.map(priceProblem).filter((p): p is string => p !== null);
   const coffees = new Map<string, { country: string; coffeeName: string; card: LotCard | undefined }>();
   for (const card of cards) {
-    if (isDeleted(card.lot)) continue;
     const key = coffeeKey(card.lot.country, card.lot.name);
     const known = coffees.get(key);
     const usable = card.bags.some((b) => b.prices.length > 0) ? card : undefined;

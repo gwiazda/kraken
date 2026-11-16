@@ -43,10 +43,10 @@ export interface CostsRepository {
   /** The owner's roast loss for a lot ('' = use the average again). */
   saveLoss(lotId: string, value: string, existing: LotCost | undefined, by: () => Promise<string>, now: Date): Promise<void>;
   /**
-   * Saves a main price (`fields` from priceFields). A price already set today for that coffee and size is changed;
-   * otherwise a row is added, so older prices stay as the history.
+   * Saves a main price (`fields` from priceFields) as a new row: older prices stay as the history, and the newest row
+   * wins, so a save always takes effect even if someone else saved a price meanwhile.
    */
-  savePrice(fields: Readonly<Record<string, string>>, sameDay: PriceEntry | undefined, by: () => Promise<string>, now: Date): Promise<void>;
+  savePrice(fields: Readonly<Record<string, string>>, by: string, now: Date): Promise<void>;
 }
 
 export interface CostTables {
@@ -92,11 +92,7 @@ export function costsRepository(tables: CostTables): CostsRepository {
       if (existing) await tables.lotCosts.update(existing.id, { roast_loss_percent: value }, existing.source, now);
       else if (value !== '') await tables.lotCosts.add({ lot_id: lotId, roast_loss_percent: value }, await by(), now);
     },
-    async savePrice(fields, sameDay, by, now) {
-      const gross = fields['price_gross_pln'] ?? '';
-      if (sameDay) await tables.prices.update(sameDay.id, { price_gross_pln: gross }, sameDay.source, now);
-      else await tables.prices.add(fields, await by(), now);
-    },
+    savePrice: async (fields, by, now) => void (await tables.prices.add(fields, by, now)),
   };
 }
 

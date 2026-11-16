@@ -65,22 +65,19 @@ describe('sheetCostsRepository (in-memory Google)', () => {
     expect(own).toMatchObject({ lotId: 'L1', lossTenths: null, lossText: '' });
   });
 
-  it('adds a main price, changes it the same day, and keeps the old price as history on a later day', async () => {
+  it('adds a row for every price saved: the newest wins, older ones stay as history', async () => {
     const { repo } = await setup();
     const key = coffeeKey('Kenya', 'Kegwa');
-    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7400, '2026-11-16'), undefined, who, now);
-    let prices = (await repo.load()).prices;
-    expect(prices.map((p) => [p.grams, p.grossGrosze, p.validFrom])).toEqual([[250, 7400, '2026-11-16']]);
-    const today = currentPrice(prices, key, 250, '2026-11-16');
-    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7500, '2026-11-16'), today ?? undefined, notAsked, later);
-    prices = (await repo.load()).prices;
-    expect(prices.map((p) => [p.grossGrosze, p.validFrom])).toEqual([[7500, '2026-11-16']]);
-    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7900, '2026-12-01'), undefined, who, later);
-    prices = (await repo.load()).prices;
+    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7400, '2026-11-16'), 'owner@example.com', now);
+    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7500, '2026-11-16'), 'partner@example.com', later); // changed the same day
+    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7900, '2026-12-01'), 'owner@example.com', later);
+    const prices = (await repo.load()).prices;
     expect(prices.map((p) => [p.grossGrosze, p.validFrom])).toEqual([
+      [7400, '2026-11-16'],
       [7500, '2026-11-16'],
       [7900, '2026-12-01'],
     ]);
+    expect(currentPrice(prices, key, 250, '2026-11-30')?.grossGrosze).toBe(7500);
     expect(currentPrice(prices, key, 250, '2026-12-01')?.grossGrosze).toBe(7900);
   });
 });

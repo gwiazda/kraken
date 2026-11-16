@@ -215,11 +215,12 @@ export function showPriceListPage(root: HTMLElement, deps: CostsPageDeps, fromCl
         error.textContent = result.error;
         return;
       }
-      const today = localDate(deps.now());
-      const sameDay = cell.current?.validFrom === today ? cell.current : undefined;
       save(
         status,
-        () => deps.repo.savePrice(priceFields(row.country, row.coffeeName, cell.grams, result.grosze, today), sameDay, deps.whoAmI, deps.now()),
+        async () => {
+          const now = deps.now();
+          await deps.repo.savePrice(priceFields(row.country, row.coffeeName, cell.grams, result.grosze, localDate(now)), await deps.whoAmI(), now);
+        },
         `${row.title}, ${cell.label}: main price saved.`,
       );
     });

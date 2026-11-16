@@ -7,8 +7,10 @@
 //   wholesale net       = main gross ÷ (1 + VAT) × (1 − discount), rounded to whole złoty (half up)
 //   wholesale gross     = wholesale net × (1 + VAT) (for the invoice)
 
+import { isValidDate } from '../../core/dates';
 import { moneyText, parseMoney } from '../../core/numbers';
-import { grossOf, netOf, roundToZloty } from './modelCalc';
+import { BAG_SIZES_G, formatBagSize } from './model';
+import { grossOf, netOf, roundGrosze } from './modelCalc';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -41,8 +43,6 @@ export interface PriceEntry {
   readonly source: Fields;
 }
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 export function priceFromFields(fields: Fields, row: number): PriceEntry {
   const gross = parseMoney(text(fields, 'price_gross_pln'));
   const grams = Number(text(fields, 'bag_size_g'));
@@ -68,19 +68,22 @@ export function priceProblem(entry: PriceEntry): string | null {
   if (entry.deletedAt !== '') return null;
   const what = `Row ${entry.row} of the Price list tab`;
   if (entry.grossGrosze === null) return `${what} has the price "${entry.grossText}", which Kraken cannot read, so it is left out.`;
-  if (entry.grams === null) return `${what} has a bag size Kraken cannot read, so it is left out.`;
-  if (!DATE.test(entry.validFrom)) return `${what} has the date "${entry.validFrom}", which is not YYYY-MM-DD, so it is left out.`;
+  if (entry.grams === null || !(BAG_SIZES_G as readonly number[]).includes(entry.grams)) {
+    return `${what} has the bag size "${entry.source['bag_size_g'] ?? ''}", which is not ${BAG_SIZES_G.map(formatBagSize).join(', ')} (in grams: ${BAG_SIZES_G.join(', ')}), so it is left out.`;
+  }
+  if (!isValidDate(entry.validFrom)) return `${what} has the date "${entry.validFrom}", which is not a date (YYYY-MM-DD), so it is left out.`;
   return null;
 }
 
 /**
  * The price in use for a coffee and bag size on `today` (YYYY-MM-DD): the active, readable row with the latest
- * "valid from" date that has come. If two rows have the same date, the lower one in the tab (added later) wins.
+ * "valid from" date that has come. If two rows have the same date, the lower one in the tab (added later) wins, so
+ * a price changed twice on one day shows the last one.
  */
 export function currentPrice(entries: readonly PriceEntry[], key: string, grams: number, today: string): PriceEntry | null {
   let best: PriceEntry | null = null;
   for (const entry of entries) {
-    if (entry.key !== key || entry.grams !== grams || priceProblem(entry) !== null || entry.deletedAt !== '') continue;
+    if (entry.key !== key || entry.grams !== grams || entry.deletedAt !== '' || priceProblem(entry) !== null) continue;
     if (entry.validFrom > today) continue;
     if (!best || entry.validFrom > best.validFrom || (entry.validFrom === best.validFrom && entry.row > best.row)) best = entry;
   }
@@ -113,6 +116,7 @@ export interface WholesalePrice {
 }
 
 export function wholesalePrice(mainGrossGrosze: number, discountTenths: number, vatTenths: number): WholesalePrice {
-  const net = roundToZloty((netOf(mainGrossGrosze, vatTenths) * (1000 - discountTenths)) / 1000);
+  // Rounded once, from the exact amount (no amount before rounding is shown here, so none to agree with).
+  const net = roundGrosze((netOf(mainGrossGrosze, vatTenths) * (1000 - discountTenths)) / 100000) * 100;
   return { net, gross: grossOf(net, vatTenths) };
 }
