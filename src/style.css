@@ -648,6 +648,14 @@ details summary {
   font-weight: 700;
 }
 
+.cost-steps {
+  margin-top: 0.75rem;
+}
+
+.cost-steps[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
 .cost-settings {
   margin-top: 2.5rem;
   padding-top: 1rem;

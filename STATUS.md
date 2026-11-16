@@ -17,18 +17,16 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- Nothing. This PR only records the session.
+- **Simpler Costs & prices** (branch `claude/simpler-costs`): each lot card shows the short answer (lot price, cost of
+  one bag, suggested prices per size); the steps fold away under "Show calculation"; suggested gross prices are
+  rounded to whole złoty (half up) and their net is worked out from the rounded gross. Owner to test locally.
 
 ## Next steps
-1. **Simpler Costs & prices** (agreed, not started):
-   a. Each lot card shows the short answer first: the lot price, cost of one bag, suggested prices per size.
-   b. The step-by-step part folds away under "Show calculation".
-   c. Suggested **gross** prices rounded to **whole złoty** (half up); net calculated from the rounded gross.
-2. **Price list** tab (REQUIREMENTS sections 5 and 6): chosen retail prices; wholesale view with a discount %.
+1. **Price list** tab (REQUIREMENTS sections 5 and 6): chosen retail prices; wholesale view with a discount %.
    Agree the details with the owner first.
-3. **Offer PDF** on Google Drive (REQUIREMENTS section 6): test both ways (PDF library vs Google Docs export) on a
+2. **Offer PDF** on Google Drive (REQUIREMENTS section 6): test both ways (PDF library vs Google Docs export) on a
    sample offer before choosing; shared "Kraken offers" folder.
-4. Roasts filters and paging (later).
+3. Roasts filters and paging (later).
 
 ## Open questions for the owners
 - Price list details (when we get there): rounding of discounted prices, presets, special prices per customer.

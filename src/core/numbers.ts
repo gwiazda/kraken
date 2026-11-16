@@ -43,6 +43,11 @@ export function formatPln(grosze: number): string {
   return `${whole},${String(grosze % 100).padStart(2, '0')} zł`;
 }
 
+/** For the screen, whole złoty without the grosze: "59 zł", "1 234 zł" (other amounts as formatPln). */
+export function formatWholePln(grosze: number): string {
+  return grosze % 100 === 0 ? formatPln(grosze).replace(/,00(?=\szł$)/, '') : formatPln(grosze);
+}
+
 /** For the screen: "60 kg", "21,5 kg". */
 export function formatKg(grams: number): string {
   return `${kgText(grams).replace('.', ',')} kg`;

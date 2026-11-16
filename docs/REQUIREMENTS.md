@@ -292,6 +292,8 @@ Flexible enough to generate prices for any discount.
   "Change", roasted from 1 kg, cost of 1 kg roasted, and for 250 g, 500 g and 1 kg: coffee, items, cost of one bag,
   net and gross price at each markup.
 - **Bag costs & settings:** the cost items of each bag size (add, edit, delete); VAT, markups, default loss.
+- **Made simpler (2026-11-16):** a card shows only the lot price, the cost of one bag and the suggested prices
+  (gross in whole złoty, with their net) per size; the rest folds away under "Show calculation".
 Tabs (data version 4): `Cost settings` (name, value), `Bag costs` (bag_size_id = the size in grams, item,
 cost_net_pln), `Lot costs` (lot_id, roast_loss_percent). (A first test of version 4 on the owner's sheet also made a
 "Bag sizes" tab; the owner deleted it, and Kraken never reads it.)
@@ -311,7 +313,7 @@ in percent off the retail price (see section 5).
 
 **[R] Rounding of suggested prices (owner, 2026-11-16):** the suggested **gross** price is rounded to **whole
 złoty** by the usual rule (half up: 74,50 → 75 zł); the net price is calculated from the rounded gross. The exact
-amounts stay visible in the step-by-step calculation. (Not built yet.)
+amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 
 **[R] Offer generator (owner, 2026-11-16, later):** make an offer as a PDF from the page. The offer is saved on
 **Google Drive** so both owners can open it from a link in Kraken and send it themselves, whoever made it.
