@@ -54,7 +54,7 @@ describe('calculateLot', () => {
   });
 
   it('uses the markups and VAT from the settings', () => {
-    const own = { vatTenths: 80, markupHundredths: [150], defaultLossTenths: 150 };
+    const own = { ...DEFAULT_SETTINGS, vatTenths: 80, markupHundredths: [150] };
     const result = calculateLot(100000, 10000, 0, [{ id: 'S', grams: 1000, itemsGrosze: [0] }], own);
     expect(result?.bags[0]?.prices).toEqual([{ markupHundredths: 150, net: 15000, gross: 16200, suggestedGross: 16200, suggestedNet: 15000 }]);
   });

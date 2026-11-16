@@ -25,12 +25,17 @@ export interface CostSettings {
   readonly vatTenths: number;
   readonly markupHundredths: readonly number[];
   readonly defaultLossTenths: number;
+  /** Wholesale discounts offered as quick buttons on the Price list, in tenths of a percent (150 = 15 %). */
+  readonly discountTenths: readonly number[];
 }
 
-/** Used until the owner saves their own (owner, 2026-11-16: VAT 23 %, markups 2×, 2,5×, 3×, default loss 15 %). */
-export const DEFAULT_SETTINGS: CostSettings = { vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150 };
+/**
+ * Used until the owner saves their own (owner, 2026-11-16: VAT 23 %, markups 2×, 2,5×, 3×, default loss 15 %,
+ * wholesale discounts 15 %, 25 %, 30 %).
+ */
+export const DEFAULT_SETTINGS: CostSettings = { vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150, discountTenths: [150, 250, 300] };
 
-export const SETTING_NAMES = { vat: 'vat_percent', markups: 'markups', defaultLoss: 'default_roast_loss_percent' } as const;
+export const SETTING_NAMES = { vat: 'vat_percent', markups: 'markups', defaultLoss: 'default_roast_loss_percent', discounts: 'wholesale_discounts_percent' } as const;
 
 export interface SettingRow {
   readonly id: string;
@@ -86,6 +91,22 @@ export function parseMarkups(value: string): number[] | undefined {
   return result;
 }
 
+/** Discounts typed as "15; 25; 30" → tenths. Undefined unless 1 to 10 percentages, each from 1 to 99 %. */
+export function parseDiscounts(value: string): number[] | undefined {
+  const parts = value.split(';').map((p) => p.trim()).filter((p) => p !== '');
+  if (parts.length === 0 || parts.length > 10) return undefined;
+  const result: number[] = [];
+  for (const part of parts) {
+    if (/\s/.test(part)) return undefined; // "15, 25" was typed with "," between them
+    const tenths = percentFromCell(part);
+    if (typeof tenths !== 'number' || tenths === 0) return undefined;
+    result.push(tenths);
+  }
+  return result;
+}
+
+export const discountsText = (tenths: readonly number[]) => tenths.map(percentText).join(';');
+
 export const markupsText = (hundredths: readonly number[]) => hundredths.map((m) => toDecimalText(m, 2)).join(';');
 /** For the screen: "2,5×". */
 export const formatMarkup = (hundredths: number) => `${toDecimalText(hundredths, 2).replace('.', ',')}×`;
@@ -117,6 +138,7 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
       vatTenths: read(SETTING_NAMES.vat, percentFromCell, DEFAULT_SETTINGS.vatTenths),
       markupHundredths: read(SETTING_NAMES.markups, parseMarkups, DEFAULT_SETTINGS.markupHundredths),
       defaultLossTenths: read(SETTING_NAMES.defaultLoss, percentFromCell, DEFAULT_SETTINGS.defaultLossTenths),
+      discountTenths: read(SETTING_NAMES.discounts, parseDiscounts, DEFAULT_SETTINGS.discountTenths),
     },
     problems,
   };
@@ -126,12 +148,14 @@ export interface SettingsForm {
   vat: string;
   markups: string;
   defaultLoss: string;
+  discounts: string;
 }
 
 export const formFromSettings = (s: CostSettings): SettingsForm => ({
   vat: percentText(s.vatTenths).replace('.', ','),
   markups: s.markupHundredths.map((m) => toDecimalText(m, 2).replace('.', ',')).join('; '),
   defaultLoss: percentText(s.defaultLossTenths).replace('.', ','),
+  discounts: s.discountTenths.map((d) => percentText(d).replace('.', ',')).join('; '),
 });
 
 export type SettingsErrors = Partial<Record<keyof SettingsForm, string>>;
@@ -145,10 +169,17 @@ export function validateSettingsForm(form: SettingsForm): { ok: true; values: Re
   if (!markups) errors.markups = 'Enter 1 to 5 multipliers separated by ";", e.g. 2; 2,5; 3.';
   const loss = percentFromCell(form.defaultLoss);
   if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage from 1 to 99, e.g. 15.';
-  if (typeof vat !== 'number' || !markups || typeof loss !== 'number') return { ok: false, errors };
+  const discounts = parseDiscounts(form.discounts);
+  if (!discounts) errors.discounts = 'Enter 1 to 10 percentages from 1 to 99 separated by ";", e.g. 15; 25; 30.';
+  if (typeof vat !== 'number' || !markups || typeof loss !== 'number' || !discounts) return { ok: false, errors };
   return {
     ok: true,
-    values: { [SETTING_NAMES.vat]: percentText(vat), [SETTING_NAMES.markups]: markupsText(markups), [SETTING_NAMES.defaultLoss]: percentText(loss) },
+    values: {
+      [SETTING_NAMES.vat]: percentText(vat),
+      [SETTING_NAMES.markups]: markupsText(markups),
+      [SETTING_NAMES.defaultLoss]: percentText(loss),
+      [SETTING_NAMES.discounts]: discountsText(discounts),
+    },
   };
 }
 

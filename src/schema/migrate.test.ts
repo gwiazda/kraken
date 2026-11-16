@@ -110,11 +110,29 @@ describe('version 4', () => {
 
   it('updates a version 3 sheet with the three tabs, keeping the data', async () => {
     const google = sheetAt(3, [{ title: 'Lots', sheetId: 3, rows: [['id', 'code'], ['L1', 'KENYA-26-09']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 3), appVersion: 4 });
     expect(result.toVersion).toBe(4);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Lots', 'Cost settings', 'Bag costs', 'Lot costs']);
     expect(tab(google, 'Lots')?.rows).toEqual([['id', 'code'], ['L1', 'KENYA-26-09']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '4']);
+  });
+});
+
+describe('version 5', () => {
+  it('adds the Price list tab, agreed on 2026-11-16', () => {
+    const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
+    expect(MIGRATIONS[3]?.steps).toEqual([
+      { kind: 'add-tab', tab: 'Price list', headers: ['id', 'country', 'coffee_name', 'bag_size_g', 'price_gross_pln', 'valid_from', ...safety] },
+    ]);
+  });
+
+  it('updates a version 4 sheet with the Price list tab, keeping the data', async () => {
+    const google = sheetAt(4, [{ title: 'Cost settings', sheetId: 3, rows: [['id', 'name', 'value'], ['S1', 'vat_percent', '23']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result.toVersion).toBe(5);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Cost settings', 'Price list']);
+    expect(tab(google, 'Cost settings')?.rows).toEqual([['id', 'name', 'value'], ['S1', 'vat_percent', '23']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '5']);
   });
 });
 

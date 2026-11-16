@@ -55,6 +55,8 @@ export interface BagLine {
    */
   readonly prices: readonly {
     readonly markup: string;
+    /** The suggested gross price in grosze (whole złoty), to pick on the Price list. */
+    readonly suggestedGrossGrosze: number;
     readonly suggestedGross: string;
     readonly suggestedNet: string;
     readonly net: string;
@@ -167,6 +169,7 @@ export function lotCards(
         missing: bag.total === null,
         prices: bag.prices.map((p) => ({
           markup: formatMarkup(p.markupHundredths),
+          suggestedGrossGrosze: p.suggestedGross,
           suggestedGross: formatWholePln(p.suggestedGross),
           suggestedNet: money(p.suggestedNet),
           net: money(p.net),

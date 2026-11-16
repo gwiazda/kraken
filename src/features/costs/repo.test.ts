@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createKrakenSpreadsheet } from '../../schema';
 import { fakeGoogleDrive } from '../../testing/fakeGoogleDrive';
-import { readSettings } from './model';
+import { DEFAULT_SETTINGS, readSettings } from './model';
+import { coffeeKey, currentPrice, priceFields } from './modelPrices';
 import { sheetCostsRepository } from './repo';
 
 const now = new Date('2026-11-16T10:00:00.000Z');
@@ -21,14 +22,14 @@ async function setup() {
 describe('sheetCostsRepository (in-memory Google)', () => {
   it('starts empty on a new sheet', async () => {
     const { repo } = await setup();
-    expect(await repo.load()).toEqual({ settings: [], costs: [], lotCosts: [], problems: [] });
+    expect(await repo.load()).toEqual({ settings: [], costs: [], lotCosts: [], prices: [], problems: [] });
   });
 
   it('saves settings: adds new ones, then changes only what changed', async () => {
     const { google, repo } = await setup();
     await repo.saveSettings({ vat_percent: '23', markups: '2;2.5;3', default_roast_loss_percent: '15' }, [], who, now);
     let data = await repo.load();
-    expect(readSettings(data.settings).settings).toEqual({ vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150 });
+    expect(readSettings(data.settings).settings).toEqual(DEFAULT_SETTINGS);
     google.requests.length = 0;
     await repo.saveSettings({ vat_percent: '8', markups: '2;2.5;3', default_roast_loss_percent: '15' }, data.settings, notAsked, later);
     expect(google.requests.filter((r) => r.method !== 'GET' && !r.url.includes(':batchGet'))).toHaveLength(1);
@@ -62,5 +63,24 @@ describe('sheetCostsRepository (in-memory Google)', () => {
     await repo.saveLoss('L1', '', own, notAsked, later);
     [own] = (await repo.load()).lotCosts;
     expect(own).toMatchObject({ lotId: 'L1', lossTenths: null, lossText: '' });
+  });
+
+  it('adds a main price, changes it the same day, and keeps the old price as history on a later day', async () => {
+    const { repo } = await setup();
+    const key = coffeeKey('Kenya', 'Kegwa');
+    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7400, '2026-11-16'), undefined, who, now);
+    let prices = (await repo.load()).prices;
+    expect(prices.map((p) => [p.grams, p.grossGrosze, p.validFrom])).toEqual([[250, 7400, '2026-11-16']]);
+    const today = currentPrice(prices, key, 250, '2026-11-16');
+    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7500, '2026-11-16'), today ?? undefined, notAsked, later);
+    prices = (await repo.load()).prices;
+    expect(prices.map((p) => [p.grossGrosze, p.validFrom])).toEqual([[7500, '2026-11-16']]);
+    await repo.savePrice(priceFields('Kenya', 'Kegwa', 250, 7900, '2026-12-01'), undefined, who, later);
+    prices = (await repo.load()).prices;
+    expect(prices.map((p) => [p.grossGrosze, p.validFrom])).toEqual([
+      [7500, '2026-11-16'],
+      [7900, '2026-12-01'],
+    ]);
+    expect(currentPrice(prices, key, 250, '2026-12-01')?.grossGrosze).toBe(7900);
   });
 });
