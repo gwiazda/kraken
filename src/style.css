@@ -741,3 +741,40 @@ details summary {
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 0 2rem;
 }
+
+/* ---- Price list ---- */
+
+.sub-nav {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sub-nav .inline-form {
+  margin: 0;
+}
+
+.price-table {
+  width: auto;
+  min-width: 28rem;
+}
+
+.price-table tbody th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  font-weight: normal;
+  color: var(--white);
+}
+
+.price-table td {
+  vertical-align: top;
+}
+
+.price-form {
+  text-align: left;
+  min-width: 16rem;
+}
+
+.price-form .btn {
+  margin: 0.15rem 0;
+}

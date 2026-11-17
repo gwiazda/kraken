@@ -421,7 +421,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     const errors = new Map<keyof SettingsForm, HTMLParagraphElement>();
     const inputs = new Map<keyof SettingsForm, HTMLInputElement>();
     const field = (key: keyof SettingsForm, label: string, hint: string, tip?: string) => {
-      const input = el('input', { id: `setting-${key}`, type: 'text', inputmode: key === 'markups' ? 'text' : 'decimal', autocomplete: 'off' });
+      const input = el('input', { id: `setting-${key}`, type: 'text', inputmode: key === 'markups' || key === 'discounts' ? 'text' : 'decimal', autocomplete: 'off' });
       input.value = initial[key];
       inputs.set(key, input);
       const error = el('p', { class: 'field-error', role: 'alert' });
@@ -450,6 +450,12 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
           'How many times the cost of one bag the suggested price is. E.g. 2 means: a bag that costs 24 zł to make is offered at 48 zł net. Each multiplier gives one suggested price on the lot cards.',
         ),
         field('defaultLoss', 'Default roast loss %', 'For a lot with no roasts yet.'),
+        field(
+          'discounts',
+          'Wholesale discounts %',
+          'Separated by ";", e.g. 15; 25; 30.',
+          'The quick buttons on the Price list. Any other % can still be typed there.',
+        ),
       ),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),
       status,
@@ -457,7 +463,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const read = (key: keyof SettingsForm) => inputs.get(key)?.value ?? '';
-      const result = validateSettingsForm({ vat: read('vat'), markups: read('markups'), defaultLoss: read('defaultLoss') });
+      const result = validateSettingsForm({ vat: read('vat'), markups: read('markups'), defaultLoss: read('defaultLoss'), discounts: read('discounts') });
       for (const [key, line] of errors) line.textContent = result.ok ? '' : (result.errors[key] ?? '');
       if (!result.ok) return;
       const loaded = data?.settings ?? [];

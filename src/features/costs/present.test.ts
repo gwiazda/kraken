@@ -71,9 +71,9 @@ describe('lotCards', () => {
         total: '24,15\u00a0zł',
         missing: false,
         prices: [
-          { markup: '2×', suggestedGross: '59\u00a0zł', suggestedNet: '47,97\u00a0zł', net: '48,29\u00a0zł', gross: '59,40\u00a0zł' },
-          { markup: '2,5×', suggestedGross: '74\u00a0zł', suggestedNet: '60,16\u00a0zł', net: '60,37\u00a0zł', gross: '74,25\u00a0zł' },
-          { markup: '3×', suggestedGross: '89\u00a0zł', suggestedNet: '72,36\u00a0zł', net: '72,44\u00a0zł', gross: '89,10\u00a0zł' },
+          { markup: '2×', suggestedGrossGrosze: 5900, suggestedGross: '59\u00a0zł', suggestedNet: '47,97\u00a0zł', net: '48,29\u00a0zł', gross: '59,40\u00a0zł' },
+          { markup: '2,5×', suggestedGrossGrosze: 7400, suggestedGross: '74\u00a0zł', suggestedNet: '60,16\u00a0zł', net: '60,37\u00a0zł', gross: '74,25\u00a0zł' },
+          { markup: '3×', suggestedGrossGrosze: 8900, suggestedGross: '89\u00a0zł', suggestedNet: '72,36\u00a0zł', net: '72,44\u00a0zł', gross: '89,10\u00a0zł' },
         ],
       },
       { label: '500 g', coffee: '45,29\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },

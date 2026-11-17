@@ -2,3 +2,4 @@
 
 export { sheetCostsRepository, type CostsRepository } from './repo';
 export { showCostsPage, type CostsPageDeps } from './page';
+export { showPriceListPage } from './pricesPage';

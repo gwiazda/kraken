@@ -18,7 +18,7 @@ import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
-import { sheetCostsRepository, showCostsPage } from './features/costs';
+import { sheetCostsRepository, showCostsPage, showPriceListPage } from './features/costs';
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
@@ -101,6 +101,7 @@ window.addEventListener('popstate', (event) => {
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'costs') showCosts(info, false, 'none');
+  else if (screen === 'prices') showPrices(info, false, 'none');
   else if (screen === 'sync') showSync(info, syncFrom, 'none');
   else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
@@ -113,7 +114,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'costs' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'costs' | 'prices' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -136,6 +137,9 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Costs & prices', 'costs', () => {
         if (!saving) showCosts(info, true, menuMove('costs'));
+      }),
+      tab('Price list', 'prices', () => {
+        if (!saving) showPrices(info, true, menuMove('prices'));
       }),
       tab('Settings', 'settings', () => {
         if (!saving) showSettings(info, menuMove('settings'));
@@ -404,6 +408,15 @@ function showCosts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
     showApp(info, 'costs'),
     { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
     undefined,
+    fromClick,
+  );
+}
+
+function showPrices(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('prices', move);
+  showPriceListPage(
+    showApp(info, 'prices'),
+    { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
     fromClick,
   );
 }

@@ -73,14 +73,18 @@ test that reads every import line), so CI fails if a rule is broken.
   `costs`: "Costs & prices" (sub-tabs "Prices per lot" and "Bag costs & settings"; lot prices are edited here, stored
   on the Lots tab; bag sizes fixed at 250 g, 500 g, 1 kg; settings and bag cost items; a lot card shows the short answer, the steps fold
   under "Show calculation"; suggested gross prices rounded to whole złoty, net from the rounded gross;
-  `modelCalc.ts` the calculation, pure, exact until rounded for the screen);
+  `modelCalc.ts` the calculation, pure, exact until rounded for the screen; also the **Price list** page
+  (`pricesPage.ts`, `modelPrices.ts`, `presentPrices.ts`): a main gross price per coffee (= country + coffee name of
+  its lots) and bag size, picked from the suggestions or typed, saved from today (older rows are the history);
+  wholesale = main gross ÷ (1 + VAT) − discount, net rounded to whole złoty; discount buttons from the
+  `wholesale_discounts_percent` setting (15; 25; 30) plus any typed %);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `googleErrors.ts` explains Google errors
-  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Costs & prices and Settings (owner's
+  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Costs & prices, Price list and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Roasts, Costs & prices, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Lots page with a menu (Lots, Roasts, Costs & prices, Price list, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

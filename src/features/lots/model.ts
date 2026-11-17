@@ -1,7 +1,7 @@
 // Green coffee lots: one lot = one delivery. Pure logic only (no Google, no screen), so all of it is tested directly.
 // Columns agreed with the owner on 2026-11-15, see docs/REQUIREMENTS.md section 1.
 
-import { localDate } from '../../core/dates';
+import { isValidDate, localDate } from '../../core/dates';
 import { divideRounded, kgText, moneyText, parseKg, parseMoney } from '../../core/numbers';
 
 /** The Lots columns a feature writes (the safety columns id, created_at, … are handled by the table). */
@@ -104,14 +104,7 @@ export function lotFromFields(fields: Fields, row: number): Lot {
   };
 }
 
-/** True for a real calendar date written as YYYY-MM-DD. */
-export function isValidDate(text: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
-  if (!match) return false;
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-}
+export { isValidDate } from '../../core/dates';
 
 export const isDeleted = (lot: Lot) => lot.deletedAt !== '';
 

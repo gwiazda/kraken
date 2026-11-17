@@ -241,6 +241,19 @@ Flexible enough to generate prices for any discount.
 - **[R]** Every discounted price can be **overridden by hand**. An overridden price is clearly marked,
   and can be reset to the calculated value.
 
+**[R] Decided with the owner (2026-11-16), Price list part 1:**
+- A **Price list** menu tab and sheet tab. It holds the **main price** per coffee and bag size: **gross**, set by
+  clicking one of the suggested prices from Costs & prices or by typing one. Retail customers pay it.
+  Each price is saved as a new row with a **valid from** date (today); old prices stay in the tab (price history);
+  the newest row wins, also when a price is changed twice on one day.
+- **Per coffee, not per lot:** lots with the same country and coffee name (e.g. "Kenya · Kegwa") are the same coffee,
+  so a new delivery keeps the price. The suggestions come from the newest lot of that coffee.
+- **Wholesale** prices are **net**, rounded to **whole złoty** (half up): main gross ÷ (1 + VAT), minus the
+  discount, rounded (74 zł gross → 60,16 net → −15 % = 51,14 → **51 zł net**; gross for the invoice = 51 × 1,23).
+  This replaces the "no rounding" rule above for wholesale.
+- **Discounts:** 15 %, 25 % and 30 % from the start (a setting the owner can extend), plus any % typed once.
+- Later: customers (name, NIP, own discount), special prices, hand overrides of a discounted price, the offer PDF.
+
 ---
 
 ## 6. Cost calculation and pricing
