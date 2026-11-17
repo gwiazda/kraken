@@ -328,15 +328,24 @@ in percent off the retail price (see section 5).
 złoty** by the usual rule (half up: 74,50 → 75 zł); the net price is calculated from the rounded gross. The exact
 amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 
-**[R] Offer generator (owner, 2026-11-16, later):** make an offer as a PDF from the page. The offer is saved on
-**Google Drive** so both owners can open it from a link in Kraken and send it themselves, whoever made it.
-**[P]** A "Kraken offers" folder that Kraken creates and the owner shares once with the partner as editor (each owner
-picks it once in Kraken, like the sheet); Kraken writes a row per offer (date, customer, discount, link). A PDF cannot
-be edited in Drive, so either keep an editable Google Doc next to it, or change the offer in Kraken and make a new
-PDF. Both ways of making the PDF (a small PDF library, or a Google Doc exported as PDF) to be tested first.
-**[P]** Without a server: a printable offer page (logo, coffees, sizes, prices for the chosen discount, date) and
-Chrome's **Print → Save as PDF**. No new library and no data leaves the browser. A PDF library could make the file
-directly, but would be a new dependency; only if printing is not good enough.
+**[R] Products and offers (owner, 2026-11-17; built):**
+- A **Products** page and tab: products named however the owner likes (e.g. "Kenia", "Gwatemala Espresso"),
+  **not linked to lots**. Each has the details shown on the offer (country, region, altitude, processing, variety,
+  flavour profile, brew method such as Espresso / Filtr) and its own **main gross price** per bag size (250 g, 500 g,
+  1 kg; empty = not offered in that size). The Price list's suggestions are only a guide.
+- An **Offer** page, in **Polish** (for Polish customers): customer name, date, **valid for 14 days** (the "valid
+  until" date is on the offer), ticked products, ticked bag sizes and ticked discounts (from the discount setting),
+  each with a name such as "Do 10 kg" (default names for 15 / 25 / 30 %: "Do 10 kg", "10–20 kg", "20+ kg").
+  Prices on the offer: wholesale **net**, rounded to whole złoty (as on the Price list), one block per size;
+  "Sugerowana cena detaliczna brutto" (the main gross price) under **250 g only**.
+- The design is the owner's HTML template (logo, crack, lime bean icon, cards, yellow banner), A4; products flow onto
+  more pages as needed. The page background is pure black (#000, template #0a0a0a) so the logo's black background
+  does not show as a box.
+- **PDF:** "Save as PDF" opens Chrome's print window with the file name filled in, e.g. "Oferta dla Kawiarnia Pod
+  Lipą 16.11.2026". No new library. Offers are **not stored** in Kraken (owner: keep it simple; the PDF is the record).
+- **Later:** Kraken makes the PDF itself and puts it on Google Drive (shared "Kraken offers" folder) — needs a PDF
+  library (a picture of the page, or the design redrawn in code). Until then, Google Drive for desktop can make the
+  saved PDF appear on Drive.
 
 ---
 

@@ -19,6 +19,8 @@ import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
 import { sheetCostsRepository, showCostsPage, showPriceListPage } from './features/costs';
+import { showOfferPage } from './features/offers';
+import { sheetProductsRepository, showProductsPage } from './features/products';
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
@@ -84,7 +86,7 @@ function leave(screen: Screen): void {
 /** How a menu click moves: back to the same screen (or out of an open form) replaces, anything else adds a step. */
 function menuMove(target: Screen): HistoryMove {
   const now = screenOf(window.history.state);
-  return now === target || now === 'lot-form' || now === 'roast-form' ? 'replace' : 'push';
+  return now === target || now === 'lot-form' || now === 'roast-form' || now === 'product-form' ? 'replace' : 'push';
 }
 
 window.addEventListener('popstate', (event) => {
@@ -102,6 +104,11 @@ window.addEventListener('popstate', (event) => {
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'costs') showCosts(info, false, 'none');
   else if (screen === 'prices') showPrices(info, false, 'none');
+  else if (screen === 'offer') showOffer(info, false, 'none');
+  else if (screen === 'products' || screen === 'product-form') {
+    if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
+    showProducts(info, false, 'none');
+  }
   else if (screen === 'sync') showSync(info, syncFrom, 'none');
   else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
@@ -114,7 +121,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'costs' | 'prices' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'costs' | 'prices' | 'products' | 'offer' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -140,6 +147,12 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Price list', 'prices', () => {
         if (!saving) showPrices(info, true, menuMove('prices'));
+      }),
+      tab('Products', 'products', () => {
+        if (!saving) showProducts(info, true, menuMove('products'));
+      }),
+      tab('Offer', 'offer', () => {
+        if (!saving) showOffer(info, true, menuMove('offer'));
       }),
       tab('Settings', 'settings', () => {
         if (!saving) showSettings(info, menuMove('settings'));
@@ -417,6 +430,38 @@ function showPrices(info: SpreadsheetInfo, fromClick = false, move: HistoryMove 
   showPriceListPage(
     showApp(info, 'prices'),
     { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
+    fromClick,
+  );
+}
+
+function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('products', move);
+  showProductsPage(
+    showApp(info, 'products'),
+    {
+      ...googleDeps(),
+      repo: sheetProductsRepository(client, info.id),
+      formOpened: () => record('product-form', 'push'),
+      formClosed: () => {
+        currentScreen = 'products';
+        leave('product-form');
+      },
+    },
+    undefined,
+    fromClick,
+  );
+}
+
+function showOffer(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('offer', move);
+  showOfferPage(
+    showApp(info, 'offer'),
+    {
+      ...googleDeps(),
+      products: sheetProductsRepository(client, info.id),
+      costs: sheetCostsRepository(client, info.id),
+      openProducts: () => showProducts(info, true),
+    },
     fromClick,
   );
 }
