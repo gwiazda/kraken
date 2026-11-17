@@ -10,6 +10,8 @@ Provided by the owner on 2026-11-06. Use these for the Kraken UI. Do not redraw 
 | `logo-stacked-black.png` | Bean above wordmark, black, transparent background, 303×285 | Light backgrounds, printouts |
 | `logo-stacked-black-wide.png` | Wider variant of the black stacked logo, transparent, 384×255 | Light backgrounds where more width is available |
 | `crack-yellow.png` | The crack shape on its own, yellow, transparent, 342×568 | Decorative accent (dividers, empty states) |
+| `bean-lime.png` | The cracked bean on its own, lime, transparent, 220×207 (added 2026-11-17) | Product icon on the offer |
+| `bean-black.png` | The cracked bean on its own, black, transparent, 220×207 (added 2026-11-17) | Light backgrounds |
 
 ## Colours
 | Token | Hex | Where it comes from |

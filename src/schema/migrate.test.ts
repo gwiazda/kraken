@@ -128,11 +128,29 @@ describe('version 5', () => {
 
   it('updates a version 4 sheet with the Price list tab, keeping the data', async () => {
     const google = sheetAt(4, [{ title: 'Cost settings', sheetId: 3, rows: [['id', 'name', 'value'], ['S1', 'vat_percent', '23']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 4), appVersion: 5 });
     expect(result.toVersion).toBe(5);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Cost settings', 'Price list']);
     expect(tab(google, 'Cost settings')?.rows).toEqual([['id', 'name', 'value'], ['S1', 'vat_percent', '23']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '5']);
+  });
+});
+
+describe('version 6', () => {
+  it('adds the Products tab, agreed on 2026-11-17', () => {
+    const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
+    const prices = ['price_250_gross_pln', 'price_500_gross_pln', 'price_1000_gross_pln'];
+    const details = ['country', 'region', 'altitude', 'processing', 'variety', 'flavour_profile', 'brew_method'];
+    expect(MIGRATIONS[4]?.steps).toEqual([{ kind: 'add-tab', tab: 'Products', headers: ['id', 'name', ...details, ...prices, ...safety] }]);
+  });
+
+  it('updates a version 5 sheet with the Products tab, keeping the data', async () => {
+    const google = sheetAt(5, [{ title: 'Price list', sheetId: 3, rows: [['id', 'country'], ['P1', 'Kenya']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result.toVersion).toBe(6);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Price list', 'Products']);
+    expect(tab(google, 'Price list')?.rows).toEqual([['id', 'country'], ['P1', 'Kenya']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '6']);
   });
 });
 

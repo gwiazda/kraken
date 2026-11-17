@@ -100,7 +100,7 @@ export function parseDiscounts(value: string): number[] | undefined {
     if (/\s/.test(part)) return undefined; // "15, 25" was typed with "," between them
     const tenths = percentFromCell(part);
     if (typeof tenths !== 'number' || tenths === 0) return undefined;
-    result.push(tenths);
+    if (!result.includes(tenths)) result.push(tenths); // "15; 15" is one discount
   }
   return result;
 }
