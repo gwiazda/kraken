@@ -13,7 +13,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   auth: ['core', 'config'],
   schema: ['core', 'config'],
   ui: ['core', 'config'],
-  domain: ['core', 'config'],
+  domain: ['core'], // in practice only core/numbers and core/dates: domain is pure (see isPureShared)
   feature: ['core', 'auth', 'schema', 'ui', 'config', 'domain'],
 };
 
@@ -26,9 +26,9 @@ const SEALED = (module: string) => module === 'auth' || module === 'schema' || m
 const isTest = (file: string) => file.endsWith('.test.ts') || file.startsWith('/src/testing/');
 
 /** Pure-logic files: calculations and validation, no Google and no screen. `domain` is pure as a whole. */
-const isModelFile = (file: string) => /^\/src\/(features\/[^/]+\/model[^/]*|domain\/[^/]+)\.ts$/.test(file) && !isTest(file);
+const isModelFile = (file: string) => /^\/src\/(features\/[^/]+\/model[^/]*|domain\/.+)\.ts$/.test(file) && !isTest(file);
 /** What pure files may use besides their own feature's model files: pure helpers from core, and all of domain. */
-const isPureShared = (file: string) => ['/src/core/numbers.ts', '/src/core/dates.ts'].includes(file) || file.startsWith('/src/domain/');
+const isPureShared = (file: string) => ['/src/core/numbers.ts', '/src/core/dates.ts'].includes(file) || (file.startsWith('/src/domain/') && !isTest(file));
 const BROWSER = /\b(document|window|globalThis|self|navigator|fetch|XMLHttpRequest|localStorage|sessionStorage|indexedDB|location)\b/;
 
 /** Non-code files that may be imported (styles, images, data). Anything else must resolve to a .ts file. */
@@ -213,6 +213,17 @@ describe('the checker itself catches broken rules', () => {
       '/src/domain/bagSizes.ts is pure logic and may not import /src/ui/dom.ts',
       '/src/domain/bagSizes.ts is pure logic and may not import /src/features/lots/index.ts',
       '/src/domain/bagSizes.ts is pure logic and may not use the browser (document, window, fetch, storage, ...)',
+    ]);
+    expect(
+      check({
+        '/src/core/sheets.ts': '',
+        '/src/domain/bagSizes.test.ts': '',
+        '/src/domain/prices/vat.ts': "import { s } from '../../core/sheets';",
+        '/src/features/costs/model.ts': "import { t } from '../../domain/bagSizes.test';",
+      }),
+    ).toEqual([
+      '/src/domain/prices/vat.ts is pure logic and may not import /src/core/sheets.ts',
+      '/src/features/costs/model.ts is pure logic and may not import /src/domain/bagSizes.test.ts',
     ]);
   });
 

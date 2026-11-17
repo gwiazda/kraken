@@ -20,7 +20,10 @@ export const PRODUCT_COLUMNS = [
   'variety',
   'flavour_profile',
   'brew_method',
-  ...BAG_SIZES_G.map(priceColumn),
+  // Written out, as in migration 006: a new bag size needs a new migration before it gets a column.
+  'price_250_gross_pln',
+  'price_500_gross_pln',
+  'price_1000_gross_pln',
 ] as const;
 
 /** Suggestions for the brew method field (any text is allowed). */
@@ -77,7 +80,6 @@ export function productFromFields(fields: Fields, row: number): Product {
 }
 
 export const isDeleted = (product: Product) => product.deletedAt !== '';
-
 
 /** Active products by name (Polish alphabetical order), then deleted ones. */
 export function sortProducts(products: readonly Product[]): Product[] {

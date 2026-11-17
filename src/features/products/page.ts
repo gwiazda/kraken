@@ -3,7 +3,7 @@
 // Everything from outside comes through ProductsPageDeps (main.ts provides it).
 
 import { formatWholePln } from '../../core/numbers';
-import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import {
@@ -142,7 +142,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const sorted = sortProducts(products);
     const active = sorted.filter((p) => !isDeleted(p));
     const deleted = sorted.filter(isDeleted);
-    const price = (p: Product, grams: (typeof BAG_SIZES_G)[number]) => {
+    const price = (p: Product, grams: BagSize) => {
       const grosze = p.prices[grams];
       return grosze === undefined ? el('span', { class: 'muted' }, '—') : formatWholePln(grosze);
     };

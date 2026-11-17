@@ -4,7 +4,7 @@
 
 import { formatWholePln } from '../../core/numbers';
 import { wholesalePrice } from '../costs';
-import { formatBagSize, type BagSize } from '../../domain/bagSizes';
+import { formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { isProductDeleted, type Product } from '../products';
 import { addDays, bannerText, offerFileName, polishDate, tierText, type Banner, type OfferForm } from './model';
 
@@ -41,7 +41,7 @@ export interface OfferDocument {
 const RETAIL_SIZE = 250;
 
 export function buildOffer(products: readonly Product[], form: OfferForm, vatTenths: number, validDays: number): OfferDocument {
-  const sizes = [...form.sizes].sort((a, b) => a - b) as BagSize[];
+  const sizes = form.sizes.filter(isBagSize).sort((a, b) => a - b);
   const tiers = [...form.tiers].sort((a, b) => a.tenths - b.tenths);
   const byId = new Map(products.filter((p) => !isProductDeleted(p)).map((p) => [p.id, p]));
   const ticked = form.productIds.flatMap((id) => byId.get(id) ?? []); // in the owner's order

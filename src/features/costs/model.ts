@@ -183,7 +183,7 @@ export function validateSettingsForm(form: SettingsForm): { ok: true; values: Re
   };
 }
 
-// ---- Bag costs (the sizes are fixed: domain/bagSizes.ts) ----
+// ---- Bag costs (the sizes are fixed: domain/bagSizes.ts; a cost item stores its size in grams) ----
 
 export interface BagCost {
   readonly id: string;
