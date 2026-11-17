@@ -81,6 +81,7 @@ describe('buildOffer', () => {
     const none = buildOffer(products, form({ productIds: ['K'], sizes: [500] }), 230, 14);
     expect(none.cards[0]?.blocks).toEqual([]);
     expect(none.warnings).toEqual(['Kenia has no price for 500 g, so it is shown without prices. Add them on the Products page.']);
+    expect(buildOffer(products, form({ sizes: [] }), 230, 14).warnings).toEqual([]); // no size ticked: the form says so instead
   });
 
   it('shows the products in the order the owner chose', () => {

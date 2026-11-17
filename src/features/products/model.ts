@@ -81,7 +81,7 @@ export function productFromFields(fields: Fields, row: number): Product {
 export const isDeleted = (product: Product) => product.deletedAt !== '';
 
 /** "250 g", "1 kg" */
-export const formatSize = (grams: number) => (grams >= 1000 ? `${grams / 1000} kg` : `${grams} g`);
+export const formatSize = (grams: number) => (grams >= 1000 ? `${String(grams / 1000).replace('.', ',')} kg` : `${grams} g`);
 
 /** Active products by name (Polish alphabetical order), then deleted ones. */
 export function sortProducts(products: readonly Product[]): Product[] {

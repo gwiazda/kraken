@@ -1136,7 +1136,8 @@ details summary {
   accent-color: var(--lime);
 }
 
-@page {
+/* A4 without margins only for the offer's pages (a named page); other Kraken pages print as usual. */
+@page offer {
   size: A4;
   margin: 0;
 }
@@ -1155,6 +1156,7 @@ details summary {
   }
 
   .offer-print .offer-page {
+    page: offer;
     margin: 0;
     border: none;
     break-after: page;

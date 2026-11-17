@@ -47,7 +47,9 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
   const warnings: string[] = [];
   const cards = ticked.map((p): OfferCard => {
     const missing = sizes.filter((g) => p.prices[g] === undefined);
-    if (missing.length === sizes.length) warnings.push(`${p.name} has no price for ${missing.map(formatSize).join(' or ')}, so it is shown without prices. Add them on the Products page.`);
+    if (sizes.length === 0) {
+      // nothing to say per product: validateOffer asks to tick a size
+    } else if (missing.length === sizes.length) warnings.push(`${p.name} has no price for ${missing.map(formatSize).join(' or ')}, so it is shown without prices. Add them on the Products page.`);
     else if (missing.length > 0) warnings.push(`${p.name} has no price for ${missing.map(formatSize).join(' and ')}, so that size is left out for it.`);
     const details = [
       ['Kraj', p.country],

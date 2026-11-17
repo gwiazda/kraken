@@ -115,10 +115,12 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     for (const node of root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')) node.disabled = true;
   }
 
-  /** Delete or Restore, inside the click (so a sign-in renewal can open Google's window). */
-  function change(product: Product, kind: 'remove' | 'restore', cell: HTMLElement): void {
-    lockPage();
-    cell.replaceChildren(busy(kind === 'remove' ? 'Deleting…' : 'Restoring…'));
+  /**
+   * Delete or Restore, inside the click (so a sign-in renewal can open Google's window). `progress` shows the spinner:
+   * in the row, or on the whole page when retried after an error (the row is gone by then).
+   */
+  function change(product: Product, kind: 'remove' | 'restore', progress: () => void): void {
+    progress();
     deps.busy(true);
     deps
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(product, deps.now()) : deps.repo.restore(product, deps.now())))
@@ -129,8 +131,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       .catch((error: unknown) => {
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
+        const working = kind === 'remove' ? `Deleting ${product.name}…` : `Restoring ${product.name}…`;
         const show = (e: unknown) =>
-          showList(undefined, errorNodes(e, () => change(product, kind, cell), kind === 'remove' ? `Sign in and delete ${product.name}` : `Sign in and restore ${product.name}`, show, true));
+          showList(undefined, errorNodes(e, () => change(product, kind, () => render(el('p', {}, busy(working)))), kind === 'remove' ? `Sign in and delete ${product.name}` : `Sign in and restore ${product.name}`, show, true));
         show(error);
       });
   }
@@ -148,11 +151,16 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const rowNodes = (p: Product): HTMLTableRowElement[] => {
       const cell = el('td', { class: 'row-actions nowrap' });
       const confirmRow = el('tr', { class: 'confirm-row', hidden: '' });
+      const inRow = (text: string) => () => {
+        lockPage();
+        confirmRow.hidden = true;
+        cell.replaceChildren(busy(text));
+      };
       const normal = () => {
         confirmRow.hidden = true;
         cell.replaceChildren(
           ...(isDeleted(p)
-            ? [button('Restore', () => change(p, 'restore', cell), 'link')]
+            ? [button('Restore', () => change(p, 'restore', inRow('Restoring…')), 'link')]
             : [button('Edit', () => showForm(p), 'link'), button('Delete', ask, 'link')]),
         );
       };
@@ -164,7 +172,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             'td',
             { colspan: '7' },
             el('span', {}, `Delete ${p.name}? It can be restored later. `),
-            button('Yes, delete', () => change(p, 'remove', cell), 'primary'),
+            button('Yes, delete', () => change(p, 'remove', inRow('Deleting…')), 'primary'),
             ' ',
             no,
           ),

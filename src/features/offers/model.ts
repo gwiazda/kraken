@@ -4,6 +4,8 @@
 
 import { isValidDate } from '../../core/dates';
 
+export { addDays } from '../../core/dates';
+
 /** An offer is valid for two weeks (owner, 2026-11-17). */
 export const OFFER_VALID_DAYS = 14;
 
@@ -41,15 +43,11 @@ export interface OfferForm {
 
 export type OfferErrors = Partial<Record<'customer' | 'date' | 'products' | 'sizes' | 'tiers' | 'banner', string>>;
 
+/** A discount name is shown next to every price, so it must stay short ("Do 10 kg", "10–20 kg"). */
+export const TIER_LABEL_MAX = 12;
+
 /** At most this many characters in each part of the banner. */
 export const BANNER_MAX = 300;
-
-/** YYYY-MM-DD plus some days (calendar days, no time zones involved). */
-export function addDays(date: string, days: number): string {
-  const [y, m, d] = date.split('-').map(Number);
-  const result = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, (d ?? 1) + days));
-  return result.toISOString().slice(0, 10);
-}
 
 /** "2026-11-16" → "16.11.2026" (the Polish way). */
 export function polishDate(date: string): string {
@@ -107,7 +105,7 @@ export function validateOffer(form: OfferForm): OfferErrors {
   if (form.sizes.length === 0) errors.sizes = 'Tick at least one bag size.';
   if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount.';
   for (const tier of form.tiers) {
-    if (tier.label.length > 40) errors.tiers = 'A discount name can have at most 40 characters.';
+    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `A discount name can have at most ${TIER_LABEL_MAX} characters (it must fit next to the prices).`;
   }
   if (form.banner && [form.banner.title, form.banner.line, form.banner.note].some((part) => part.length > BANNER_MAX)) {
     errors.banner = `Each part of the banner can have at most ${BANNER_MAX} characters.`;

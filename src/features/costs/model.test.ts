@@ -112,6 +112,7 @@ describe('wholesale discounts', () => {
     expect(parseDiscounts('15; 25; 30')).toEqual([150, 250, 300]);
     expect(parseDiscounts('12,5;40')).toEqual([125, 400]);
     expect(parseDiscounts(' 15 ; ')).toEqual([150]);
+    expect(parseDiscounts('15; 25; 15')).toEqual([150, 250]);
   });
 
   it('refuses commas between them, 0 %, under 1 % (a "15%" cell arrives as 0.15), 100 % or more, and too many', () => {

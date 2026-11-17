@@ -9,7 +9,7 @@ import { googleErrorNodes } from '../../ui/googleErrors';
 import { readSettings, type CostSettings, type CostsRepository } from '../costs';
 import { PRODUCT_SIZES_G, formatSize, isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
-import { DEFAULT_TIER_LABELS, OFFER_VALID_DAYS, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
+import { DEFAULT_TIER_LABELS, OFFER_VALID_DAYS, TIER_LABEL_MAX, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
 import { buildOffer } from './present';
 
 export interface OfferPageDeps {
@@ -38,7 +38,9 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       .then(([products, costs]) => {
         if (!root.isConnected) return;
         const { settings, problems } = readSettings(costs.settings);
-        showForm(products.products, settings, [...products.problems, ...problems]);
+        // A price Kraken cannot read is named here, so a missing size on the offer is not a mystery.
+        const productProblems = products.products.filter((p) => !isProductDeleted(p)).flatMap((p) => p.problems);
+        showForm(products.products, settings, [...products.problems, ...problems, ...productProblems]);
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
@@ -110,7 +112,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     showOrder();
     const sizeBoxes = PRODUCT_SIZES_G.map((g) => ({ grams: g, ...checkbox(`offer-size-${g}`, START_SIZES.includes(g), formatSize(g)) }));
     const tierRows = settings.discountTenths.map((tenths) => {
-      const name = el('input', { type: 'text', id: `offer-tier-${tenths}`, class: 'input-money', autocomplete: 'off', placeholder: 'no name' });
+      const name = el('input', { type: 'text', id: `offer-tier-${tenths}`, class: 'input-money', autocomplete: 'off', placeholder: 'no name', maxlength: String(TIER_LABEL_MAX) });
       name.value = DEFAULT_TIER_LABELS[tenths] ?? '';
       const { box, node } = checkbox(`offer-tier-box-${tenths}`, true, discountText(tenths).replace('-', '−'));
       return { tenths, box, name, node: el('span', { class: 'offer-tier-choice' }, node, ' ', name) };
@@ -158,7 +160,13 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const status = el('div', {});
     let fileName = '';
 
+    /** Redraws the preview at most once per screen frame (typing a name does not rebuild it for every key). */
+    let pending = 0;
     const update = () => {
+      if (pending === 0) pending = window.requestAnimationFrame(redraw);
+    };
+    const redraw = () => {
+      pending = 0;
       const form = readForm();
       validUntil.textContent = isValidDate(form.date) ? `Valid until ${polishDate(addDays(form.date, OFFER_VALID_DAYS))} (${OFFER_VALID_DAYS} days).` : '';
       if (!isValidDate(form.date)) form.date = today; // the preview needs some date while one is typed
@@ -177,7 +185,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
         return;
       }
       status.replaceChildren();
-      update();
+      if (pending !== 0) window.cancelAnimationFrame(pending);
+      redraw();
       void printOffer(preview, fileName);
     };
 
@@ -254,7 +263,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       el('h3', {}, 'Preview'),
       preview,
     );
-    update();
+    redraw();
   }
 
   load(fromClick);
@@ -264,10 +273,14 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
  * Prints only the offer: a copy of the preview pages goes into a container at the top of the page, everything else
  * is hidden while printing (style.css), and the page title becomes the PDF's file name.
  */
+let printing = false;
+
 async function printOffer(preview: HTMLElement, fileName: string): Promise<void> {
+  if (printing) return; // a second click while the first is starting would print every page twice
   const holder = el('div', { class: 'offer-print' });
   const doc = preview.querySelector('.offer-doc');
   if (!doc) return;
+  printing = true;
   holder.append(doc.cloneNode(true));
   document.body.append(holder);
   await Promise.all([...holder.querySelectorAll('img')].map((img) => img.decode().catch(() => undefined)));
@@ -278,6 +291,7 @@ async function printOffer(preview: HTMLElement, fileName: string): Promise<void>
     document.body.classList.remove('print-offer');
     document.title = title;
     holder.remove();
+    printing = false;
   };
   window.addEventListener('afterprint', cleanUp, { once: true });
   window.print();
