@@ -101,25 +101,38 @@ function bannerNode(offer: OfferDocument): HTMLElement {
 
 const overflows = (content: HTMLElement) => content.scrollHeight > content.clientHeight + 1;
 
-/** Name sizes tried (pt) when a long name pushes the prices under it; the template's size is 22 pt. */
-const NAME_SIZES_PT = [20, 18, 16];
+/**
+ * Sizes tried for a product name, in order: [size in pt, most lines]. One line as large as possible (the template's
+ * size is 22 pt), then two lines, and only for a very long name three.
+ */
+const NAME_FITS: readonly (readonly [number, number])[] = [
+  [22, 1],
+  [20, 1],
+  [18, 1],
+  [16, 1],
+  [18, 2],
+  [16, 2],
+  [16, 3],
+];
+/** With this many bag sizes there is no room beside the name: every card puts its prices under the name. */
+export const STACKED_FROM_SIZES = 3;
 
 /**
- * Keeps the prices next to the product name, as on the template: if a long name pushes them onto their own line,
- * the name gets a little smaller (down to 16 pt). With three bag sizes there is no room, so the prices go under the
- * name at full size.
+ * Fits a product name in the space beside its prices (or above them, on a stacked offer), without ever moving the
+ * prices (owner, 2026-11-17): the first size from NAME_FITS where the name is not wider than its space and takes
+ * at most that many lines.
  */
 function fitName(card: HTMLElement): void {
-  const product = card.querySelector<HTMLElement>('.offer-product');
-  const pricing = card.querySelector<HTMLElement>('.offer-pricing');
   const name = card.querySelector<HTMLElement>('.offer-product-name');
-  if (!product || !pricing || !name || pricing.childElementCount === 0 || pricing.childElementCount > 2) return;
-  const wrapped = () => pricing.offsetTop > product.offsetTop + 2;
-  for (const size of NAME_SIZES_PT) {
-    if (!wrapped()) return;
-    name.style.fontSize = `${size}pt`;
+  const product = card.querySelector<HTMLElement>('.offer-product');
+  if (!name || !product) return;
+  const lineHeight = (pt: number) => pt * (4 / 3) * 1.15; // pt → px; line-height 1.15 (style.css)
+  for (const [pt, lines] of NAME_FITS) {
+    name.style.fontSize = `${pt}pt`;
+    // A single long word cannot wrap: it makes the name, or the bean + name, wider than their space.
+    const fitsWidth = name.scrollWidth <= name.clientWidth + 1 && product.scrollWidth <= product.clientWidth + 1;
+    if (fitsWidth && name.offsetHeight <= lineHeight(pt) * lines + 2) return;
   }
-  if (wrapped()) name.style.fontSize = '';
 }
 
 /**
@@ -127,7 +140,8 @@ function fitName(card: HTMLElement): void {
  * until it is full, then onto a new one; the banner goes at the bottom of the last page (or onto its own page).
  */
 export function showOfferPages(holder: HTMLElement, offer: OfferDocument): void {
-  const doc = el('div', { class: 'offer-doc' });
+  const stacked = offer.cards.some((c) => c.blocks.length >= STACKED_FROM_SIZES);
+  const doc = el('div', { class: stacked ? 'offer-doc offer-stacked' : 'offer-doc' });
   holder.replaceChildren(doc);
   const pages: ReturnType<typeof pageNode>[] = [];
   const newPage = () => {

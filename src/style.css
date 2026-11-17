@@ -930,13 +930,19 @@ details summary {
   gap: 10px;
 }
 
-/* wrap: with three bag sizes the prices go under the name instead of squeezing it */
+/* The prices never wrap under the name: a long name gets smaller or takes two lines (document.ts fitName). With
+   three bag sizes there is no room beside any name, so the whole offer is "stacked": name on top, prices below. */
 .offer-card-head {
   display: flex;
-  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 10px 15px;
+  gap: 15px;
+}
+
+.offer-doc.offer-stacked .offer-card-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
 }
 
 .offer-details {
@@ -969,6 +975,12 @@ details summary {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.offer-bean {
+  flex-shrink: 0;
 }
 
 .offer-bean {
@@ -983,12 +995,16 @@ details summary {
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #ffffff;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .offer-pricing {
   display: flex;
   gap: 24px;
   align-items: flex-start;
+  flex: 0 0 auto;
 }
 
 .offer-price-block {

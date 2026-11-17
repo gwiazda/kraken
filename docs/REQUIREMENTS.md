@@ -344,8 +344,10 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   "Sugerowana cena detaliczna brutto" (the main gross price) under **250 g only**.
 - The owner sets the **order** of the products on the offer (↑ ↓). Empty product details are left out.
 - The **yellow banner** text is made from the ticked discounts and sizes, and can be changed per offer (title, main
-  line, small print; "Back to the standard text"). "Sugerowana cena…" stays on one line; a long product name gets a
-  little smaller (down to 16 pt) so the prices stay beside it, as on the template.
+  line, small print; "Back to the standard text"). "Sugerowana cena…" stays on one line.
+- **Prices never move under a product name** (owner, 2026-11-17): a long name gets smaller (22 → 16 pt) on one line,
+  then wraps onto two lines (18 → 16 pt), and only a very long one takes more. With all three bag sizes ticked there
+  is no room beside any name, so every card on that offer puts its prices under the name (one layout for the offer).
 - The design is the owner's HTML template (logo, crack, lime bean icon, cards, yellow banner), A4; products flow onto
   more pages as needed. The page background is pure black (#000, template #0a0a0a) so the logo's black background
   does not show as a box.
