@@ -1039,9 +1039,7 @@ details summary {
   color: #888888;
   margin-top: 5px;
   line-height: 1.2;
-  /* may wrap (the template had nowrap): on A4 one long line pushed the prices under the product name */
-  max-width: 145px;
-  margin-left: auto;
+  white-space: nowrap;
 }
 
 .offer-doc .offer-banner {
@@ -1056,6 +1054,10 @@ details summary {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   line-height: 1.4;
+}
+
+.offer-banner-line {
+  display: block;
 }
 
 .offer-banner-note {
@@ -1089,6 +1091,31 @@ details summary {
   gap: 0.4rem;
 }
 
+.offer-order {
+  list-style: none;
+  padding: 0;
+  margin: 0.3rem 0 0.6rem;
+}
+
+.offer-order li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+}
+
+.offer-order label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.offer-order-moves .btn {
+  padding: 0.1rem 0.5rem;
+  margin-right: 0.2rem;
+}
+
+.offer-order input[type='checkbox'],
 .offer-choices input[type='checkbox'] {
   accent-color: var(--lime);
 }

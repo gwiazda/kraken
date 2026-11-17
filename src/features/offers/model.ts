@@ -20,16 +20,29 @@ export interface Tier {
   readonly label: string;
 }
 
+/** The yellow banner at the bottom: a title, the main line and a small note (empty parts are left out). */
+export interface Banner {
+  readonly title: string;
+  readonly line: string;
+  readonly note: string;
+}
+
 export interface OfferForm {
   customer: string;
   /** YYYY-MM-DD */
   date: string;
+  /** The ticked products, in the order they appear on the offer. */
   productIds: string[];
   sizes: number[];
   tiers: Tier[];
+  /** The owner's own banner text; null: the text made from the discounts and sizes (bannerText). */
+  banner: Banner | null;
 }
 
-export type OfferErrors = Partial<Record<'customer' | 'date' | 'products' | 'sizes' | 'tiers', string>>;
+export type OfferErrors = Partial<Record<'customer' | 'date' | 'products' | 'sizes' | 'tiers' | 'banner', string>>;
+
+/** At most this many characters in each part of the banner. */
+export const BANNER_MAX = 300;
 
 /** YYYY-MM-DD plus some days (calendar days, no time zones involved). */
 export function addDays(date: string, days: number): string {
@@ -74,7 +87,7 @@ export function sizesText(labels: readonly string[]): string {
 }
 
 /** The yellow banner at the bottom of the offer. */
-export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]): { title: string; line: string; note: string } {
+export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]): Banner {
   const sorted = [...tiers].sort((a, b) => a.tenths - b.tenths);
   return {
     title: 'Ceny netto B2B:',
@@ -95,6 +108,9 @@ export function validateOffer(form: OfferForm): OfferErrors {
   if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount.';
   for (const tier of form.tiers) {
     if (tier.label.length > 40) errors.tiers = 'A discount name can have at most 40 characters.';
+  }
+  if (form.banner && [form.banner.title, form.banner.line, form.banner.note].some((part) => part.length > BANNER_MAX)) {
+    errors.banner = `Each part of the banner can have at most ${BANNER_MAX} characters.`;
   }
   return errors;
 }

@@ -91,18 +91,36 @@ function cardNode(card: OfferCard): HTMLElement {
   );
 }
 
+/** The yellow banner: title, main line and small print, each on its own line; empty ones are left out. */
 function bannerNode(offer: OfferDocument): HTMLElement {
-  return el(
-    'div',
-    { class: 'offer-banner' },
-    offer.banner.title,
-    el('br'),
-    offer.banner.line,
-    ...(offer.banner.note ? [el('br'), el('span', { class: 'offer-banner-note' }, offer.banner.note)] : []),
-  );
+  const { title, line, note } = offer.banner;
+  const parts: Node[] = [title, line].filter((t) => t).map((t) => el('span', { class: 'offer-banner-line' }, t));
+  if (note) parts.push(el('span', { class: 'offer-banner-line offer-banner-note' }, note));
+  return el('div', { class: 'offer-banner' }, ...parts);
 }
 
 const overflows = (content: HTMLElement) => content.scrollHeight > content.clientHeight + 1;
+
+/** Name sizes tried (pt) when a long name pushes the prices under it; the template's size is 22 pt. */
+const NAME_SIZES_PT = [20, 18, 16];
+
+/**
+ * Keeps the prices next to the product name, as on the template: if a long name pushes them onto their own line,
+ * the name gets a little smaller (down to 16 pt). With three bag sizes there is no room, so the prices go under the
+ * name at full size.
+ */
+function fitName(card: HTMLElement): void {
+  const product = card.querySelector<HTMLElement>('.offer-product');
+  const pricing = card.querySelector<HTMLElement>('.offer-pricing');
+  const name = card.querySelector<HTMLElement>('.offer-product-name');
+  if (!product || !pricing || !name || pricing.childElementCount === 0 || pricing.childElementCount > 2) return;
+  const wrapped = () => pricing.offsetTop > product.offsetTop + 2;
+  for (const size of NAME_SIZES_PT) {
+    if (!wrapped()) return;
+    name.style.fontSize = `${size}pt`;
+  }
+  if (wrapped()) name.style.fontSize = '';
+}
 
 /**
  * Puts the offer into `holder` (which must be on the screen, so sizes can be measured): products go onto a page
@@ -122,6 +140,7 @@ export function showOfferPages(holder: HTMLElement, offer: OfferDocument): void 
   for (const card of offer.cards) {
     const node = cardNode(card);
     current.grid.append(node);
+    fitName(node);
     // A card that does not fit moves to a new page (unless it is alone on its page: then it stays, cut off).
     if (overflows(current.content) && current.grid.childElementCount > 1) {
       node.remove();

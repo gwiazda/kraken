@@ -24,10 +24,12 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
   name filled in). Owner to test locally.
 
 ## Next steps
-1. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
-2. Price list later: customers (name, NIP, own discount), special prices, hand overrides.
-3. Roasts filters and paging (later).
-4. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
+1. **Blend calculator** (owner, 2026-11-17): sliders for each coffee's share, cost of one bag and earnings at the
+   markups; nothing saved (REQUIREMENTS section 6).
+2. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
+3. Price list later: customers (name, NIP, own discount), special prices, hand overrides.
+4. Roasts filters and paging (later).
+5. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).

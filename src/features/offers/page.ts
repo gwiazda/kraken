@@ -79,8 +79,35 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const productBoxes = products.map((p) => {
       const sizes = PRODUCT_SIZES_G.filter((g) => p.prices[g] !== undefined).map(formatSize);
       const hint = [p.brewMethod, sizes.length > 0 ? sizes.join(', ') : 'no prices'].filter((t) => t).join(' · ');
-      return { id: p.id, ...checkbox(`offer-product-${p.id}`, true, el('span', {}, p.name, ' ', el('span', { class: 'muted small' }, `(${hint})`))) };
+      return { id: p.id, name: p.name, ...checkbox(`offer-product-${p.id}`, true, el('span', {}, p.name, ' ', el('span', { class: 'muted small' }, `(${hint})`))) };
     });
+    /** The products in the order they appear on the offer (owner, 2026-11-17: ↑ ↓ to change it). */
+    let order = [...productBoxes];
+    const productList = el('ol', { class: 'offer-order' });
+    const showOrder = (focus?: { id: string; up: boolean }) => {
+      productList.replaceChildren(
+        ...order.map((b, i) => {
+          const move = (by: number) => () => {
+            const next = [...order];
+            const [moved] = next.splice(i, 1);
+            if (!moved) return;
+            next.splice(i + by, 0, moved);
+            order = next;
+            showOrder({ id: b.id, up: by < 0 });
+            update();
+          };
+          const up = button('↑', move(-1), 'secondary');
+          const down = button('↓', move(1), 'secondary');
+          up.disabled = i === 0;
+          down.disabled = i === order.length - 1;
+          up.setAttribute('aria-label', `Move ${b.name} up`);
+          down.setAttribute('aria-label', `Move ${b.name} down`);
+          if (focus?.id === b.id) queueMicrotask(() => ((focus.up && !up.disabled) || down.disabled ? up : down).focus());
+          return el('li', {}, el('span', { class: 'offer-order-moves' }, up, down), b.node);
+        }),
+      );
+    };
+    showOrder();
     const sizeBoxes = PRODUCT_SIZES_G.map((g) => ({ grams: g, ...checkbox(`offer-size-${g}`, START_SIZES.includes(g), formatSize(g)) }));
     const tierRows = settings.discountTenths.map((tenths) => {
       const name = el('input', { type: 'text', id: `offer-tier-${tenths}`, class: 'input-money', autocomplete: 'off', placeholder: 'no name' });
@@ -92,10 +119,39 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const readForm = (): OfferForm => ({
       customer: customer.value,
       date: date.value,
-      productIds: productBoxes.filter((b) => b.box.checked).map((b) => b.id),
+      productIds: order.filter((b) => b.box.checked).map((b) => b.id),
       sizes: sizeBoxes.filter((b) => b.box.checked).map((b) => b.grams),
       tiers: tierRows.filter((t) => t.box.checked).map((t) => ({ tenths: t.tenths, label: t.name.value.trim() })),
+      banner: bannerEdited ? { title: bannerTitle.value.trim(), line: bannerLine.value.trim(), note: bannerNote.value.trim() } : null,
     });
+
+    // The yellow banner: made from the ticked discounts and sizes until the owner changes it; "Back to the standard
+    // text" makes it follow them again.
+    let bannerEdited = false;
+    const bannerTitle = el('input', { id: 'offer-banner-title', type: 'text', autocomplete: 'off' });
+    const bannerLine = el('textarea', { id: 'offer-banner-line', rows: '2' });
+    const bannerNote = el('textarea', { id: 'offer-banner-note', rows: '2' });
+    const bannerReset = button(
+      'Back to the standard text',
+      () => {
+        bannerEdited = false;
+        update();
+      },
+      'link',
+    );
+    const fillBanner = (banner: { title: string; line: string; note: string }) => {
+      bannerReset.hidden = !bannerEdited;
+      if (bannerEdited) return;
+      bannerTitle.value = banner.title;
+      bannerLine.value = banner.line;
+      bannerNote.value = banner.note;
+    };
+    for (const input of [bannerTitle, bannerLine, bannerNote]) {
+      input.addEventListener('input', () => {
+        bannerEdited = true;
+        update();
+      });
+    }
 
     const warnings = el('div', {});
     const preview = el('div', { class: 'offer-preview' });
@@ -109,6 +165,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       const offer = buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS);
       fileName = offer.fileName;
       warnings.replaceChildren(...offer.warnings.map((text) => message(text, 'error')));
+      fillBanner(offer.banner);
       showOfferPages(preview, offer);
     };
 
@@ -130,7 +187,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
 
     const section = (title: string, ...children: (Node | string)[]) => el('fieldset', { class: 'form-section' }, el('legend', {}, title), ...children);
     const selectAll = (on: boolean) => () => {
-      for (const b of productBoxes) b.box.checked = on;
+      for (const b of order) b.box.checked = on;
       update();
     };
 
@@ -156,7 +213,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
         ...(products.length === 0
           ? [el('p', { class: 'muted' }, 'No products yet. ', button('Add them on the Products page', deps.openProducts, 'link'))]
           : [
-              el('div', { class: 'offer-choices' }, ...productBoxes.map((b) => b.node)),
+              el('p', { class: 'muted small' }, 'Tick what goes on the offer; ↑ ↓ set the order.'),
+              productList,
               el('p', { class: 'small' }, button('Select all', selectAll(true), 'link'), ' · ', button('Select none', selectAll(false), 'link')),
             ]),
         errorLine('products'),
@@ -167,6 +225,19 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
         el('p', { class: 'muted small' }, 'The name is shown next to the price, e.g. "Do 10 kg (-15%)". More discounts: Costs & prices → Bag costs & settings.'),
         el('div', { class: 'offer-choices' }, ...tierRows.map((t) => t.node)),
         errorLine('tiers'),
+      ),
+      section(
+        'Banner at the bottom',
+        el('p', { class: 'muted small' }, 'Made from the ticked discounts and sizes. Change it here if needed; an empty line is left out.'),
+        el(
+          'div',
+          { class: 'fields' },
+          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerTitle.id }, 'Title')), bannerTitle),
+          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerLine.id }, 'Main line')), bannerLine),
+          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerNote.id }, 'Small print')), bannerNote),
+        ),
+        el('p', { class: 'small' }, bannerReset),
+        errorLine('banner'),
       ),
       el(
         'div',

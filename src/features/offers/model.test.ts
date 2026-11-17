@@ -49,14 +49,14 @@ describe('discounts and the banner', () => {
 });
 
 describe('validateOffer', () => {
-  const ok = { customer: 'Kawiarnia', date: '2026-11-16', productIds: ['P1'], sizes: [250], tiers: [{ tenths: 150, label: 'Do 10 kg' }] };
+  const ok = { customer: 'Kawiarnia', date: '2026-11-16', productIds: ['P1'], sizes: [250], tiers: [{ tenths: 150, label: 'Do 10 kg' }], banner: null };
 
   it('accepts a complete offer', () => {
     expect(validateOffer(ok)).toEqual({});
   });
 
   it('says what is missing', () => {
-    expect(validateOffer({ customer: ' / ', date: '2026-02-30', productIds: [], sizes: [], tiers: [] })).toEqual({
+    expect(validateOffer({ customer: ' / ', date: '2026-02-30', productIds: [], sizes: [], tiers: [], banner: null })).toEqual({
       customer: 'Enter who the offer is for.',
       date: 'Enter the offer date.',
       products: 'Tick at least one product.',
@@ -64,5 +64,7 @@ describe('validateOffer', () => {
       tiers: 'Tick at least one discount.',
     });
     expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'x'.repeat(41) }] })).toEqual({ tiers: 'A discount name can have at most 40 characters.' });
+    expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(301), note: '' } })).toEqual({ banner: 'Each part of the banner can have at most 300 characters.' });
+    expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(300), note: '' } })).toEqual({});
   });
 });

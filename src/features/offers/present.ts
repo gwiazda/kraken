@@ -1,11 +1,11 @@
-// What an offer shows, as plain text, so it is tested without a browser: the ticked products in order, a price block
+// What an offer shows, as plain text, so it is tested without a browser: the ticked products in the owner's order, a price block
 // per ticked bag size with the wholesale net price at each ticked discount, the suggested retail price under 250 g,
 // and the banner. Wholesale = the product's main gross ÷ (1 + VAT) − discount, net rounded to whole złoty.
 
 import { formatWholePln } from '../../core/numbers';
 import { wholesalePrice } from '../costs';
-import { formatSize, isProductDeleted, sortProducts, type Product, type ProductSize } from '../products';
-import { addDays, bannerText, offerFileName, polishDate, tierText, type OfferForm } from './model';
+import { formatSize, isProductDeleted, type Product, type ProductSize } from '../products';
+import { addDays, bannerText, offerFileName, polishDate, tierText, type Banner, type OfferForm } from './model';
 
 export interface OfferPriceBlock {
   /** "250 g" */
@@ -32,7 +32,7 @@ export interface OfferDocument {
   readonly validUntil: string;
   readonly year: string;
   readonly cards: readonly OfferCard[];
-  readonly banner: { readonly title: string; readonly line: string; readonly note: string };
+  readonly banner: Banner;
   /** For the owner, not on the offer: e.g. a product without a price for a ticked size. */
   readonly warnings: readonly string[];
 }
@@ -42,7 +42,8 @@ const RETAIL_SIZE = 250;
 export function buildOffer(products: readonly Product[], form: OfferForm, vatTenths: number, validDays: number): OfferDocument {
   const sizes = [...form.sizes].sort((a, b) => a - b) as ProductSize[];
   const tiers = [...form.tiers].sort((a, b) => a.tenths - b.tenths);
-  const ticked = sortProducts(products).filter((p) => !isProductDeleted(p) && form.productIds.includes(p.id));
+  const byId = new Map(products.filter((p) => !isProductDeleted(p)).map((p) => [p.id, p]));
+  const ticked = form.productIds.flatMap((id) => byId.get(id) ?? []); // in the owner's order
   const warnings: string[] = [];
   const cards = ticked.map((p): OfferCard => {
     const missing = sizes.filter((g) => p.prices[g] === undefined);
@@ -78,7 +79,7 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
     validUntil: polishDate(addDays(form.date, validDays)),
     year: form.date.slice(0, 4),
     cards,
-    banner: bannerText(tiers, sizes.map(formatSize)),
+    banner: form.banner ?? bannerText(tiers, sizes.map(formatSize)),
     warnings,
   };
 }

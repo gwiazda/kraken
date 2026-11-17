@@ -328,6 +328,10 @@ in percent off the retail price (see section 5).
 złoty** by the usual rule (half up: 74,50 → 75 zł); the net price is calculated from the rounded gross. The exact
 amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 
+**[R] Blend calculator (owner, 2026-11-17, later):** an easy way to see what a blend costs: pick coffees from the
+lots, set each one's share with a slider, and see the cost of one bag of the blend (250 g, 500 g, 1 kg) and the
+prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for now.
+
 **[R] Products and offers (owner, 2026-11-17; built):**
 - A **Products** page and tab: products named however the owner likes (e.g. "Kenia", "Gwatemala Espresso"),
   **not linked to lots**. Each has the details shown on the offer (country, region, altitude, processing, variety,
@@ -338,6 +342,10 @@ amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
   each with a name such as "Do 10 kg" (default names for 15 / 25 / 30 %: "Do 10 kg", "10–20 kg", "20+ kg").
   Prices on the offer: wholesale **net**, rounded to whole złoty (as on the Price list), one block per size;
   "Sugerowana cena detaliczna brutto" (the main gross price) under **250 g only**.
+- The owner sets the **order** of the products on the offer (↑ ↓). Empty product details are left out.
+- The **yellow banner** text is made from the ticked discounts and sizes, and can be changed per offer (title, main
+  line, small print; "Back to the standard text"). "Sugerowana cena…" stays on one line; a long product name gets a
+  little smaller (down to 16 pt) so the prices stay beside it, as on the template.
 - The design is the owner's HTML template (logo, crack, lime bean icon, cards, yellow banner), A4; products flow onto
   more pages as needed. The page background is pure black (#000, template #0a0a0a) so the logo's black background
   does not show as a box.
