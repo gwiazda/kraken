@@ -7,7 +7,8 @@ import { isValidDate, localDate } from '../../core/dates';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { readSettings, type CostSettings, type CostsRepository } from '../costs';
-import { PRODUCT_SIZES_G, formatSize, isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
+import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
 import { DEFAULT_TIER_LABELS, OFFER_VALID_DAYS, TIER_LABEL_MAX, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
 import { buildOffer } from './present';
@@ -79,7 +80,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const validUntil = el('span', { class: 'muted small' });
 
     const productBoxes = products.map((p) => {
-      const sizes = PRODUCT_SIZES_G.filter((g) => p.prices[g] !== undefined).map(formatSize);
+      const sizes = BAG_SIZES_G.filter((g) => p.prices[g] !== undefined).map(formatBagSize);
       const hint = [p.brewMethod, sizes.length > 0 ? sizes.join(', ') : 'no prices'].filter((t) => t).join(' · ');
       return { id: p.id, name: p.name, ...checkbox(`offer-product-${p.id}`, true, el('span', {}, p.name, ' ', el('span', { class: 'muted small' }, `(${hint})`))) };
     });
@@ -110,7 +111,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       );
     };
     showOrder();
-    const sizeBoxes = PRODUCT_SIZES_G.map((g) => ({ grams: g, ...checkbox(`offer-size-${g}`, START_SIZES.includes(g), formatSize(g)) }));
+    const sizeBoxes = BAG_SIZES_G.map((g) => ({ grams: g, ...checkbox(`offer-size-${g}`, START_SIZES.includes(g), formatBagSize(g)) }));
     const tierRows = settings.discountTenths.map((tenths) => {
       const name = el('input', { type: 'text', id: `offer-tier-${tenths}`, class: 'input-money', autocomplete: 'off', placeholder: 'no name', maxlength: String(TIER_LABEL_MAX) });
       name.value = DEFAULT_TIER_LABELS[tenths] ?? '';

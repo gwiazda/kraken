@@ -4,7 +4,6 @@ import {
   bagCostFromFields,
   formFromBagCost,
   formFromSettings,
-  formatBagSize,
   formatMarkup,
   formatPercent,
   lotCostFromFields,
@@ -56,9 +55,6 @@ describe('numbers typed by the owner', () => {
     expect(formatPercent(155)).toBe('15,5 %');
     expect(formatPercent(230)).toBe('23 %');
     expect(formatMarkup(250)).toBe('2,5×');
-    expect(formatBagSize(250)).toBe('250 g');
-    expect(formatBagSize(1000)).toBe('1 kg');
-    expect(formatBagSize(1500)).toBe('1,5 kg');
   });
 });
 

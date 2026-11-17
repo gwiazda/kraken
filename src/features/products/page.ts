@@ -3,15 +3,14 @@
 // Everything from outside comes through ProductsPageDeps (main.ts provides it).
 
 import { formatWholePln } from '../../core/numbers';
+import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import {
   BREW_METHODS,
-  PRODUCT_SIZES_G,
   changedProductFields,
   emptyProductForm,
   formFromProduct,
-  formatSize,
   isDeleted,
   sortProducts,
   validateProductForm,
@@ -143,7 +142,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const sorted = sortProducts(products);
     const active = sorted.filter((p) => !isDeleted(p));
     const deleted = sorted.filter(isDeleted);
-    const price = (p: Product, grams: (typeof PRODUCT_SIZES_G)[number]) => {
+    const price = (p: Product, grams: (typeof BAG_SIZES_G)[number]) => {
       const grosze = p.prices[grams];
       return grosze === undefined ? el('span', { class: 'muted' }, '—') : formatWholePln(grosze);
     };
@@ -187,7 +186,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         el('td', {}, p.name, ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : [])),
         el('td', {}, p.brewMethod || el('span', { class: 'muted' }, '—')),
         el('td', {}, [p.country, p.region].filter((t) => t).join(', ') || el('span', { class: 'muted' }, '—')),
-        ...PRODUCT_SIZES_G.map((g) => el('td', { class: 'num nowrap' }, price(p, g))),
+        ...BAG_SIZES_G.map((g) => el('td', { class: 'num nowrap' }, price(p, g))),
         cell,
       );
       return [tr, confirmRow];
@@ -203,7 +202,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           el(
             'thead',
             {},
-            el('tr', {}, ...['Name', 'Brew method', 'Origin', ...PRODUCT_SIZES_G.map(formatSize), ''].map((h, i) => el('th', { scope: 'col', ...(i >= 3 && i < 6 ? { class: 'num' } : {}) }, h))),
+            el('tr', {}, ...['Name', 'Brew method', 'Origin', ...BAG_SIZES_G.map(formatBagSize), ''].map((h, i) => el('th', { scope: 'col', ...(i >= 3 && i < 6 ? { class: 'num' } : {}) }, h))),
           ),
           el('tbody', {}, ...list.flatMap(rowNodes)),
         ),

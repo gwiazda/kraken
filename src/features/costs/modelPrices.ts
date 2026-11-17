@@ -9,7 +9,7 @@
 
 import { isValidDate } from '../../core/dates';
 import { moneyText, parseMoney } from '../../core/numbers';
-import { BAG_SIZES_G, formatBagSize } from './model';
+import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { grossOf, netOf, roundGrosze } from './modelCalc';
 
 type Fields = Readonly<Record<string, string>>;

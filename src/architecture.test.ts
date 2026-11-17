@@ -13,17 +13,22 @@ const ALLOWED: Record<string, readonly string[]> = {
   auth: ['core', 'config'],
   schema: ['core', 'config'],
   ui: ['core', 'config'],
-  feature: ['core', 'auth', 'schema', 'ui', 'config'],
+  domain: ['core', 'config'],
+  feature: ['core', 'auth', 'schema', 'ui', 'config', 'domain'],
 };
 
-/** Modules whose insides are private: everyone else (main.ts and tests too) imports only their index.ts. `core` and `ui` are open toolboxes. */
+/**
+ * Modules whose insides are private: everyone else (main.ts and tests too) imports only their index.ts. `core`, `ui`
+ * and `domain` (shared business constants, e.g. the bag sizes) are open toolboxes.
+ */
 const SEALED = (module: string) => module === 'auth' || module === 'schema' || module.startsWith('features/');
 
 const isTest = (file: string) => file.endsWith('.test.ts') || file.startsWith('/src/testing/');
 
-/** Pure-logic files: calculations and validation, no Google and no screen. */
-const isModelFile = (file: string) => /^\/src\/features\/[^/]+\/model[^/]*\.ts$/.test(file) && !isTest(file);
-const PURE_CORE = ['/src/core/numbers.ts', '/src/core/dates.ts'];
+/** Pure-logic files: calculations and validation, no Google and no screen. `domain` is pure as a whole. */
+const isModelFile = (file: string) => /^\/src\/(features\/[^/]+\/model[^/]*|domain\/[^/]+)\.ts$/.test(file) && !isTest(file);
+/** What pure files may use besides their own feature's model files: pure helpers from core, and all of domain. */
+const isPureShared = (file: string) => ['/src/core/numbers.ts', '/src/core/dates.ts'].includes(file) || file.startsWith('/src/domain/');
 const BROWSER = /\b(document|window|globalThis|self|navigator|fetch|XMLHttpRequest|localStorage|sessionStorage|indexedDB|location)\b/;
 
 /** Non-code files that may be imported (styles, images, data). Anything else must resolve to a .ts file. */
@@ -96,7 +101,7 @@ export function findViolations(sources: Record<string, string>): string[] {
       }
       if (isModelFile(file)) {
         const ownModel = from === to && /\/model[^/]*\.ts$/.test(target) && !isTest(target);
-        if (!(ownModel || PURE_CORE.includes(target))) problems.push(`${file} is pure logic and may not import ${target}`);
+        if (!(ownModel || isPureShared(target))) problems.push(`${file} is pure logic and may not import ${target}`);
         continue;
       }
       if (from === to || target.endsWith('.d.ts')) continue;
@@ -187,6 +192,27 @@ describe('the checker itself catches broken rules', () => {
       '/src/features/lots/model.ts is pure logic and may not import /src/core/sheets.ts',
       '/src/features/lots/model.ts is pure logic and may not import /src/features/lots/repo.ts',
       '/src/features/lots/model.ts is pure logic and may not use the browser (document, window, fetch, storage, ...)',
+    ]);
+  });
+
+  it('lets pure logic use domain (shared business constants), and keeps domain pure and below the features', () => {
+    expect(
+      check({
+        '/src/core/numbers.ts': '',
+        '/src/domain/bagSizes.ts': "import { t } from '../core/numbers';",
+        '/src/features/costs/model.ts': "import { BAG_SIZES_G } from '../../domain/bagSizes';",
+      }),
+    ).toEqual([]);
+    expect(
+      check({
+        '/src/ui/dom.ts': '',
+        '/src/features/lots/index.ts': '',
+        '/src/domain/bagSizes.ts': "import { el } from '../ui/dom';\nimport { l } from '../features/lots';\nconst w = window.innerWidth;",
+      }),
+    ).toEqual([
+      '/src/domain/bagSizes.ts is pure logic and may not import /src/ui/dom.ts',
+      '/src/domain/bagSizes.ts is pure logic and may not import /src/features/lots/index.ts',
+      '/src/domain/bagSizes.ts is pure logic and may not use the browser (document, window, fetch, storage, ...)',
     ]);
   });
 

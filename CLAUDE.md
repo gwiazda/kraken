@@ -63,6 +63,8 @@ test that reads every import line), so CI fails if a rule is broken.
   `drive.ts` backup copy and `whoAmI` (signed-in email for `created_by`; works with `drive.file`, checked live 2026-11-15),
   `records.ts` a tab as a table of records (by header name; IDs, times, soft delete; an edit writes only the changed cells
   and is refused if someone changed the record or those cells meanwhile).
+- `domain/`: shared business constants used by several features, pure (no Google, no screen): `bagSizes.ts` the fixed
+  bag sizes (250 g, 500 g, 1 kg) and how a size is written. Added 2026-11-17 so a size is defined in one place.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left (no prices: those are
@@ -93,7 +95,8 @@ test that reads every import line), so CI fails if a rule is broken.
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has
   "All spreadsheets" and "Shared with me" tabs.
-- Rules: imports only point down (feature → ui/schema/auth → core → config); `auth`, `schema` and each feature are imported
+- Rules: imports only point down (feature → ui/schema/auth/domain → core → config); pure files (`features/*/model*.ts`
+  and all of `domain/`) may use only their own model files, `core/numbers`, `core/dates` and `domain/`; `auth`, `schema` and each feature are imported
   only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 
 - RoasTime files are read with the classic folder chooser (`<input webkitdirectory>`): Chrome's File System Access

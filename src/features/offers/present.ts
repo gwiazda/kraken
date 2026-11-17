@@ -4,7 +4,8 @@
 
 import { formatWholePln } from '../../core/numbers';
 import { wholesalePrice } from '../costs';
-import { formatSize, isProductDeleted, type Product, type ProductSize } from '../products';
+import { formatBagSize, type BagSize } from '../../domain/bagSizes';
+import { isProductDeleted, type Product } from '../products';
 import { addDays, bannerText, offerFileName, polishDate, tierText, type Banner, type OfferForm } from './model';
 
 export interface OfferPriceBlock {
@@ -40,7 +41,7 @@ export interface OfferDocument {
 const RETAIL_SIZE = 250;
 
 export function buildOffer(products: readonly Product[], form: OfferForm, vatTenths: number, validDays: number): OfferDocument {
-  const sizes = [...form.sizes].sort((a, b) => a - b) as ProductSize[];
+  const sizes = [...form.sizes].sort((a, b) => a - b) as BagSize[];
   const tiers = [...form.tiers].sort((a, b) => a.tenths - b.tenths);
   const byId = new Map(products.filter((p) => !isProductDeleted(p)).map((p) => [p.id, p]));
   const ticked = form.productIds.flatMap((id) => byId.get(id) ?? []); // in the owner's order
@@ -49,8 +50,8 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
     const missing = sizes.filter((g) => p.prices[g] === undefined);
     if (sizes.length === 0) {
       // nothing to say per product: validateOffer asks to tick a size
-    } else if (missing.length === sizes.length) warnings.push(`${p.name} has no price for ${missing.map(formatSize).join(' or ')}, so it is shown without prices. Add them on the Products page.`);
-    else if (missing.length > 0) warnings.push(`${p.name} has no price for ${missing.map(formatSize).join(' and ')}, so that size is left out for it.`);
+    } else if (missing.length === sizes.length) warnings.push(`${p.name} has no price for ${missing.map(formatBagSize).join(' or ')}, so it is shown without prices. Add them on the Products page.`);
+    else if (missing.length > 0) warnings.push(`${p.name} has no price for ${missing.map(formatBagSize).join(' and ')}, so that size is left out for it.`);
     const details = [
       ['Kraj', p.country],
       ['Region', p.region],
@@ -66,7 +67,7 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
       if (gross === undefined) return [];
       return [
         {
-          size: formatSize(grams),
+          size: formatBagSize(grams),
           rows: tiers.map((tier) => ({ label: tierText(tier), price: formatWholePln(wholesalePrice(gross, tier.tenths, vatTenths).net) })),
           retail: grams === RETAIL_SIZE ? `Sugerowana cena detaliczna brutto: ${formatWholePln(gross)}` : '',
         },
@@ -81,7 +82,7 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
     validUntil: polishDate(addDays(form.date, validDays)),
     year: form.date.slice(0, 4),
     cards,
-    banner: form.banner ?? bannerText(tiers, sizes.map(formatSize)),
+    banner: form.banner ?? bannerText(tiers, sizes.map(formatBagSize)),
     warnings,
   };
 }

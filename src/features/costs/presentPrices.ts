@@ -2,7 +2,8 @@
 // coffee name of its active lots), one cell per bag size: the main price in use, or the wholesale price at a discount.
 
 import { formatPln, formatWholePln } from '../../core/numbers';
-import { BAG_SIZES_G, formatBagSize, type CostSettings } from './model';
+import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import type { CostSettings } from './model';
 import { netOf, roundGrosze } from './modelCalc';
 import { coffeeKey, currentPrice, priceProblem, wholesalePrice, type PriceEntry } from './modelPrices';
 import type { LotCard } from './present';

@@ -3,13 +3,11 @@
 // prices per bag size. Pure: no Google, no screen. Rules: docs/REQUIREMENTS.md section 5.
 
 import { moneyText, parseMoney } from '../../core/numbers';
+import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 
 type Fields = Readonly<Record<string, string>>;
 
 export const PRODUCTS_TAB = 'Products';
-/** The bag sizes a product can have a price for, in grams (fixed, as on Costs & prices). */
-export const PRODUCT_SIZES_G = [250, 500, 1000] as const;
-export type ProductSize = (typeof PRODUCT_SIZES_G)[number];
 
 const priceColumn = (grams: number) => `price_${grams}_gross_pln`;
 
@@ -22,7 +20,7 @@ export const PRODUCT_COLUMNS = [
   'variety',
   'flavour_profile',
   'brew_method',
-  ...PRODUCT_SIZES_G.map(priceColumn),
+  ...BAG_SIZES_G.map(priceColumn),
 ] as const;
 
 /** Suggestions for the brew method field (any text is allowed). */
@@ -40,7 +38,7 @@ export interface Product {
   readonly flavourProfile: string;
   readonly brewMethod: string;
   /** Main gross price per bag size, in grosze; a size without a (readable) price is missing. */
-  readonly prices: Readonly<Partial<Record<ProductSize, number>>>;
+  readonly prices: Readonly<Partial<Record<BagSize, number>>>;
   /** Cells Kraken could not read, one sentence each. */
   readonly problems: readonly string[];
   readonly deletedAt: string;
@@ -52,13 +50,13 @@ const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 export function productFromFields(fields: Fields, row: number): Product {
   const name = text(fields, 'name');
   const problems: string[] = [];
-  const prices: Partial<Record<ProductSize, number>> = {};
-  for (const grams of PRODUCT_SIZES_G) {
+  const prices: Partial<Record<BagSize, number>> = {};
+  for (const grams of BAG_SIZES_G) {
     const cell = text(fields, priceColumn(grams));
     if (cell === '') continue;
     const grosze = parseMoney(cell);
     if (typeof grosze === 'number' && grosze > 0) prices[grams] = grosze;
-    else problems.push(`The ${formatSize(grams)} price "${cell}" of ${name || `row ${row}`} cannot be read, so that size has no price. Edit the product to correct it.`);
+    else problems.push(`The ${formatBagSize(grams)} price "${cell}" of ${name || `row ${row}`} cannot be read, so that size has no price. Edit the product to correct it.`);
   }
   return {
     id: text(fields, 'id'),
@@ -80,8 +78,6 @@ export function productFromFields(fields: Fields, row: number): Product {
 
 export const isDeleted = (product: Product) => product.deletedAt !== '';
 
-/** "250 g", "1 kg" */
-export const formatSize = (grams: number) => (grams >= 1000 ? `${String(grams / 1000).replace('.', ',')} kg` : `${grams} g`);
 
 /** Active products by name (Polish alphabetical order), then deleted ones. */
 export function sortProducts(products: readonly Product[]): Product[] {
@@ -117,7 +113,7 @@ const TEXT_KEYS = {
   brewMethod: 'brew_method',
 } as const satisfies Partial<Record<keyof ProductForm, string>>;
 
-const PRICE_KEYS = { price250: 250, price500: 500, price1000: 1000 } as const satisfies Partial<Record<keyof ProductForm, ProductSize>>;
+const PRICE_KEYS = { price250: 250, price500: 500, price1000: 1000 } as const satisfies Partial<Record<keyof ProductForm, BagSize>>;
 
 export const emptyProductForm = (): ProductForm => ({
   name: '',
@@ -135,7 +131,7 @@ export const emptyProductForm = (): ProductForm => ({
 
 /** The form as the owner sees it: prices "45" or "45,90" (a price Kraken cannot read is shown as typed). */
 export function formFromProduct(product: Product): ProductForm {
-  const price = (grams: ProductSize) => {
+  const price = (grams: BagSize) => {
     const grosze = product.prices[grams];
     if (grosze === undefined) return text(product.source, priceColumn(grams));
     return moneyText(grosze).replace('.', ',');
@@ -166,7 +162,7 @@ export function validateProductForm(form: ProductForm): { ok: true; fields: Reco
     fields[column] = value;
   }
   if (fields['name'] === '') errors.name = 'Enter the name shown on the offer, e.g. Gwatemala.';
-  for (const [key, grams] of Object.entries(PRICE_KEYS) as [keyof typeof PRICE_KEYS, ProductSize][]) {
+  for (const [key, grams] of Object.entries(PRICE_KEYS) as [keyof typeof PRICE_KEYS, BagSize][]) {
     const typed = form[key].trim();
     if (typed === '') {
       fields[priceColumn(grams)] = '';
