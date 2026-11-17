@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { changedProductFields, emptyProductForm, formFromProduct, productFromFields, sortProducts, validateProductForm } from './model';
+import { BAG_SIZES_G } from '../../domain/bagSizes';
+import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, productFromFields, sortProducts, validateProductForm } from './model';
 
 const product = (row: number, o: Record<string, string> = {}) =>
   productFromFields(
@@ -20,6 +21,12 @@ const product = (row: number, o: Record<string, string> = {}) =>
     },
     row,
   );
+
+describe('the Products tab', () => {
+  it('has a price column for every bag size (a new size needs a migration that adds its column)', () => {
+    for (const grams of BAG_SIZES_G) expect(PRODUCT_COLUMNS).toContain(`price_${grams}_gross_pln`);
+  });
+});
 
 describe('reading a product', () => {
   it('reads the details and the prices per size; an empty price means no price for that size', () => {

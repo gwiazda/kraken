@@ -183,15 +183,7 @@ export function validateSettingsForm(form: SettingsForm): { ok: true; values: Re
   };
 }
 
-// ---- Bag sizes and their costs ----
-
-/** The bag sizes, fixed (owner, 2026-11-16: always 250 g, 500 g and 1 kg). A cost item stores its size in grams. */
-export const BAG_SIZES_G = [250, 500, 1000] as const;
-
-/** For the screen: "250 g", "1 kg", "1,5 kg". */
-export function formatBagSize(grams: number): string {
-  return grams >= 1000 ? `${toDecimalText(grams, 3).replace('.', ',')} kg` : `${grams} g`;
-}
+// ---- Bag costs (the sizes are fixed: domain/bagSizes.ts; a cost item stores its size in grams) ----
 
 export interface BagCost {
   readonly id: string;

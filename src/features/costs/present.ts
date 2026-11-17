@@ -4,7 +4,8 @@
 import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
-import { BAG_SIZES_G, formatBagSize, formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
+import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import { formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
 import { averageLoss, calculateLot, chooseLoss, roundGrosze, type BagInput, type RoastShare } from './modelCalc';
 
 export interface BagSizeView {

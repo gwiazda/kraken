@@ -9,7 +9,7 @@
 
 import { isValidDate } from '../../core/dates';
 import { moneyText, parseMoney } from '../../core/numbers';
-import { BAG_SIZES_G, formatBagSize } from './model';
+import { BAG_SIZES_G, formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { grossOf, netOf, roundGrosze } from './modelCalc';
 
 type Fields = Readonly<Record<string, string>>;
@@ -68,7 +68,7 @@ export function priceProblem(entry: PriceEntry): string | null {
   if (entry.deletedAt !== '') return null;
   const what = `Row ${entry.row} of the Price list tab`;
   if (entry.grossGrosze === null) return `${what} has the price "${entry.grossText}", which Kraken cannot read, so it is left out.`;
-  if (entry.grams === null || !(BAG_SIZES_G as readonly number[]).includes(entry.grams)) {
+  if (entry.grams === null || !isBagSize(entry.grams)) {
     return `${what} has the bag size "${entry.source['bag_size_g'] ?? ''}", which is not ${BAG_SIZES_G.map(formatBagSize).join(', ')} (in grams: ${BAG_SIZES_G.join(', ')}), so it is left out.`;
   }
   if (!isValidDate(entry.validFrom)) return `${what} has the date "${entry.validFrom}", which is not a date (YYYY-MM-DD), so it is left out.`;
