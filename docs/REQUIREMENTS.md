@@ -353,6 +353,7 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   does not show as a box.
 - **PDF:** "Save as PDF" opens Chrome's print window with the file name filled in, e.g. "Oferta dla Kawiarnia Pod
   Lipą 16.11.2026". No new library. Offers are **not stored** in Kraken (owner: keep it simple; the PDF is the record).
+- **Later: more offer templates** (owner, 2026-11-17), e.g. a Christmas one (with Santa), chosen per offer.
 - **Later:** Kraken makes the PDF itself and puts it on Google Drive (shared "Kraken offers" folder) — needs a PDF
   library (a picture of the page, or the design redrawn in code). Until then, Google Drive for desktop can make the
   saved PDF appear on Drive.

@@ -20,16 +20,17 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 ## In progress
 - **Products and Offer** (branch `claude/offers`, data version **6**: new "Products" tab, added with "Update now"):
   Products page (any name, details for the offer, main gross price per size); Offer page in Polish (customer, date,
-  valid 14 days, ticked products / sizes / discounts, preview of the owner's template, "Save as PDF" with the file
-  name filled in). Owner to test locally.
+  valid 14 days, ticked and ordered products, sizes and discounts, editable banner, preview of the owner's template,
+  "Save as PDF" with the file name filled in). Owner tested locally ("looks perfect").
 
 ## Next steps
 1. **Blend calculator** (owner, 2026-11-17): sliders for each coffee's share, cost of one bag and earnings at the
    markups; nothing saved (REQUIREMENTS section 6).
-2. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
-3. Price list later: customers (name, NIP, own discount), special prices, hand overrides.
-4. Roasts filters and paging (later).
-5. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
+2. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
+3. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
+4. Price list later: customers (name, NIP, own discount), special prices, hand overrides.
+5. Roasts filters and paging (later).
+6. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).
