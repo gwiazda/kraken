@@ -5,8 +5,10 @@ import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
-import { formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
-import { averageLoss, calculateLot, chooseLoss, roundGrosze, type BagInput, type RoastShare } from './modelCalc';
+import type { CostData } from './repo';
+import { readSettings, formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
+import { roundGrosze } from '../../domain/prices';
+import { averageLoss, calculateLot, chooseLoss, type BagInput, type RoastShare } from './modelCalc';
 
 export interface BagSizeView {
   readonly grams: number;
@@ -180,4 +182,39 @@ export function lotCards(
     };
   });
   return { cards, problems };
+}
+
+/** A lot's suggested prices, to pick from when setting a product's price (owner, 2026-11-18). */
+export interface LotSuggestion {
+  readonly lotId: string;
+  /** "KENYA-26-09 · Kegwa" */
+  readonly label: string;
+  readonly country: string;
+  /** Per bag size in grams: the suggested gross prices (whole złoty) at each markup; none when not calculable. */
+  readonly bySize: ReadonlyMap<number, readonly { readonly markup: string; readonly grosze: number; readonly text: string }[]>;
+}
+
+/** The suggestions of every lot that can be calculated, newest delivery first (from the lot cards). */
+export function lotSuggestions(cards: readonly LotCard[]): LotSuggestion[] {
+  return cards
+    .filter((card) => card.bags.some((bag) => bag.prices.length > 0))
+    .map((card) => ({
+      lotId: card.lot.id,
+      label: card.title,
+      country: card.lot.country,
+      bySize: new Map(
+        card.bags.map((bag, i) => [
+          BAG_SIZES_G[i] ?? 0,
+          bag.prices.map((p) => ({ markup: p.markup, grosze: p.suggestedGrossGrosze, text: p.suggestedGross })),
+        ]),
+      ),
+    }));
+}
+
+/** Everything the Products page needs from Costs & prices: the settings (VAT, discounts) and each lot's suggestions. */
+export function pricingFor(data: CostData, lots: readonly Lot[], roasts: readonly Roast[]): { settings: CostSettings; suggestions: LotSuggestion[]; problems: string[] } {
+  const { settings, problems } = readSettings(data.settings);
+  const { views } = bagSizeViews(data.costs);
+  const { cards } = lotCards(lots, roasts, data.lotCosts, views, settings);
+  return { settings, suggestions: lotSuggestions(cards), problems };
 }

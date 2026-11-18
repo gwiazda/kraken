@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from './model';
-import { averageLoss, calculateLot, chooseLoss, grossOf, netOf, roundGrosze, roundToZloty } from './modelCalc';
+import { roundGrosze } from '../../domain/prices';
+import { averageLoss, calculateLot, chooseLoss } from './modelCalc';
 
 // Example checked by hand: 4 500 zł + 120 zł delivery for 60 kg, 15 % loss, 250 g bag with items 1,20 + 0,30 zł.
 const bag250 = { id: 'S250', grams: 250, itemsGrosze: [120, 30] };
@@ -86,24 +87,5 @@ describe('roast loss', () => {
     expect(chooseLoss(null, { loss: 0.16, roasts: 3 }, DEFAULT_SETTINGS)).toEqual({ loss: 0.16, source: { kind: 'average', roasts: 3 } });
     expect(chooseLoss(null, null, DEFAULT_SETTINGS)).toEqual({ loss: 0.15, source: { kind: 'default' } });
     expect(chooseLoss(0, null, DEFAULT_SETTINGS).loss).toBe(0); // 0 % typed is a value, not "empty"
-  });
-});
-
-describe('helpers', () => {
-  it('adds VAT and rounds half up to the grosz', () => {
-    expect(grossOf(10000, 230)).toBe(12300);
-    expect(roundGrosze(2414.5)).toBe(2415);
-    expect(roundGrosze(2414.4999)).toBe(2414);
-  });
-
-  it('rounds to whole złoty half up, and takes VAT out of a gross price', () => {
-    expect(roundToZloty(7450)).toBe(7500); // 74,50 → 75 zł (owner's example)
-    expect(roundToZloty(7449)).toBe(7400);
-    expect(roundToZloty(7449.6)).toBe(7500); // shown as 74,50 zł before rounding, so it becomes 75 zł
-    expect(roundToZloty(7449.4)).toBe(7400); // shown as 74,49 zł
-    expect(roundToZloty(7400)).toBe(7400);
-    expect(roundToZloty(49)).toBe(0);
-    expect(netOf(12300, 230)).toBe(10000);
-    expect(netOf(grossOf(4829, 230), 230)).toBeCloseTo(4829, 9);
   });
 });

@@ -3,7 +3,7 @@
 // and the banner. Wholesale = the product's main gross ÷ (1 + VAT) − discount, net rounded to whole złoty.
 
 import { formatWholePln } from '../../core/numbers';
-import { wholesalePrice } from '../costs';
+import { wholesalePrice } from '../../domain/prices';
 import { formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { isProductDeleted, type Product } from '../products';
 import { addDays, bannerText, offerFileName, polishDate, tierText, type Banner, type OfferForm } from './model';

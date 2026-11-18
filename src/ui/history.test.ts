@@ -3,7 +3,7 @@ import { screenOf, stateFor } from './history';
 
 describe('screenOf', () => {
   it('reads back the marker Kraken stored', () => {
-    for (const screen of ['lots', 'lot-form', 'roasts', 'roast-form', 'sync', 'costs', 'prices', 'products', 'product-form', 'offer', 'settings'] as const) expect(screenOf(stateFor(screen))).toBe(screen);
+    for (const screen of ['lots', 'lot-form', 'roasts', 'roast-form', 'sync', 'costs', 'products', 'product-form', 'offer', 'settings'] as const) expect(screenOf(stateFor(screen))).toBe(screen);
   });
 
   it.each([null, undefined, {}, { kraken: 'something-else' }, 'lots'])('falls back to the Lots list for %j', (state) => {

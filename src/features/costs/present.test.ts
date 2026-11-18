@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { lotFromFields } from '../lots';
 import { roastFromFields } from '../roasts';
 import { DEFAULT_SETTINGS, bagCostFromFields, lotCostFromFields } from './model';
-import { bagSizeViews, lotCards, sharesByLot } from './present';
+import { bagSizeViews, lotCards, lotSuggestions, pricingFor, sharesByLot } from './present';
 
 const lot = (id: string, o: Record<string, string> = {}, row = 2) =>
   lotFromFields(
@@ -119,3 +119,31 @@ describe('lotCards', () => {
     expect(shares.get('NEW')).toEqual([{ partGrams: 500, greenGrams: 1500, roastedDecigrams: 12000 }]);
   });
 });
+
+describe('lot suggestions (for the Products page)', () => {
+  const sizes = bagSizeViews([cost('250', 'Bag', '1.2'), cost('250', 'Label', '0.3')]).views;
+
+  it('gives each calculable lot its suggested prices per size, newest delivery first', () => {
+    const lots = [lot('OLD', { delivery_date: '2026-03-01' }), lot('NEW', { delivery_date: '2026-10-01' }), lot('NOPRICE', { coffee_price_net_pln: '' })];
+    const suggestions = lotSuggestions(lotCards(lots, [], [], sizes, DEFAULT_SETTINGS).cards);
+    expect(suggestions.map((s) => [s.lotId, s.label, s.country])).toEqual([
+      ['NEW', 'KENYA-NEW · Kegwa', 'Kenya'],
+      ['OLD', 'KENYA-OLD · Kegwa', 'Kenya'],
+    ]);
+    // The hand-checked example: 250 g at 2×, 2,5×, 3× → 59, 74, 89 zł; 500 g and 1 kg have no bag costs yet.
+    expect(suggestions[0]?.bySize.get(250)?.map((p) => [p.markup, p.grosze])).toEqual([
+      ['2×', 5900],
+      ['2,5×', 7400],
+      ['3×', 8900],
+    ]);
+    expect(suggestions[0]?.bySize.get(1000)).toEqual([]);
+  });
+
+  it('reads the settings and the cost tabs together', () => {
+    const data = { settings: [], costs: [cost('250', 'Bag', '1.5')], lotCosts: [], problems: [] };
+    const result = pricingFor(data, [lot('L1')], []);
+    expect(result.settings).toEqual(DEFAULT_SETTINGS);
+    expect(result.suggestions[0]?.bySize.get(250)?.map((p) => p.grosze)).toEqual([5900, 7400, 8900]);
+  });
+});
+

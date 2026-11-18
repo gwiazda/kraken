@@ -18,7 +18,7 @@ import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
-import { sheetCostsRepository, showCostsPage, showPriceListPage } from './features/costs';
+import { sheetCostsRepository, showCostsPage } from './features/costs';
 import { showOfferPage } from './features/offers';
 import { sheetProductsRepository, showProductsPage } from './features/products';
 import { showRoastimeSync } from './features/roastime';
@@ -103,7 +103,6 @@ window.addEventListener('popstate', (event) => {
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'costs') showCosts(info, false, 'none');
-  else if (screen === 'prices') showPrices(info, false, 'none');
   else if (screen === 'offer') showOffer(info, false, 'none');
   else if (screen === 'products' || screen === 'product-form') {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
@@ -121,7 +120,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'costs' | 'prices' | 'products' | 'offer' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'costs' | 'products' | 'offer' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -144,9 +143,6 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Costs & prices', 'costs', () => {
         if (!saving) showCosts(info, true, menuMove('costs'));
-      }),
-      tab('Price list', 'prices', () => {
-        if (!saving) showPrices(info, true, menuMove('prices'));
       }),
       tab('Products', 'products', () => {
         if (!saving) showProducts(info, true, menuMove('products'));
@@ -425,15 +421,6 @@ function showCosts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
   );
 }
 
-function showPrices(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
-  record('prices', move);
-  showPriceListPage(
-    showApp(info, 'prices'),
-    { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
-    fromClick,
-  );
-}
-
 function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
   record('products', move);
   showProductsPage(
@@ -441,7 +428,11 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
     {
       ...googleDeps(),
       repo: sheetProductsRepository(client, info.id),
-      formOpened: () => record('product-form', 'push'),
+      costs: sheetCostsRepository(client, info.id),
+      lots: sheetLotsRepository(client, info.id),
+      roasts: sheetRoastsRepository(client, info.id),
+      // A product, then its form: one history step, so Back returns to the list.
+      formOpened: () => record('product-form', currentScreen === 'product-form' ? 'replace' : 'push'),
       formClosed: () => {
         currentScreen = 'products';
         leave('product-form');
