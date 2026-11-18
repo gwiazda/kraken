@@ -162,11 +162,28 @@ describe('version 7', () => {
 
   it('updates a version 6 sheet with the Discounts tab, keeping the data', async () => {
     const google = sheetAt(6, [{ title: 'Products', sheetId: 3, rows: [['id', 'name'], ['P1', 'Kenia']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 6), appVersion: 7 });
     expect(result.toVersion).toBe(7);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Products', 'Discounts']);
     expect(tab(google, 'Products')?.rows).toEqual([['id', 'name'], ['P1', 'Kenia']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '7']);
+  });
+});
+
+describe('version 8', () => {
+  it('adds the Product beans tab, agreed on 2026-11-18', () => {
+    const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
+    const columns = ['id', 'product_id', 'position', 'lot_id', 'planned_name', 'planned_price_per_kg_pln', 'planned_roast_loss_percent', 'share_percent'];
+    expect(MIGRATIONS[6]?.steps).toEqual([{ kind: 'add-tab', tab: 'Product beans', headers: [...columns, ...safety] }]);
+  });
+
+  it('updates a version 7 sheet with the Product beans tab, keeping the data', async () => {
+    const google = sheetAt(7, [{ title: 'Discounts', sheetId: 3, rows: [['id', 'percent'], ['D1', '15']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result.toVersion).toBe(8);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Discounts', 'Product beans']);
+    expect(tab(google, 'Discounts')?.rows).toEqual([['id', 'percent'], ['D1', '15']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '8']);
   });
 });
 

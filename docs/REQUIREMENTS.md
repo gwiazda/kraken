@@ -348,8 +348,20 @@ amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 - Short plain-language tooltips next to every number, in normal letters, floating above the page (owner, 2026-11-18).
 - **Sync with RoasTime** is under Settings (owner, 2026-11-18), not on the Lots or Roasts page.
 - The product page shows a column per discount from Packaging & discounts (no "Another discount" box).
-- **Next (step 3):** a product made of up to 3 beans (a lot, or a planned bean with a typed price per kg), share
-  sliders, cost of one bag, suggested prices and earnings per bag, saved with the product.
+
+**[R] A product's beans (owner, 2026-11-18; built, data version 8):** goal: "when I think about buying some beans I
+need to know what price to put on my product".
+- A product is made of **up to 3 beans**: a **lot** (its price per kg from Lots, its roast loss) or a **planned
+  bean** not bought yet (a name, the quoted price per kg with delivery and without VAT, an optional roast loss;
+  empty: the usual loss). Saved with the product ("Product beans" tab).
+- Each bean has a **share of the bag** (whole percent) set with a **slider**; the last bean takes the rest, so the
+  total is always 100 % (each at least 1 %). A coloured bar shows the shares.
+- Live under the beans, per size: **cost of one bag** (coffee + packaging), **suggested prices** at 2×, 2,5×, 3×
+  (with VAT, whole złoty) as buttons with **what each earns per bag**, and what the typed price earns ("You earn" /
+  "You lose" in red when it does not cover the cost). Earnings = the price without VAT minus the cost of one bag.
+- Rule: roasted price per kg of a bean = green price per kg ÷ (1 − roast loss); the blend's = each bean's, weighted
+  by its share of the coffee in the bag.
+- The product page shows **Cost and earnings** (made of …, cost of one bag, what the retail price earns).
 
 **[R] Blend calculator (owner, 2026-11-17, later):** an easy way to see what a blend costs: pick coffees from the
 lots, set each one's share with a slider, and see the cost of one bag of the blend (250 g, 500 g, 1 kg) and the

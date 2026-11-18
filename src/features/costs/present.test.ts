@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { lotFromFields } from '../lots';
 import { roastFromFields } from '../roasts';
 import { DEFAULT_SETTINGS, bagCostFromFields, lotCostFromFields } from './model';
-import { bagSizeViews, lotCards, lotLosses, lotSuggestions, pricingFor, sharesByLot } from './present';
+import { bagSizeViews, lotCards, lotLosses, pricingFor, sharesByLot } from './present';
 
 const lot = (id: string, o: Record<string, string> = {}, row = 2) =>
   lotFromFields(
@@ -121,35 +121,27 @@ describe('lotCards', () => {
   });
 });
 
-describe('lot suggestions (for the Products page)', () => {
-  const sizes = bagSizeViews([cost('250', 'Bag', '1.2'), cost('250', 'Label', '0.3')]).views;
-
-  it('gives each calculable lot its suggested prices per size, newest delivery first', () => {
-    const lots = [lot('OLD', { delivery_date: '2026-03-01' }), lot('NEW', { delivery_date: '2026-10-01' }), lot('NOPRICE', { coffee_price_net_pln: '' })];
-    const suggestions = lotSuggestions(lotCards(lots, [], [], sizes, DEFAULT_SETTINGS).cards);
-    expect(suggestions.map((s) => [s.lotId, s.label, s.country])).toEqual([
-      ['NEW', 'KENYA-NEW · Kegwa', 'Kenya'],
-      ['OLD', 'KENYA-OLD · Kegwa', 'Kenya'],
-    ]);
-    // The hand-checked example: 250 g at 2×, 2,5×, 3× → 59, 74, 89 zł; 500 g and 1 kg have no bag costs yet.
-    expect(suggestions[0]?.bySize.get(250)?.map((p) => [p.markup, p.grosze])).toEqual([
-      ['2×', 5900],
-      ['2,5×', 7400],
-      ['3×', 8900],
-    ]);
-    expect(suggestions[0]?.bySize.get(1000)).toEqual([]);
-  });
-
-  it('reads the settings and the cost tabs together', () => {
-    const data = { settings: [], costs: [cost('250', 'Bag', '1.5')], lotCosts: [], discounts: [], problems: [] };
-    const result = pricingFor(data, [lot('L1')], []);
+describe('pricingFor (for the Products page)', () => {
+  it('gives each active lot as a bean (newest first, green price per kg and roast loss), the packaging per size and the discounts', () => {
+    const data = { settings: [], costs: [cost('250', 'Bag', '1.2'), cost('250', 'Label', '0.3')], lotCosts: [], discounts: [], problems: [] };
+    const lots = [lot('OLD', { delivery_date: '2026-03-01' }), lot('NOPRICE', { coffee_price_net_pln: '' }), lot('GONE', { deleted_at: '2026-11-01T00:00:00.000Z' })];
+    const result = pricingFor(data, lots, []);
     expect(result.settings).toEqual(DEFAULT_SETTINGS);
+    // (4500 + 120) zł ÷ 60 kg = 77,00 zł per kg; usual loss 15 %
+    expect(result.lots.map((l) => [l.lotId, l.label, l.greenPerKg, l.lossTenths])).toEqual([
+      ['NOPRICE', 'KENYA-NOPRICE · Kegwa', null, 150],
+      ['OLD', 'KENYA-OLD · Kegwa', 7700, 150],
+    ]);
+    expect([...result.packaging]).toEqual([
+      [250, 150],
+      [500, null],
+      [1000, null],
+    ]);
     expect(result.discounts.map((d) => [d.tenths, d.name])).toEqual([
       [150, 'Do 10 kg'],
       [250, '10–20 kg'],
       [300, '20+ kg'],
     ]);
-    expect(result.suggestions[0]?.bySize.get(250)?.map((p) => p.grosze)).toEqual([5900, 7400, 8900]);
   });
 });
 

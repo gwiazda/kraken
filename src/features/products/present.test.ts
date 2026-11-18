@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from './model';
-import { discountHeader, priceRows, productDetails, suggestedLot } from './present';
+import { costing, discountHeader, priceRows, productDetails } from './present';
+import type { BeanForm } from './modelBeans';
 
 const kenia = productFromFields(
   { id: 'K', name: 'Kenia', country: 'Kenia', region: 'Kirinyaga', flavour_profile: 'Jagoda', brew_method: 'Filtr', price_250_gross_pln: '59', price_1000_gross_pln: '221' },
@@ -43,22 +44,56 @@ describe('productDetails', () => {
   });
 });
 
-describe('suggestedLot', () => {
+describe('costing (what a bag costs and earns)', () => {
   const lots = [
-    { lotId: 'ETH', label: 'ETHIOPIA-26-10 · Guji', country: 'Ethiopia' },
-    { lotId: 'KEN-NEW', label: 'KENYA-26-09 · Kegwa', country: 'Kenya' },
-    { lotId: 'KEN-OLD', label: 'KENYA-26-03 · Kegwa', country: 'Kenya' },
-    { lotId: 'BUR', label: 'BURUNDI-26-08 · Burunga', country: 'Burundi' },
+    { lotId: 'KEN', label: 'KENYA-26-09 · Kegwa', greenPerKg: 7700, lossTenths: 150, lossSource: 'average of 23 roasts' },
+    { lotId: 'NOPRICE', label: 'PERU-26-10 · Cajamarca', greenPerKg: null, lossTenths: 150, lossSource: '' },
   ];
+  const packaging = new Map([
+    [250, 150],
+    [500, null],
+    [1000, 250],
+  ]);
+  const lotBean = (lotId: string, share: number): BeanForm => ({ kind: 'lot', lotId, plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: share });
 
-  it('picks the newest lot whose coffee name or country is in the product name or country', () => {
-    expect(suggestedLot({ name: 'Kenia Kegwa', country: '' }, lots)).toBe('KEN-NEW'); // by coffee name
-    expect(suggestedLot({ name: 'Burundi', country: 'Burundi' }, lots)).toBe('BUR'); // by country
-    expect(suggestedLot({ name: 'Etiopia', country: 'Etiopia' }, lots)).toBe(''); // Polish spelling: no guess
+  it('works out the hand-checked example for one bean: 24,15 zł a bag, suggestions 59 / 74 / 89 zł and their earnings', () => {
+    const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 5900 });
+    expect(result.madeOf).toBe('Made of 100 % KENYA-26-09 · Kegwa');
+    expect(result.perKg).toBe('90,59\u00a0zł per kg of roasted coffee');
+    expect(result.rows[0]).toMatchObject({
+      size: '250 g',
+      cost: '24,15\u00a0zł',
+      parts: 'coffee 22,65\u00a0zł and packaging 1,50\u00a0zł',
+      earnings: '23,82\u00a0zł',
+      losing: false,
+    });
+    expect(result.rows[0]?.suggestions.map((s) => [s.text, s.markup, s.earnings])).toEqual([
+      ['59\u00a0zł', '2×', '23,82\u00a0zł'],
+      ['74\u00a0zł', '2,5×', '36,02\u00a0zł'],
+      ['89\u00a0zł', '3×', '48,21\u00a0zł'],
+    ]);
+    expect(result.rows[1]).toMatchObject({ cost: '', parts: 'coffee 45,29\u00a0zł, packaging not entered' });
+    expect(result.notes).toEqual(['No packaging entered for 500 g: add it under Packaging & discounts.']);
   });
 
-  it('never guesses: no match (or no lots) means the owner chooses', () => {
-    expect(suggestedLot({ name: 'Gwatemala', country: 'Gwatemala' }, lots)).toBe('');
-    expect(suggestedLot({ name: 'Kenia Kegwa', country: '' }, [])).toBe('');
+  it('blends a lot with a planned bean (usual loss when none is typed)', () => {
+    const plannedBean: BeanForm = { kind: 'planned', lotId: '', plannedName: 'Etiopia offer', plannedPrice: '50', plannedLoss: '20', sharePercent: 40 };
+    const result = costing([lotBean('KEN', 60), plannedBean], lots, packaging, 230, 150, {});
+    expect(result.madeOf).toBe('Made of 60 % KENYA-26-09 · Kegwa and 40 % Etiopia offer (planned)');
+    expect(result.perKg).toBe('79,35\u00a0zł per kg of roasted coffee');
+    const usual = costing([{ ...plannedBean, plannedLoss: '', sharePercent: 100 }], lots, packaging, 230, 150, {});
+    expect(usual.perKg).toBe('58,82\u00a0zł per kg of roasted coffee'); // 50 zł ÷ 0,85
+  });
+
+  it('shows a loss when the price does not cover the cost', () => {
+    const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 2000 });
+    expect(result.rows[0]).toMatchObject({ earnings: '−7,89\u00a0zł', losing: true });
+  });
+
+  it('says in plain words what is missing', () => {
+    expect(costing([lotBean('NOPRICE', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['PERU-26-10 · Cajamarca has no price yet: add it on the Lots page (Edit).']);
+    expect(costing([lotBean('', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['Choose a lot for each bean.']);
+    expect(costing([lotBean('KEN', 60), lotBean('', 30)], lots, packaging, 230, 150, {}).notes).toEqual(['Choose a lot for each bean.', 'The shares add up to 90 %, not 100 %.']);
+    expect(costing([], lots, packaging, 230, 150, {})).toEqual({ madeOf: '', perKg: '', rows: expect.any(Array) as unknown, notes: [] });
   });
 });

@@ -1381,3 +1381,137 @@ details summary {
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* ---- A product's beans (owner, 2026-11-18): up to 3, share sliders, costing ---- */
+
+.beans {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.5rem 0;
+}
+
+.bean-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #222;
+  border-left: 4px solid var(--bean-colour, var(--lime));
+  border-radius: 6px;
+  background: #0b0b0b;
+}
+
+.bean-1 {
+  --bean-colour: #cad401;
+}
+
+.bean-2 {
+  --bean-colour: #f3e838;
+}
+
+.bean-3 {
+  --bean-colour: #8fd3c7;
+}
+
+.bean-head,
+.bean-what,
+.bean-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+}
+
+.bean-head .btn-link {
+  margin-left: auto;
+}
+
+.beans select,
+.bean-field input {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.bean-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bean-field-label {
+  font-size: 0.8rem;
+  color: var(--grey);
+}
+
+.bean-share input[type='range'] {
+  flex: 1 1 14rem;
+  max-width: 26rem;
+  accent-color: var(--bean-colour, var(--lime));
+}
+
+.share-value {
+  font-weight: 600;
+  min-width: 6.5rem;
+}
+
+.share-bar {
+  display: flex;
+  height: 1.4rem;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.4rem 0 0.2rem;
+  max-width: 40rem;
+}
+
+.share-part {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--black);
+  min-width: 2px;
+}
+
+.share-1 {
+  background: #cad401;
+}
+
+.share-2 {
+  background: #f3e838;
+}
+
+.share-3 {
+  background: #8fd3c7;
+}
+
+.made-of {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.price-earn {
+  grid-column: 2 / -1;
+  font-size: 0.9rem;
+}
+
+.price-earn:empty {
+  display: none;
+}
+
+.earn {
+  color: var(--lime);
+  font-weight: 600;
+}
+
+.losing,
+.earn.losing {
+  color: #ff6b6b;
+}
+
+.beans > .btn {
+  justify-self: start;
+}

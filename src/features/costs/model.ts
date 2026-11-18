@@ -5,6 +5,7 @@
 // net price; gross = net × (1 + VAT); roast loss = the average of the lot's roasts unless the owner types one.
 
 import { moneyText, parseDecimal, parseMoney, toDecimalText } from '../../core/numbers';
+import { MARKUPS } from '../../domain/blend';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -20,8 +21,7 @@ const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 
 // ---- Settings ----
 
-/** The price multipliers, fixed (owner, 2026-11-18): 2×, 2,5× and 3× the cost of one bag. In hundredths. */
-export const MARKUPS: readonly number[] = [200, 250, 300];
+export { MARKUPS };
 
 /** Percentages in tenths (230 = 23,0 %), markups in hundredths (250 = 2,5×). */
 export interface CostSettings {
