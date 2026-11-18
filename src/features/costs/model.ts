@@ -25,7 +25,7 @@ export interface CostSettings {
   readonly vatTenths: number;
   readonly markupHundredths: readonly number[];
   readonly defaultLossTenths: number;
-  /** Wholesale discounts offered as quick buttons on the Price list, in tenths of a percent (150 = 15 %). */
+  /** Wholesale discounts, shown on each product's page and offered on the Offer, in tenths of a percent (150 = 15 %). */
   readonly discountTenths: readonly number[];
 }
 

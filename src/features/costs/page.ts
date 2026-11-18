@@ -454,7 +454,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
           'discounts',
           'Wholesale discounts %',
           'Separated by ";", e.g. 15; 25; 30.',
-          'The quick buttons on the Price list. Any other % can still be typed there.',
+          'Shown as columns on each product\'s page and offered on the Offer page. Any other % can be typed on a product\'s page.',
         ),
       ),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),

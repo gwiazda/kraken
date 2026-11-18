@@ -742,41 +742,224 @@ details summary {
   gap: 0 2rem;
 }
 
-/* ---- Price list ---- */
+/* ---- Products (owner, 2026-11-18: the one place for prices; keep it neat) ---- */
 
-.sub-nav {
-  flex-wrap: wrap;
-  align-items: center;
+.product-table td:first-child .btn-link {
+  font-weight: 600;
+  font-size: 1rem;
 }
 
-.sub-nav .inline-form {
-  margin: 0;
+.back-link {
+  margin: 0 0 0.5rem;
 }
 
-.price-table {
+.product-card {
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 1rem 1.25rem 1.1rem;
+  margin: 1rem 0 1.25rem;
+  background: #0b0b0b;
+}
+
+.product-card h3 {
+  margin: 0 0 0.75rem;
+}
+
+.product-prices {
   width: auto;
   min-width: 28rem;
 }
 
-.price-table tbody th {
+.product-prices tbody th {
   text-transform: none;
   letter-spacing: 0;
   font-size: 0.95rem;
-  font-weight: normal;
   color: var(--white);
 }
 
-.price-table td {
+.product-prices td {
   vertical-align: top;
 }
 
-.price-form {
-  text-align: left;
-  min-width: 16rem;
+.price-main {
+  display: block;
+  font-size: 1.15rem;
 }
 
-.price-form .btn {
-  margin: 0.15rem 0;
+.price-other {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--grey);
+}
+
+.product-prices .col-retail .price-main {
+  color: var(--lime);
+}
+
+.product-prices .col-retail {
+  border-right: 1px solid #2a2a2a;
+  padding-right: 1.25rem;
+}
+
+.other-discount {
+  margin-top: 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.product-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.5rem;
+  margin: 0;
+}
+
+.product-details dt {
+  color: var(--grey);
+}
+
+.product-details dd {
+  margin: 0;
+}
+
+.deleted-products {
+  margin-top: 1.5rem;
+}
+
+/* The price rows in the product form: size, price in zł, suggestions to click. */
+.suggest-from {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.suggest-from select {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.price-rows {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.price-row {
+  display: grid;
+  grid-template-columns: 4.5rem auto 1fr;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #222;
+  border-radius: 6px;
+  background: #0b0b0b;
+}
+
+.price-row .field-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.price-row .field-error:empty {
+  display: none;
+}
+
+.price-size {
+  font-weight: 600;
+}
+
+.price-input {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.price-input input {
+  font: inherit;
+  width: 8rem;
+  padding: 0.45rem 2.2rem 0.45rem 0.6rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  text-align: right;
+  color-scheme: dark;
+}
+
+.price-input input:focus {
+  outline: 2px solid var(--lime);
+  outline-offset: 1px;
+}
+
+.price-input input[aria-invalid='true'] {
+  border-color: #ff6b6b;
+}
+
+.price-unit {
+  position: absolute;
+  right: 0.6rem;
+  color: var(--grey);
+  pointer-events: none;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.2rem 0.7rem;
+  border: 1px solid #444;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--white);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--lime);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+
+.chip-note {
+  color: var(--grey);
+  font-size: 0.78rem;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: var(--black);
+}
+
+.chip[aria-pressed='true'] .chip-note {
+  color: #333;
+}
+
+@media (max-width: 640px) {
+  .price-row {
+    grid-template-columns: 4rem 1fr;
+  }
+
+  .price-row .chips {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ---- Offer document ----

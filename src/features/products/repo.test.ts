@@ -13,9 +13,10 @@ describe('sheetProductsRepository (in-memory Google)', () => {
     const repo = sheetProductsRepository(google, info.id);
     expect(await repo.load()).toEqual({ products: [], problems: [] });
 
-    await repo.add({ name: 'Kenia', brew_method: 'Filtr', price_250_gross_pln: '59' }, 'owner@example.com', now);
+    const id = await repo.add({ name: 'Kenia', brew_method: 'Filtr', price_250_gross_pln: '59' }, 'owner@example.com', now);
     let [kenia] = (await repo.load()).products;
     if (!kenia) throw new Error('setup');
+    expect(kenia.id).toBe(id);
     expect(kenia).toMatchObject({ name: 'Kenia', brewMethod: 'Filtr', prices: { 250: 5900 } });
 
     await repo.update(kenia, { price_250_gross_pln: '61' }, later);

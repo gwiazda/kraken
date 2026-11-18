@@ -241,7 +241,13 @@ Flexible enough to generate prices for any discount.
 - **[R]** Every discounted price can be **overridden by hand**. An overridden price is clearly marked,
   and can be reset to the calculated value.
 
-**[R] Decided with the owner (2026-11-16), Price list part 1:**
+**[R] Merged into Products (owner, 2026-11-18):** the Price list page is gone; **Products** is the one place for
+prices (section 6, "Products and offers"). The rules below about wholesale rounding and discounts still apply; the
+per-coffee prices and their history do not (a product keeps only its current price). The "Price list" sheet tab is no
+longer read; the owner may delete it by hand (Kraken never deletes tabs). New sheets still get it, empty, because
+migration 005 cannot be changed.
+
+**[R] Decided with the owner (2026-11-16), Price list part 1 (replaced 2026-11-18, see above):**
 - A **Price list** menu tab and sheet tab. It holds the **main price** per coffee and bag size: **gross**, set by
   clicking one of the suggested prices from Costs & prices or by typing one. Retail customers pay it.
   Each price is saved as a new row with a **valid from** date (today); old prices stay in the tab (price history);
@@ -336,11 +342,16 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
 - A **Products** page and tab: products named however the owner likes (e.g. "Kenia", "Gwatemala Espresso"),
   **not linked to lots**. Each has the details shown on the offer (country, region, altitude, processing, variety,
   flavour profile, brew method such as Espresso / Filtr) and its own **main gross price** per bag size (250 g, 500 g,
-  1 kg; empty = not offered in that size). The Price list's suggestions are only a guide.
+  1 kg; empty = not offered in that size). Only the current price is kept (owner, 2026-11-18).
+- **Products is the one place for prices** (owner, 2026-11-18): the list stays simple (name, brew method, origin,
+  main prices); clicking a product shows its main gross prices and its **wholesale prices at each discount** (net,
+  whole złoty, with the gross), plus "Another discount" for any %. The offer uses the same prices.
+- In the product form, suggested prices from a chosen lot (Costs & prices: cost of one bag × markup + VAT, whole
+  złoty) are buttons that fill the price in; a price can also be typed. Only the price is saved, not the lot.
 - An **Offer** page, in **Polish** (for Polish customers): customer name, date, **valid for 14 days** (the "valid
   until" date is on the offer), ticked products, ticked bag sizes and ticked discounts (from the discount setting),
   each with a name such as "Do 10 kg" (default names for 15 / 25 / 30 %: "Do 10 kg", "10–20 kg", "20+ kg").
-  Prices on the offer: wholesale **net**, rounded to whole złoty (as on the Price list), one block per size;
+  Prices on the offer: wholesale **net**, rounded to whole złoty (as on the product page), one block per size;
   "Sugerowana cena detaliczna brutto" (the main gross price) under **250 g only**.
 - The owner sets the **order** of the products on the offer (↑ ↓). Empty product details are left out.
 - The **yellow banner** text is made from the ticked discounts and sizes, and can be changed per offer (title, main

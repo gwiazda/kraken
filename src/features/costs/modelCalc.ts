@@ -10,6 +10,7 @@
 //   price at a markup       = cost of one bag × markup (net); gross = net × (1 + VAT)
 //   suggested price         = that gross rounded to whole złoty (half up); its net = suggested gross ÷ (1 + VAT)
 
+import { grossOf, netOf, roundToZloty } from '../../domain/prices';
 import type { CostSettings } from './model';
 
 /** One roast's share in a lot: the green grams it took from the lot, and the whole roast's weights. */
@@ -90,13 +91,6 @@ export interface LotCalculation {
   readonly bags: readonly BagCalculation[];
 }
 
-/** Gross from net: net × (1 + VAT). */
-export const grossOf = (net: number, vatTenths: number) => (net * (1000 + vatTenths)) / 1000;
-
-/** Net from gross: gross ÷ (1 + VAT). */
-export const netOf = (gross: number, vatTenths: number) => (gross * 1000) / (1000 + vatTenths);
-
-
 /**
  * The full calculation for one lot. `priceGrosze` is the coffee price plus the delivery cost, `quantityGrams` the
  * green coffee delivered. Null when the price or quantity is missing (the screen says what to add).
@@ -134,12 +128,3 @@ export function calculateLot(
     }),
   };
 }
-
-/** A calculated amount rounded to the grosz, half up (for the screen). */
-export const roundGrosze = (amount: number) => Math.round(amount + 1e-9);
-
-/**
- * An amount in grosze rounded to whole złoty, half up (74,50 → 75 zł; 74,49 → 74 zł). Gives grosze. It first rounds to
- * the grosz, as the screen shows it, so an amount shown as 74,50 zł always becomes 75 zł.
- */
-export const roundToZloty = (amount: number) => roundGrosze(roundGrosze(amount) / 100) * 100;
