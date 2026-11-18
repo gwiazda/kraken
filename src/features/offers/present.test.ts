@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from '../products';
-import { DEFAULT_TIER_LABELS } from './model';
 import { buildOffer } from './present';
 
-const TIERS = [150, 250, 300].map((tenths) => ({ tenths, label: DEFAULT_TIER_LABELS[tenths] ?? '' }));
+const TIERS = [
+  { tenths: 150, label: 'Do 10 kg' },
+  { tenths: 250, label: '10–20 kg' },
+  { tenths: 300, label: '20+ kg' },
+];
 const form = (o: Partial<Parameters<typeof buildOffer>[1]> = {}) => ({ customer: 'Kawiarnia Pod Lipą', date: '2026-11-16', productIds: ['G', 'K', 'B'], sizes: [1000, 250], tiers: TIERS, banner: null, ...o });
 
 const productFromFieldsForTest = (id: string, fields: Record<string, string>) => productFromFields({ id, ...fields }, 2);

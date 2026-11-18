@@ -17,15 +17,15 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Products = the one place for prices** (branch `claude/products-prices`): Price list page merged into Products
-  (click a product: retail and wholesale prices at each discount; neater form with suggestion buttons from a lot);
-  price rules in `domain/prices.ts`. No sheet change. After merging, the owner may delete the "Price list" tab by hand.
+- **Step 2: Costs & prices removed** (branch `claude/packaging-discounts`, data version **7**: new "Discounts" tab):
+  lot price, delivery cost, price per kg and roast loss on the Lots page; new **Packaging & discounts** page
+  (packaging, discounts with names, VAT, usual roast loss); multipliers fixed; Offer ticks up to 4 named discounts.
   Owner to test locally.
-- Done before (PRs #24, #25): Products and Offer (data version 6), bag sizes in `domain/bagSizes.ts`.
+- Done before: Products = the one place for prices (PR #26).
 
 ## Next steps
-1. **Blend calculator** (owner, 2026-11-17): sliders for each coffee's share, cost of one bag and earnings at the
-   markups; nothing saved (REQUIREMENTS section 6).
+1. **Step 3: a product's beans** (owner, 2026-11-18): up to 3 beans per product (a lot, or a planned bean with a
+   typed price per kg), share sliders, live cost of one bag, suggested prices and earnings; saved with the product.
 2. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
 3. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
 4. Prices later: customers (name, NIP, own discount), special prices, hand overrides.

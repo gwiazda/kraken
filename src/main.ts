@@ -18,7 +18,7 @@ import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
-import { sheetCostsRepository, showCostsPage } from './features/costs';
+import { lotLosses, sheetCostsRepository, showPackagingPage, validateLoss } from './features/costs';
 import { showOfferPage } from './features/offers';
 import { sheetProductsRepository, showProductsPage } from './features/products';
 import { showRoastimeSync } from './features/roastime';
@@ -102,13 +102,13 @@ window.addEventListener('popstate', (event) => {
   }
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
-  else if (screen === 'costs') showCosts(info, false, 'none');
+  else if (screen === 'packaging') showPackaging(info, false, 'none');
   else if (screen === 'offer') showOffer(info, false, 'none');
   else if (screen === 'products' || screen === 'product-form') {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
     showProducts(info, false, 'none');
   }
-  else if (screen === 'sync') showSync(info, syncFrom, 'none');
+  else if (screen === 'sync') showSync(info, 'none');
   else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
     if (screen === 'roast-form') window.history.replaceState(stateFor('roasts'), '', '#roasts');
@@ -120,7 +120,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'costs' | 'products' | 'offer' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'products' | 'offer' | 'packaging' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -141,14 +141,14 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       tab('Roasts', 'roasts', () => {
         if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
       }),
-      tab('Costs & prices', 'costs', () => {
-        if (!saving) showCosts(info, true, menuMove('costs'));
-      }),
       tab('Products', 'products', () => {
         if (!saving) showProducts(info, true, menuMove('products'));
       }),
       tab('Offer', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
+      }),
+      tab('Packaging & discounts', 'packaging', () => {
+        if (!saving) showPackaging(info, true, menuMove('packaging'));
       }),
       tab('Settings', 'settings', () => {
         if (!saving) showSettings(info, menuMove('settings'));
@@ -377,12 +377,23 @@ function googleDeps() {
 
 function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
   const roasts = sheetRoastsRepository(client, info.id);
+  const costs = sheetCostsRepository(client, info.id);
   return {
     ...googleDeps(),
     repo: sheetLotsRepository(client, info.id),
     // Stock left: the roasts are loaded and counted against the lots (oldest delivery first).
     loadStock: async (lots) => allocate(lots, (await roasts.load()).roasts).lots,
-    openSync: () => showSync(info, 'lots'),
+    // Roast loss: the lot's own value (Lot costs tab), else the average of its roasts, else the usual loss.
+    loadLosses: async (lots) => {
+      const [data, all] = await Promise.all([costs.load(), roasts.load()]);
+      return lotLosses(data, lots, all.roasts);
+    },
+    checkLoss: validateLoss,
+    saveLoss: async (lotId, value) => {
+      const data = await costs.load();
+      const existing = data.lotCosts.find((c) => c.deletedAt === '' && c.lotId === lotId);
+      await costs.saveLoss(lotId, value, existing, () => whoAmI(client), new Date());
+    },
     formOpened: () => record('lot-form', 'push'),
     formClosed: () => {
       currentScreen = 'lots';
@@ -399,7 +410,6 @@ function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, mov
       ...googleDeps(),
       repo: sheetRoastsRepository(client, info.id),
       lots: sheetLotsRepository(client, info.id),
-      openSync: () => showSync(info, 'roasts'),
       formOpened: () => record('roast-form', 'push'),
       formClosed: () => {
         currentScreen = 'roasts';
@@ -411,14 +421,9 @@ function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, mov
   );
 }
 
-function showCosts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
-  record('costs', move);
-  showCostsPage(
-    showApp(info, 'costs'),
-    { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
-    undefined,
-    fromClick,
-  );
+function showPackaging(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('packaging', move);
+  showPackagingPage(showApp(info, 'packaging'), { ...googleDeps(), repo: sheetCostsRepository(client, info.id) }, undefined, fromClick);
 }
 
 function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
@@ -457,29 +462,24 @@ function showOffer(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
   );
 }
 
-/** "Sync with RoasTime", opened from the Lots or the Roasts page; it returns there. */
-/** The page "Sync with RoasTime" was last opened from (Back/Forward returns to the same sync). */
-let syncFrom: 'lots' | 'roasts' = 'lots';
-
-function showSync(info: SpreadsheetInfo, from: 'lots' | 'roasts', move: HistoryMove = 'push'): void {
-  syncFrom = from;
+/** "Sync with RoasTime", opened from Settings (owner, 2026-11-18); it returns there. */
+function showSync(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
   record('sync', move);
-  showRoastimeSync(showApp(info, from), {
+  showRoastimeSync(showApp(info, 'settings'), {
     ...googleDeps(),
     lots: sheetLotsRepository(client, info.id),
     roasts: sheetRoastsRepository(client, info.id),
     copyText: (text: string) => navigator.clipboard.writeText(text),
     back: (note?: string) => {
       leave('sync');
-      if (from === 'roasts') showRoasts(info, note, true, 'none');
-      else showLots(info, note, true, 'none');
-      currentScreen = from;
+      showSettings(info, 'none', note);
+      currentScreen = 'settings';
     },
   });
 }
 
 /** The sheet Kraken uses, and signing out. Kept off the main page (owner, 2026-11-15). */
-function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
+function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push', note?: string): void {
   record('settings', move);
   // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
   const link = isGoogleSheetsUrl(info.url)
@@ -487,6 +487,12 @@ function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
     : el('span', {}, info.title);
   showApp(info, 'settings').append(
     el('h2', {}, 'Settings'),
+    ...(note ? [message(note)] : []),
+    el('section', { class: 'product-card' }, el('h3', {}, 'RoasTime'),
+      el('p', { class: 'muted small' }, 'Brings in the deliveries (lots) and the roasts from the RoasTime folder on this computer. You see a preview first; nothing is saved until you confirm.'),
+      el('div', { class: 'actions' }, button('Sync with RoasTime', () => showSync(info), 'primary')),
+    ),
+    el('h3', {}, 'Sheet and sign-in'),
     el('p', { class: 'connected' }, 'Connected to: ', link),
     el('p', { class: 'muted small' }, `Data version ${APP_SCHEMA_VERSION}.`),
     el(

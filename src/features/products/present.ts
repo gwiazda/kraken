@@ -2,7 +2,7 @@
 // gross price with its net, and the wholesale price at each discount (net, whole złoty, with the gross for the
 // invoice). The rules are in domain/prices.ts, shared with the Offer.
 
-import { formatPln, formatWholePln, parseDecimal } from '../../core/numbers';
+import { formatPln, formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
 import type { Product } from './model';
@@ -27,12 +27,6 @@ const NONE: PriceCell = { main: '—', other: '' };
 
 /** "−15 %", "−12,5 %" (the column headers). */
 export const discountHeader = (tenths: number) => `−${String(tenths / 10).replace('.', ',')} %`;
-
-/** A discount typed by the owner ("20", "12,5") in tenths of a percent; null unless from 0,1 to 99,9 %. */
-export function parseDiscount(text: string): number | null {
-  const tenths = parseDecimal(text, 1);
-  return typeof tenths === 'number' && tenths > 0 && tenths < 1000 ? tenths : null;
-}
 
 /** One row per bag size: the main price and the wholesale price at each discount (tenths of a percent). */
 export function priceRows(product: Product, discountTenths: readonly number[], vatTenths: number): PriceRow[] {

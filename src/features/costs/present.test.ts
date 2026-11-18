@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { lotFromFields } from '../lots';
 import { roastFromFields } from '../roasts';
 import { DEFAULT_SETTINGS, bagCostFromFields, lotCostFromFields } from './model';
-import { bagSizeViews, lotCards, lotSuggestions, pricingFor, sharesByLot } from './present';
+import { bagSizeViews, lotCards, lotLosses, lotSuggestions, pricingFor, sharesByLot } from './present';
 
 const lot = (id: string, o: Record<string, string> = {}, row = 2) =>
   lotFromFields(
@@ -59,7 +59,7 @@ describe('lotCards', () => {
       missing: '',
       greenPerKg: '77,00\u00a0zł / kg',
       loss: '15 %',
-      lossSource: 'default: no roasts with both weights yet',
+      lossSource: 'usual loss: no roasts with both weights yet',
       roastedFromKg: '0,85\u00a0kg',
       roastedPerKg: '90,59\u00a0zł / kg',
     });
@@ -91,14 +91,14 @@ describe('lotCards', () => {
 
   it('reports roasts whose weights give a loss that makes no sense, and uses the default', () => {
     const { cards, problems } = lotCards([lot('L1')], [roast('R1', '1000', '1200')], [], sizes, DEFAULT_SETTINGS);
-    expect(cards[0]).toMatchObject({ loss: '15\u00a0%', lossSource: 'default: the roast weights do not make sense' });
+    expect(cards[0]).toMatchObject({ loss: '15\u00a0%', lossSource: 'usual loss: the roast weights do not make sense' });
     expect(problems).toEqual(['The roasts of KENYA-L1 give a roast loss below 0 % or of 100 % or more, so the default loss is used. Check their weights on the Roasts page.']);
   });
 
   it('falls back to the average when the saved loss cannot be read, and says so', () => {
     const odd = lotCostFromFields({ id: 'O', lot_id: 'L1', roast_loss_percent: 'a lot' }, 2);
     const { cards, problems } = lotCards([lot('L1')], [], [odd], sizes, DEFAULT_SETTINGS);
-    expect(cards[0]?.lossSource).toBe('default: no roasts with both weights yet');
+    expect(cards[0]?.lossSource).toBe('usual loss: no roasts with both weights yet');
     expect(problems).toEqual(['The roast loss "a lot" saved for KENYA-L1 cannot be read; the average of its roasts is used instead.']);
   });
 
@@ -141,10 +141,33 @@ describe('lot suggestions (for the Products page)', () => {
   });
 
   it('reads the settings and the cost tabs together', () => {
-    const data = { settings: [], costs: [cost('250', 'Bag', '1.5')], lotCosts: [], problems: [] };
+    const data = { settings: [], costs: [cost('250', 'Bag', '1.5')], lotCosts: [], discounts: [], problems: [] };
     const result = pricingFor(data, [lot('L1')], []);
     expect(result.settings).toEqual(DEFAULT_SETTINGS);
+    expect(result.discounts.map((d) => [d.tenths, d.name])).toEqual([
+      [150, 'Do 10 kg'],
+      [250, '10–20 kg'],
+      [300, '20+ kg'],
+    ]);
     expect(result.suggestions[0]?.bySize.get(250)?.map((p) => p.grosze)).toEqual([5900, 7400, 8900]);
   });
 });
 
+describe('lotLosses (for the Lots page)', () => {
+  it("gives each lot's roast loss, where it comes from, and the owner's own value", () => {
+    const own = lotCostFromFields({ id: 'O', lot_id: 'B', roast_loss_percent: '14.2' }, 2);
+    const data = { settings: [], costs: [], lotCosts: [own], discounts: [], problems: [] };
+    const roasts = [roast('R1', '1000', '850', { roastime_bean_id: 'BA' }), roast('R2', '1000', '830', { roastime_bean_id: 'BA' })];
+    const { losses, problems } = lotLosses(data, [lot('A', { roastime_bean_id: 'BA' }), lot('B', { roastime_bean_id: 'BB' }), lot('C', { roastime_bean_id: 'BC' })], roasts);
+    expect(problems).toEqual([]);
+    expect(losses.get('A')).toEqual({ lossTenths: 160, source: 'average of 2 roasts', own: '' });
+    expect(losses.get('B')).toEqual({ lossTenths: 142, source: 'your own', own: '14.2' });
+    expect(losses.get('C')).toEqual({ lossTenths: 150, source: 'usual loss: no roasts with both weights yet', own: '' });
+  });
+
+  it('reports a saved loss it cannot read, so the owner can correct it on the Lots page', () => {
+    const odd = lotCostFromFields({ id: 'O', lot_id: 'A', roast_loss_percent: 'a lot' }, 2);
+    const { problems } = lotLosses({ settings: [], costs: [], lotCosts: [odd], discounts: [], problems: [] }, [lot('A')], []);
+    expect(problems).toEqual(['The roast loss "a lot" saved for KENYA-A cannot be read; the average of its roasts is used instead.']);
+  });
+});

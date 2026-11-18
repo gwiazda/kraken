@@ -10,10 +10,10 @@ export { addDays } from '../../core/dates';
 export const OFFER_VALID_DAYS = 14;
 
 /**
- * The tier names used so far (the owner's template): the discount depends on the monthly order weight. A discount
- * without a name is shown as "Rabat −20%".
+ * At most this many discounts on one offer (owner, 2026-11-18: more discounts, without breaking the PDF): each one
+ * adds a price line to every product card. Their names are short (Packaging & discounts allows 12 characters).
  */
-export const DEFAULT_TIER_LABELS: Readonly<Record<number, string>> = { 150: 'Do 10 kg', 250: '10–20 kg', 300: '20+ kg' };
+export const MAX_TIERS = 4;
 
 export interface Tier {
   /** Tenths of a percent (150 = 15 %). */
@@ -103,9 +103,10 @@ export function validateOffer(form: OfferForm): OfferErrors {
   if (!isValidDate(form.date)) errors.date = 'Enter the offer date.';
   if (form.productIds.length === 0) errors.products = 'Tick at least one product.';
   if (form.sizes.length === 0) errors.sizes = 'Tick at least one bag size.';
-  if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount.';
+  if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount (they are set under Packaging & discounts).';
+  else if (form.tiers.length > MAX_TIERS) errors.tiers = `Tick at most ${MAX_TIERS} discounts, so the offer stays readable.`;
   for (const tier of form.tiers) {
-    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `A discount name can have at most ${TIER_LABEL_MAX} characters (it must fit next to the prices).`;
+    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `The name "${tier.label}" is longer than ${TIER_LABEL_MAX} characters, so it does not fit next to the prices. Shorten it under Packaging & discounts.`;
   }
   if (form.banner && [form.banner.title, form.banner.line, form.banner.note].some((part) => part.length > BANNER_MAX)) {
     errors.banner = `Each part of the banner can have at most ${BANNER_MAX} characters.`;

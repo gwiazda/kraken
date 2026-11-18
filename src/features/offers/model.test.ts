@@ -61,10 +61,13 @@ describe('validateOffer', () => {
       date: 'Enter the offer date.',
       products: 'Tick at least one product.',
       sizes: 'Tick at least one bag size.',
-      tiers: 'Tick at least one discount.',
+      tiers: 'Tick at least one discount (they are set under Packaging & discounts).',
     });
-    expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'x'.repeat(13) }] })).toEqual({ tiers: 'A discount name can have at most 12 characters (it must fit next to the prices).' });
+    expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'x'.repeat(13) }] })).toEqual({ tiers: 'The name "xxxxxxxxxxxxx" is longer than 12 characters, so it does not fit next to the prices. Shorten it under Packaging & discounts.' });
     expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'Powyżej 20kg' }] })).toEqual({});
+    const five = [100, 150, 200, 250, 300].map((tenths) => ({ tenths, label: '' }));
+    expect(validateOffer({ ...ok, tiers: five })).toEqual({ tiers: 'Tick at most 4 discounts, so the offer stays readable.' });
+    expect(validateOffer({ ...ok, tiers: five.slice(0, 4) })).toEqual({});
     expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(301), note: '' } })).toEqual({ banner: 'Each part of the banner can have at most 300 characters.' });
     expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(300), note: '' } })).toEqual({});
   });

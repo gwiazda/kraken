@@ -1,4 +1,4 @@
-// What the Costs & prices page shows, as plain text, so it is tested without a browser. Joins the lots, the roasts
+// The cost calculation as plain text (bag costs per size, lot cards for suggestions and roast loss), so it is tested without a browser. Joins the lots, the roasts
 // (for the average roast loss) and the cost tabs, and runs the calculation.
 
 import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
@@ -6,6 +6,7 @@ import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import type { CostData } from './repo';
+import { activeDiscounts, type Discount } from './modelDiscounts';
 import { readSettings, formatMarkup, formatPercent, type BagCost, type CostSettings, type LotCost } from './model';
 import { roundGrosze } from '../../domain/prices';
 import { averageLoss, calculateLot, chooseLoss, type BagInput, type RoastShare } from './modelCalc';
@@ -141,8 +142,8 @@ export function lotCards(
         : source.kind === 'average'
           ? `average of ${source.roasts} roast${source.roasts === 1 ? '' : 's'}`
           : nonsense
-            ? 'default: the roast weights do not make sense'
-            : 'default: no roasts with both weights yet';
+            ? 'usual loss: the roast weights do not make sense'
+            : 'usual loss: no roasts with both weights yet';
     const base = {
       lot,
       title: `${lot.code} · ${lot.name}`,
@@ -213,10 +214,37 @@ export function lotSuggestions(cards: readonly LotCard[]): LotSuggestion[] {
     }));
 }
 
-/** Everything the Products page needs from Costs & prices: the settings (VAT, discounts) and each lot's suggestions. */
-export function pricingFor(data: CostData, lots: readonly Lot[], roasts: readonly Roast[]): { settings: CostSettings; suggestions: LotSuggestion[]; problems: string[] } {
+/** Everything the Products page needs: the settings (VAT), the wholesale discounts and each lot's suggestions. */
+export function pricingFor(
+  data: CostData,
+  lots: readonly Lot[],
+  roasts: readonly Roast[],
+): { settings: CostSettings; discounts: Discount[]; suggestions: LotSuggestion[]; problems: string[] } {
   const { settings, problems } = readSettings(data.settings);
+  const discounts = activeDiscounts(data.discounts);
   const { views } = bagSizeViews(data.costs);
   const { cards } = lotCards(lots, roasts, data.lotCosts, views, settings);
-  return { settings, suggestions: lotSuggestions(cards), problems };
+  return { settings, discounts: discounts.discounts, suggestions: lotSuggestions(cards), problems: [...problems, ...discounts.problems] };
 }
+
+/** A lot's roast loss for the Lots page: the one in use, where it comes from, and the owner's own value as typed. */
+export interface LotLoss {
+  /** Tenths of a percent (160 = 16 %). */
+  readonly lossTenths: number;
+  /** "average of 23 roasts", "your own", "usual: no roasts with both weights yet". */
+  readonly source: string;
+  /** The owner's own value as stored ("14.2"); '' when the average or the usual loss is used. */
+  readonly own: string;
+}
+
+/**
+ * The roast loss of every active lot (see lotCards: own value, else the average of its roasts, else the usual), and
+ * the problems found on the way (an unreadable saved loss, roast weights that make no sense), for the Lots page.
+ */
+export function lotLosses(data: CostData, lots: readonly Lot[], roasts: readonly Roast[]): { losses: Map<string, LotLoss>; problems: string[] } {
+  const { settings, problems: settingProblems } = readSettings(data.settings);
+  const { cards, problems } = lotCards(lots, roasts, data.lotCosts, [], settings);
+  const losses = new Map(cards.map((card) => [card.lot.id, { lossTenths: card.lossTenths, source: card.lossSource, own: card.ownLoss?.lossTenths != null ? card.ownLoss.lossText : '' }]));
+  return { losses, problems: [...settingProblems, ...problems] };
+}
+

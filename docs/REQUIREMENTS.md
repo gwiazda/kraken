@@ -334,6 +334,23 @@ in percent off the retail price (see section 5).
 złoty** by the usual rule (half up: 74,50 → 75 zł); the net price is calculated from the rounded gross. The exact
 amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 
+**[R] Costs & prices removed (owner, 2026-11-18):** the page is gone; what it held moved to where it is looked for:
+- **Lots:** the lot's price and delivery cost are in the lot form again (section "Price (what you paid, without VAT)",
+  with "= 77,00 zł for 1 kg of green coffee" while typing), plus an optional roast loss % (empty: the average of the
+  lot's roasts, else the usual loss). The list shows **Price / kg** and **Roast loss**.
+- **Packaging & discounts** (new menu tab; Settings stays technical): packaging items per bag size (net, the same for
+  every product), **wholesale discounts with a short name** for the offer (at most 12 characters; add or remove any;
+  "Discounts" tab, data version 7; the template's 15 / 25 / 30 % until the first change), VAT and the usual roast loss.
+- The **multipliers are fixed** at 2×, 2,5× and 3× (no setting).
+- **Offer:** tick which discounts to include, **at most 4 per offer** (each adds a price line to every card); names
+  come from Packaging & discounts. If the banner does not fit under the last products, the last product moves to the
+  next page with it, so no page holds only the banner. Checked with 4 discounts, 12-character names and 3 sizes.
+- Short plain-language tooltips next to every number, in normal letters, floating above the page (owner, 2026-11-18).
+- **Sync with RoasTime** is under Settings (owner, 2026-11-18), not on the Lots or Roasts page.
+- The product page shows a column per discount from Packaging & discounts (no "Another discount" box).
+- **Next (step 3):** a product made of up to 3 beans (a lot, or a planned bean with a typed price per kg), share
+  sliders, cost of one bag, suggested prices and earnings per bag, saved with the product.
+
 **[R] Blend calculator (owner, 2026-11-17, later):** an easy way to see what a blend costs: pick coffees from the
 lots, set each one's share with a slider, and see the cost of one bag of the blend (250 g, 500 g, 1 kg) and the
 prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for now.

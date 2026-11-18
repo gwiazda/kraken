@@ -1,14 +1,13 @@
-// The Costs & prices screen, in two parts (owner, 2026-11-16):
-// - "Prices per lot": per lot its price (edited here, stored on the Lots tab), what one bag of 250 g, 500 g and 1 kg
-//   costs, and the suggested prices;
-// - "Bag costs & settings": what goes into one bag of each (fixed) size, and VAT, markups and the default roast loss.
-// Everything from outside comes through CostsPageDeps (main.ts provides it).
+// The Packaging & discounts screen (owner, 2026-11-18; replaces Costs & prices). The business numbers used to work
+// out prices, entered once and used everywhere (products, the offer):
+// - Packaging: what goes into one bag of each (fixed) size besides the coffee (bag, label, …), net per piece;
+// - Wholesale discounts: each with a short name shown on the offer, e.g. "Do 10 kg" = 15 %;
+// - VAT and the usual roast loss.
+// The multipliers (2×, 2,5×, 3×) are fixed. Everything from outside comes through CostsPageDeps (main.ts).
 
-import { formatKg, formatPln } from '../../core/numbers';
+import { formatPln } from '../../core/numbers';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { formFromLot, typedPricePerKg, validateLotPrice, type Lot, type LotPriceForm, type LotsRepository } from '../lots';
-import type { Roast, RoastsRepository } from '../roasts';
 import {
   formFromBagCost,
   formFromSettings,
@@ -16,20 +15,18 @@ import {
   percentText,
   readSettings,
   validateBagCostForm,
-  validateLoss,
   validateSettingsForm,
   type BagCost,
   type BagCostForm,
   type CostSettings,
   type SettingsForm,
 } from './model';
-import { bagSizeViews, lotCards, type BagSizeView, type LotCard } from './present';
+import { DISCOUNT_NAME_MAX, activeDiscounts, discountFields, validateDiscount, type Discount } from './modelDiscounts';
+import { bagSizeViews, type BagSizeView } from './present';
 import type { CostData, CostsRepository } from './repo';
 
 export interface CostsPageDeps {
   repo: CostsRepository;
-  lots: LotsRepository;
-  roasts: RoastsRepository;
   whoAmI: () => Promise<string>;
   /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
@@ -42,28 +39,17 @@ export interface CostsPageDeps {
   busy: (on: boolean) => void;
 }
 
-type SubTab = 'lots' | 'bags';
-
-export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: string, fromClick = false): void {
+export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?: string, fromClick = false): void {
   let data: CostData | null = null;
-  let lots: Lot[] = [];
-  let roasts: Roast[] = [];
-  /** Which part of the page is shown; kept when the page reloads after a save. */
-  let tab: SubTab = 'lots';
-  /** Lots whose "Show calculation" is open; kept when the page reloads after a save. */
-  const openCalculations = new Set<string>();
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
   function load(note?: string, fromClick = false): void {
-    render(el('p', {}, busy('Loading costs…')));
-    const all = () => Promise.all([deps.repo.load(), deps.lots.load(), deps.roasts.load()]);
-    (fromClick ? deps.withGoogle(all) : all())
-      .then(([costs, l, r]) => {
+    render(el('p', {}, busy('Loading…')));
+    (fromClick ? deps.withGoogle(() => deps.repo.load()) : deps.repo.load())
+      .then((costs) => {
         if (!root.isConnected) return;
         data = costs;
-        lots = l.lots;
-        roasts = r.roasts;
         showPage(note);
       })
       .catch((error: unknown) => {
@@ -72,7 +58,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
           render(
             ...googleErrorNodes(e, deps, {
               retry: () => load(),
-              retryLabel: 'Sign in and show costs',
+              retryLabel: 'Sign in and show the page',
               show,
               other: { label: 'Try again', action: () => load(undefined, true), mayHaveSaved: false },
               signedOutNote: 'Nothing was lost.',
@@ -91,8 +77,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
 
   /**
    * Saves something, then reloads the page with `done` as the note. While saving, the page is locked and `slot` shows
-   * a spinner. If it fails, the page stays as it is (what the owner typed is kept) and `slot` explains the error,
-   * with "Sign in and try again" / "Reload costs".
+   * a spinner. If it fails, the page stays as it is (what the owner typed is kept) and `slot` explains the error.
    */
   function save(slot: HTMLElement, working: string, action: () => Promise<void>, done: string): void {
     const locked = lockPage();
@@ -115,7 +100,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
               retry: () => save(slot, working, action, done),
               retryLabel: 'Sign in and try again',
               show,
-              other: { label: 'Reload costs (drops what you typed)', action: () => load(undefined, true), mayHaveSaved: true },
+              other: { label: 'Reload (drops what you typed)', action: () => load(undefined, true), mayHaveSaved: true },
             }),
           );
         show(error);
@@ -124,253 +109,116 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
 
   function showPage(note?: string): void {
     if (!data) return;
-    const loaded = data;
-    const { settings, problems: settingProblems } = readSettings(loaded.settings);
-    const { views, unplaced, problems: sizeProblems } = bagSizeViews(loaded.costs);
-    const { cards, problems: cardProblems } = lotCards(lots, roasts, loaded.lotCosts, views, settings);
-    const problems = [...loaded.problems, ...settingProblems, ...sizeProblems, ...cardProblems];
-    const noBagCosts = views.every((v) => v.costs.length === 0);
-
-    const subTab = (label: string, name: SubTab) => {
-      const b = button(label, () => ((tab = name), showPage()), 'link');
-      if (name === tab) b.setAttribute('aria-current', 'page');
-      return b;
-    };
+    const { settings, problems: settingProblems } = readSettings(data.settings);
+    const { views, unplaced, problems: sizeProblems } = bagSizeViews(data.costs);
+    const discounts = activeDiscounts(data.discounts);
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Costs & prices')),
-      el('nav', { class: 'sub-nav', 'aria-label': 'Costs & prices' }, subTab('Prices per lot', 'lots'), subTab('Bag costs & settings', 'bags')),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Packaging & discounts')),
+      el('p', { class: 'muted small' }, 'The numbers Kraken uses to work out prices. Entered once here, used for every product and offer.'),
       ...(note ? [message(note)] : []),
-      ...problems.map((text) => message(text, 'error')),
-      ...(tab === 'lots'
-        ? [
-            el(
-              'p',
-              { class: 'muted small' },
-              `Costs are net. A suggested price is the cost of one bag × the markup, plus VAT ${formatPercent(settings.vatTenths)}, rounded to whole złoty.`,
-            ),
-            ...(noBagCosts
-              ? [el('p', { class: 'message muted' }, 'Enter what goes into a bag (bag, label, …) to see the cost of one bag. ', button('Go to Bag costs & settings', () => ((tab = 'bags'), showPage()), 'link'))]
-              : []),
-            ...(cards.length === 0 ? [el('p', { class: 'muted' }, 'No lots yet. Add them on the Lots page.')] : cards.map(cardNode)),
-          ]
-        : [bagsNode(views, unplaced), settingsNode(settings)]),
+      ...[...data.problems, ...settingProblems, ...sizeProblems, ...discounts.problems].map((text) => message(text, 'error')),
+      bagsNode(views, unplaced),
+      discountsNode(discounts.discounts, discounts.usingDefaults),
+      settingsNode(settings),
     );
   }
 
-  // ---- A lot ----
+  // ---- Wholesale discounts ----
 
-  function cardNode(card: LotCard): HTMLElement {
-    const priceLine = priceNode(card);
-    const lossLine = el('p', { class: 'cost-line' });
-    const showLoss = () => {
-      lossLine.replaceChildren(
-        el('span', { class: 'cost-label' }, 'Roast loss'),
-        el('strong', {}, card.loss),
-        ' ',
-        el('span', { class: 'muted small' }, `(${card.lossSource})`),
-        ' ',
-        button('Change', editLoss, 'link'),
-      );
-    };
-    const editLoss = () => {
-      const input = el('input', { type: 'text', inputmode: 'decimal', id: `loss-${card.lot.id}`, class: 'input-short', autocomplete: 'off' });
-      const shown = percentText(card.lossTenths).replace('.', ',');
-      input.value = card.ownLoss?.lossTenths != null ? shown : '';
-      input.placeholder = shown;
-      const errorLine = el('span', { class: 'field-error', role: 'alert' });
-      const status = el('div', { class: 'save-status' });
-      const submit = (value: string) => {
-        const result = validateLoss(value);
-        if (!result.ok) {
-          errorLine.textContent = result.error;
-          return;
-        }
-        save(
-          status,
-          'Saving…',
-          () => deps.repo.saveLoss(card.lot.id, result.value, card.ownLoss, deps.whoAmI, deps.now()),
-          result.value === '' ? `${card.lot.code}: roast loss back to the average of its roasts.` : `${card.lot.code}: roast loss saved.`,
-        );
+  /** Writes a whole list at once: while the defaults are in use nothing is in the tab yet, so the first change does. */
+  const writeAll = (list: readonly { tenths: number; name: string }[]) => async () => {
+    // Someone else may have saved discounts since this page was loaded: then writing the defaults again would
+    // double them, so stop and ask to reload instead.
+    if ((await deps.repo.load()).discounts.length > 0) throw new Error('The discounts were changed meanwhile (maybe by your partner). Reload the page and try again.');
+    await deps.repo.addDiscounts(list.map(discountFields), await deps.whoAmI(), deps.now());
+  };
+
+  function discountsNode(discounts: readonly Discount[], usingDefaults: boolean): HTMLElement {
+    const rows = discounts.map((d) => {
+      const actions = el('td', { class: 'row-actions nowrap' });
+      const tr = el('tr', {}, el('td', { class: 'num nowrap' }, `−${formatPercent(d.tenths)}`), el('td', {}, d.name || el('span', { class: 'muted' }, 'no name')), actions);
+      const others = discounts.filter((o) => o !== d);
+      const edit = () => {
+        const editRow: HTMLTableRowElement = el('tr', {}, el('td', { colspan: '3' }, discountForm(d, others, () => editRow.replaceWith(tr), usingDefaults ? discounts : null)));
+        tr.replaceWith(editRow);
       };
-      const form = el(
-        'form',
-        { class: 'inline-form', novalidate: '' },
-        el('label', { for: input.id }, 'Roast loss % '),
-        input,
-        ' ',
-        el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
-        ' ',
-        ...(card.ownLoss?.lossTenths != null ? [button('Use the average', () => submit(''), 'secondary'), ' '] : []),
-        button('Cancel', showLoss, 'secondary'),
-        ' ',
-        status,
-        errorLine,
-      );
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        submit(input.value);
-      });
-      lossLine.replaceChildren(form);
-      input.focus();
-    };
-    showLoss();
+      const remove = () => {
+        const row = d.row;
+        save(actions, 'Deleting…', row ? () => deps.repo.removeDiscount(row, deps.now()) : writeAll(others), `Discount −${formatPercent(d.tenths)} deleted.`);
+      };
+      const normal = () => actions.replaceChildren(button('Edit', edit, 'link'), button('Delete', ask, 'link'));
+      const ask = () => actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Yes', remove), ' ', button('No', normal, 'secondary'));
+      normal();
+      return tr;
+    });
 
-    const line = (label: string, value: string, tip?: string) =>
-      el('p', { class: 'cost-line' }, el('span', { class: 'cost-label' }, label, ...(tip ? [' ', infoTip(tip)] : [])), el('strong', {}, value));
-
-    const body: Node[] = card.missing
-      ? [message(card.missing, 'error'), priceLine, lossLine]
-      : [
-          priceLine,
-          ...(card.bags.length > 0 ? [answerTable(card)] : []),
-          calculationNode(card, [
-            line('Green price', card.greenPerKg, 'Coffee price + delivery cost, ÷ kg delivered (net).'),
-            lossLine,
-            line('Roasted from 1 kg green', card.roastedFromKg),
-            line('Cost of 1 kg roasted', card.roastedPerKg, 'Green price per kg ÷ (1 − roast loss).'),
-            ...(card.bags.length > 0 ? [stepsTable(card)] : []),
-          ]),
-        ];
     return el(
       'section',
-      { class: 'cost-card' },
-      el('h3', {}, card.title),
-      ...(card.subtitle ? [el('p', { class: 'muted small' }, card.subtitle)] : []),
-      ...body,
-    );
-  }
-
-  /** "Show calculation": folded away; stays open after a save on this page (e.g. a changed roast loss). */
-  function calculationNode(card: LotCard, children: Node[]): HTMLElement {
-    const node = el('details', { class: 'cost-steps' }, el('summary', {}, 'Show calculation'), ...children);
-    node.open = openCalculations.has(card.lot.id);
-    node.addEventListener('toggle', () => (node.open ? openCalculations.add(card.lot.id) : openCalculations.delete(card.lot.id)));
-    return node;
-  }
-
-  function costTable(card: LotCard, rows: HTMLElement[]): HTMLElement {
-    const head = el('tr', {}, el('th', { scope: 'col' }, ''), ...card.bags.map((b) => el('th', { scope: 'col', class: 'num' }, b.label)));
-    return el('div', { class: 'table-wrap' }, el('table', { class: 'data-table cost-table' }, el('thead', {}, head), el('tbody', {}, ...rows)));
-  }
-
-  const tableRow = (label: string, cells: readonly (Node | string)[], strong = false, missing: readonly boolean[] = []) =>
-    el(
-      'tr',
-      strong ? { class: 'row-total' } : {},
-      el('th', { scope: 'row' }, label),
-      ...cells.map((v, i) => el('td', { class: `num nowrap${missing[i] ? ' muted' : ''}` }, v)),
-    );
-
-  const markupsOf = (card: LotCard) => card.bags.find((b) => b.prices.length > 0)?.prices.map((p) => p.markup) ?? [];
-
-  /** The short answer: what one bag costs us, and the suggested prices (gross, whole złoty, with their net). */
-  function answerTable(card: LotCard): HTMLElement {
-    const missing = card.bags.map((b) => b.missing);
-    return costTable(card, [
-      tableRow('Cost of one bag (net)', card.bags.map((b) => b.total), false, missing),
-      ...markupsOf(card).map((markup, i) =>
-        tableRow(
-          `Suggested price at ${markup}`,
-          card.bags.map((b) => {
-            const price = b.prices[i];
-            return price ? el('span', {}, el('strong', {}, price.suggestedGross), el('br'), el('span', { class: 'muted small' }, `${price.suggestedNet} net`)) : '—';
-          }),
-          false,
-          missing,
+      { class: 'product-card' },
+      el(
+        'h3',
+        {},
+        'Wholesale discounts ',
+        infoTip(
+          'How much cheaper a business customer gets their coffee. The name appears next to the price on the offer, so they know when the discount applies.',
         ),
       ),
-    ]);
+      el('p', { class: 'muted small' }, `Each discount has a short name for the offer (at most ${DISCOUNT_NAME_MAX} characters). On the Offer page you tick which ones to include.`),
+      ...(rows.length > 0
+        ? [
+            el(
+              'table',
+              { class: 'data-table discounts-table' },
+              el('thead', {}, el('tr', {}, el('th', { scope: 'col', class: 'num' }, 'Discount'), el('th', { scope: 'col' }, 'Name on the offer'), el('th', { scope: 'col' }, ''))),
+              el('tbody', {}, ...rows),
+            ),
+          ]
+        : [el('p', { class: 'muted' }, 'No discounts. Add one below.')]),
+      discountForm(null, discounts, undefined, usingDefaults ? discounts : null),
+    );
   }
 
-  /** The steps for one bag of each size, exact to the grosz (before the whole-złoty rounding). */
-  function stepsTable(card: LotCard): HTMLElement {
-    const missing = card.bags.map((b) => b.missing);
-    return costTable(card, [
-      tableRow('Roasted coffee', card.bags.map((b) => b.coffee)),
-      tableRow('Bag, label and other items', card.bags.map((b) => b.items), false, missing),
-      tableRow('Cost of one bag', card.bags.map((b) => b.total), true, missing),
-      ...markupsOf(card).flatMap((markup, i) => [
-        tableRow(`At ${markup}, net`, card.bags.map((b) => b.prices[i]?.net ?? '—'), false, missing),
-        tableRow(`At ${markup}, gross (before rounding)`, card.bags.map((b) => b.prices[i]?.gross ?? '—'), true, missing),
-      ]),
-    ]);
-  }
-
-  // ---- The lot's price (stored on the Lots tab; edited here, owner 2026-11-16) ----
-
-  function priceNode(card: LotCard): HTMLElement {
-    const lot = card.lot;
-    const initial: LotPriceForm = (({ coffeePrice, deliveryCost }) => ({ coffeePrice, deliveryCost }))(formFromLot(lot));
-    const holder = el('div', {});
-    const amount = (grosze: number | null, typed: string) => (grosze !== null ? formatPln(grosze) : typed !== '' ? `"${typed}"` : '—');
-    const showPrice = () => {
-      holder.replaceChildren(
-        el(
-          'p',
-          { class: 'cost-line' },
-          el('span', { class: 'cost-label' }, 'Price, whole delivery ', infoTip('Net. Not imported from RoasTime. Stored with the lot.')),
-          ...(lot.coffeePriceGrosze === null && initial.coffeePrice === ''
-            ? [el('span', { class: 'badge' }, 'Price missing')]
-            : [el('strong', {}, amount(lot.coffeePriceGrosze, initial.coffeePrice)), ` + delivery ${amount(lot.deliveryCostGrosze, initial.deliveryCost)}`]),
-          ...(lot.quantityGrams !== null ? [` for ${formatKg(lot.quantityGrams)}`] : []),
-          ' ',
-          button(initial.coffeePrice === '' ? 'Add price' : 'Edit price', editPrice, 'link'),
-        ),
-      );
-    };
-    const editPrice = () => {
-      const input = (key: keyof LotPriceForm, label: string) => {
-        const node = el('input', { id: `${key}-${lot.id}`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-money' });
-        node.value = initial[key];
-        return { node, label: el('label', { for: node.id }, label) };
-      };
-      const price = input('coffeePrice', 'Coffee price (zł net)');
-      const delivery = input('deliveryCost', 'Delivery cost (zł net)');
-      const perKg = el('output', { class: 'muted small', 'aria-live': 'polite' });
-      const read = (): LotPriceForm => ({ coffeePrice: price.node.value, deliveryCost: delivery.node.value });
-      const update = () => {
-        const value = typedPricePerKg(read(), lot.quantityGrams);
-        perKg.textContent =
-          value !== null
-            ? `Green price per kg: ${formatPln(value)}`
-            : lot.quantityGrams === null || lot.quantityGrams === 0
-              ? 'Green price per kg: add the kg delivered on the Lots page first.'
-              : 'Green price per kg: shown when the price is filled in.';
-      };
-      price.node.addEventListener('input', update);
-      delivery.node.addEventListener('input', update);
-      update();
-      const errorLine = el('p', { class: 'field-error', role: 'alert' });
-      const status = el('div', { class: 'save-status' });
-      const form = el(
-        'form',
-        { class: 'inline-form', novalidate: '' },
-        price.label,
-        price.node,
-        delivery.label,
-        delivery.node,
-        el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
-        button('Cancel', showPrice, 'secondary'),
-        perKg,
-        status,
-        errorLine,
-      );
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const result = validateLotPrice(read(), initial);
-        errorLine.textContent = result.ok ? '' : [result.errors.coffeePrice, result.errors.deliveryCost].filter((t) => t).join(' ');
-        if (!result.ok) return;
-        if (Object.keys(result.fields).length === 0) {
-          showPrice();
-          return;
-        }
-        save(status, 'Saving…', () => deps.lots.update(lot, result.fields, deps.now()).then(() => undefined), `${lot.code}: price saved.`);
-      });
-      holder.replaceChildren(form);
-      price.node.focus();
-    };
-    showPrice();
-    return holder;
+  /**
+   * Adds a discount (`discount` null) or edits one. `defaults`: the list in use while nothing is saved yet; then the
+   * whole new list is written.
+   */
+  function discountForm(discount: Discount | null, others: readonly Discount[], cancel: (() => void) | undefined, defaults: readonly Discount[] | null): HTMLElement {
+    const prefix = `discount-${discount?.tenths ?? 'new'}`;
+    const percent = el('input', { id: `${prefix}-percent`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'e.g. 20' });
+    percent.value = discount ? percentText(discount.tenths).replace('.', ',') : '';
+    const name = el('input', { id: `${prefix}-name`, type: 'text', autocomplete: 'off', placeholder: 'e.g. Do 10 kg', maxlength: String(DISCOUNT_NAME_MAX) });
+    name.value = discount?.name ?? '';
+    const errorLine = el('p', { class: 'field-error', role: 'alert' });
+    const status = el('div', { class: 'save-status' });
+    const form = el(
+      'form',
+      { class: 'inline-form', novalidate: '' },
+      el('label', { for: percent.id, class: 'visually-hidden' }, 'Discount %'),
+      '−',
+      percent,
+      '% ',
+      el('label', { for: name.id, class: 'visually-hidden' }, 'Name on the offer'),
+      name,
+      ' ',
+      el('button', { type: 'submit', class: discount ? 'btn btn-primary' : 'btn btn-secondary' }, discount ? 'Save' : 'Add discount'),
+      ...(cancel ? [' ', button('Cancel', cancel, 'secondary')] : []),
+      ' ',
+      status,
+      errorLine,
+    );
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const result = validateDiscount({ percent: percent.value, name: name.value }, others);
+      errorLine.textContent = result.ok ? '' : [result.errors.percent, result.errors.name].filter((t) => t).join(' ');
+      if (!result.ok) return;
+      const label = `−${formatPercent(result.tenths)}`;
+      const row = discount?.row;
+      if (defaults) save(status, 'Saving…', writeAll([...defaults.filter((d) => d !== discount), { tenths: result.tenths, name: result.name }]), `Discount ${label} saved.`);
+      else if (row) save(status, 'Saving…', () => deps.repo.updateDiscount(row, result.fields, deps.now()), `Discount ${label} saved.`);
+      else save(status, 'Adding…', async () => deps.repo.addDiscounts([result.fields], await deps.whoAmI(), deps.now()), `Discount ${label} added.`);
+    });
+    if (discount) queueMicrotask(() => percent.focus());
+    return form;
   }
 
   // ---- Bag costs & settings ----
@@ -378,13 +226,14 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
   function bagsNode(views: readonly BagSizeView[], unplaced: readonly BagCost[]): HTMLElement {
     return el(
       'section',
-      {},
-      el('h3', {}, 'What goes into one bag'),
+      { class: 'product-card' },
       el(
-        'p',
-        { class: 'muted small' },
-        'The same for every coffee: entered once here, used on every lot card. Net cost per bag of each item: the bag, the label, a valve, a stamp… A size with no items shows "missing cost" on the lot cards.',
+        'h3',
+        {},
+        'Packaging ',
+        infoTip('Everything in a bag apart from the coffee: the bag, label, valve, sticker. Price per piece, without VAT. The same for every product.'),
       ),
+      el('p', { class: 'muted small' }, 'What one bag of each size costs you besides the coffee (net, per piece).'),
       el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
       ...(unplaced.length > 0 ? [unplacedNode(unplaced)] : []),
     );
@@ -413,7 +262,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
   }
 
   function settingsNode(settings: CostSettings): HTMLElement {
-    return el('section', { class: 'cost-settings' }, el('h3', {}, 'Settings'), settingsForm(settings));
+    return el('section', { class: 'product-card' }, el('h3', {}, 'VAT and roast loss'), settingsForm(settings));
   }
 
   function settingsForm(settings: CostSettings): HTMLElement {
@@ -421,7 +270,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     const errors = new Map<keyof SettingsForm, HTMLParagraphElement>();
     const inputs = new Map<keyof SettingsForm, HTMLInputElement>();
     const field = (key: keyof SettingsForm, label: string, hint: string, tip?: string) => {
-      const input = el('input', { id: `setting-${key}`, type: 'text', inputmode: key === 'markups' || key === 'discounts' ? 'text' : 'decimal', autocomplete: 'off' });
+      const input = el('input', { id: `setting-${key}`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short' });
       input.value = initial[key];
       inputs.set(key, input);
       const error = el('p', { class: 'field-error', role: 'alert' });
@@ -442,19 +291,12 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
       el(
         'div',
         { class: 'fields' },
-        field('vat', 'VAT %', 'Added to net prices.'),
+        field('vat', 'VAT %', 'Usually 23.', 'The tax added on top of your price. A bag you sell for 48 zł becomes 59,04 zł with 23 % VAT.'),
         field(
-          'markups',
-          'Price multipliers (markup)',
-          'Separated by ";", e.g. 2; 2,5; 3.',
-          'How many times the cost of one bag the suggested price is. E.g. 2 means: a bag that costs 24 zł to make is offered at 48 zł net. Each multiplier gives one suggested price on the lot cards.',
-        ),
-        field('defaultLoss', 'Default roast loss %', 'For a lot with no roasts yet.'),
-        field(
-          'discounts',
-          'Wholesale discounts %',
-          'Separated by ";", e.g. 15; 25; 30.',
-          'Shown as columns on each product\'s page and offered on the Offer page. Any other % can be typed on a product\'s page.',
+          'defaultLoss',
+          'Usual roast loss %',
+          'Used for a lot with no roasts yet, and for a planned bean.',
+          'Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Used until a lot has roasts of its own.',
         ),
       ),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),
@@ -463,7 +305,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const read = (key: keyof SettingsForm) => inputs.get(key)?.value ?? '';
-      const result = validateSettingsForm({ vat: read('vat'), markups: read('markups'), defaultLoss: read('defaultLoss'), discounts: read('discounts') });
+      const result = validateSettingsForm({ vat: read('vat'), defaultLoss: read('defaultLoss') });
       for (const [key, line] of errors) line.textContent = result.ok ? '' : (result.errors[key] ?? '');
       if (!result.ok) return;
       const loaded = data?.settings ?? [];
@@ -477,7 +319,7 @@ export function showCostsPage(root: HTMLElement, deps: CostsPageDeps, note?: str
     return el(
       'div',
       { class: 'bag-size' },
-      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, `items together: ${view.itemsText}`)),
+      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, view.costs.length === 0 ? 'nothing entered yet' : `together: ${view.itemsText}`)),
       ...(rows.length > 0
         ? [
             el(

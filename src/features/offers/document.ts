@@ -166,7 +166,12 @@ export function showOfferPages(holder: HTMLElement, offer: OfferDocument): void 
   current.content.append(banner);
   if (overflows(current.content)) {
     banner.remove();
+    // The banner does not fit under the last products: it goes onto a new page, and takes the last product with it
+    // (if that page has more than one), so no page holds only the banner.
+    const last = current.grid.childElementCount > 1 ? current.grid.lastElementChild : null;
+    last?.remove();
     current = newPage();
+    if (last) current.grid.append(last);
     current.content.append(banner);
   }
   if (pages.length > 1) pages.forEach((p, i) => (p.pageNumber.textContent = `Strona ${i + 1} z ${pages.length}`));
