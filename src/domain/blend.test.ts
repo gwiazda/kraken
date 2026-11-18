@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bagCost, blendPerKg, earningsAt, evenShares, moveShare, roastedPerKg, sharesComplete, suggestionsFor } from './blend';
+import { bagCost, blendPerKg, dividersOf, earningsAt, evenShares, moveDivider, moveShare, roastedPerKg, sharesComplete, suggestionsFor, typeShare } from './blend';
 import { roundGrosze } from './prices';
 
 describe('roasted price per kg', () => {
@@ -80,3 +80,42 @@ describe('shares', () => {
     expect(moveShare([100], 0, 30)).toEqual([100]);
   });
 });
+
+describe('the share bar', () => {
+  it('puts a divider between each two beans', () => {
+    expect(dividersOf([60, 30, 10])).toEqual([60, 90]);
+    expect(dividersOf([100])).toEqual([]);
+  });
+
+  it('moves one divider: only the two beans next to it change', () => {
+    expect(moveDivider([50, 50], 0, 70)).toEqual([70, 30]);
+    expect(moveDivider([60, 30, 10], 0, 40)).toEqual([40, 50, 10]); // the first divider: beans 1 and 2 change
+    expect(moveDivider([60, 30, 10], 1, 70)).toEqual([60, 10, 30]); // the second divider: beans 2 and 3 change
+  });
+
+  it('keeps every bean at least 1 %', () => {
+    expect(moveDivider([60, 30, 10], 0, 95)).toEqual([89, 1, 10]);
+    expect(moveDivider([60, 30, 10], 1, 10)).toEqual([60, 1, 39]);
+    expect(moveDivider([50, 50], 0, 100)).toEqual([99, 1]);
+    expect(moveDivider([50, 50], 0, -5)).toEqual([1, 99]);
+  });
+});
+
+describe('typing a share', () => {
+  it('lets the last bean take up the difference', () => {
+    expect(typeShare([50, 50], 0, 65)).toEqual([65, 35]);
+    expect(typeShare([33, 33, 34], 1, 20)).toEqual([33, 20, 47]);
+  });
+
+  it('lets the bean before it give way when the last share is typed', () => {
+    expect(typeShare([50, 50], 1, 20)).toEqual([80, 20]);
+    expect(typeShare([40, 40, 20], 2, 30)).toEqual([40, 30, 30]);
+    expect(typeShare([40, 40, 20], 2, 90)).toEqual([40, 1, 59]);
+  });
+
+  it('ignores what is not a number, and keeps a single bean at 100 %', () => {
+    expect(typeShare([50, 50], 0, Number.NaN)).toEqual([50, 50]);
+    expect(typeShare([100], 0, 40)).toEqual([100]);
+  });
+});
+

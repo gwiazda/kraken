@@ -9,7 +9,7 @@ import { formatPln, formatWholePln, parseMoney } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { MAX_BEANS, evenShares, moveShare } from '../../domain/blend';
+import { MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
 import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
@@ -403,32 +403,89 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
     };
 
-    // ---- The beans: up to 3, each a lot or a planned bean, with its share of the bag (sliders keep 100 %) ----
+    // ---- The beans: up to 3, each a lot or a planned bean. Their shares are set on one bar: drag the divider between
+    // two colours, or type a percentage (owner, 2026-11-19: easier than one slider per bean). ----
     const existingBeans = product ? beansOf(beans, product.id) : [];
     let beanForms: BeanForm[] = existingBeans.map(formFromBean);
     const beansHolder = el('div', { class: 'beans' });
     const beansError = el('p', { class: 'field-error', role: 'alert' });
-    const shareBar = el('div', { class: 'share-bar', 'aria-hidden': 'true' });
-    /** The share text and slider of each bean, updated in place while a slider moves (so focus is kept). */
-    let shareNodes: { label: HTMLElement; slider: HTMLInputElement | null }[] = [];
+    const splitHolder = el('div', { class: 'split-holder' });
+    /** The parts of the bar, its dividers and the typed percentages, updated in place while dragging (keeps focus). */
+    let parts: HTMLElement[] = [];
+    let dividers: HTMLInputElement[] = [];
+    let shareInputs: HTMLInputElement[] = [];
+    let legendNames: HTMLElement[] = [];
 
     const beanName = (form: BeanForm, i: number) =>
       form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
-    const showShares = () => {
-      const last = beanForms.length - 1;
-      beanForms.forEach((form, i) => {
-        const node = shareNodes[i];
-        if (!node) return;
-        node.label.textContent = beanForms.length === 1 ? '100 %' : i === last ? `${form.sharePercent} % (the rest)` : `${form.sharePercent} %`;
-        if (node.slider) node.slider.value = String(form.sharePercent);
+    const shares = () => beanForms.map((f) => f.sharePercent);
+    const applyShares = (next: readonly number[]) =>
+      next.forEach((share, k) => {
+        const f = beanForms[k];
+        if (f) f.sharePercent = share;
       });
-      shareBar.replaceChildren(...beanForms.map((form, i) => el('span', { class: `share-part share-${i + 1}`, style: `flex: ${form.sharePercent}` }, form.sharePercent >= 12 ? `${form.sharePercent} %` : '')));
-      shareBar.hidden = beanForms.length < 2;
+
+    const showSplit = () => {
+      const at = dividersOf(shares());
+      beanForms.forEach((form, i) => {
+        const part = parts[i];
+        if (part) {
+          part.style.flex = String(form.sharePercent);
+          part.textContent = form.sharePercent >= 8 ? `${form.sharePercent} %` : '';
+        }
+        const input = shareInputs[i];
+        if (input && document.activeElement !== input) input.value = String(form.sharePercent);
+        const name = legendNames[i];
+        if (name) name.textContent = beanName(form, i);
+      });
+      dividers.forEach((d, k) => (d.value = String(at[k] ?? 0)));
+    };
+
+    const renderSplit = () => {
+      parts = [];
+      dividers = [];
+      shareInputs = [];
+      legendNames = [];
+      if (beanForms.length < 2) {
+        splitHolder.replaceChildren(...(beanForms.length === 1 ? [el('p', { class: 'muted small' }, 'One bean: it is 100 % of the bag. Add another to make a blend.')] : []));
+        return;
+      }
+      const bar = el('div', { class: 'split-bar', 'aria-hidden': 'true' });
+      parts = beanForms.map((_, i) => el('span', { class: `split-part bean-colour-${i + 1}` }));
+      bar.append(...parts);
+      dividers = dividersOf(shares()).map((_, k) => {
+        const range = el('input', { type: 'range', min: '0', max: '100', step: '1', class: 'split-divider', 'aria-label': `Divider between bean ${k + 1} and bean ${k + 2}` });
+        range.addEventListener('input', () => {
+          applyShares(moveDivider(shares(), k, Number(range.value)));
+          showSplit();
+          update();
+        });
+        return range;
+      });
+      const legend = el(
+        'div',
+        { class: 'split-legend' },
+        ...beanForms.map((_, i) => {
+          const input = el('input', { type: 'text', inputmode: 'numeric', class: 'split-input', id: `bean-${i}-share`, autocomplete: 'off' });
+          input.addEventListener('input', () => {
+            const value = Number(input.value.trim());
+            if (input.value.trim() === '' || !Number.isInteger(value)) return;
+            applyShares(typeShare(shares(), i, value));
+            showSplit();
+            update();
+          });
+          input.addEventListener('blur', showSplit); // shows the share as kept (e.g. after typing more than allowed)
+          shareInputs.push(input);
+          const name = el('span', { class: 'split-name' });
+          legendNames.push(name);
+          return el('label', { class: 'split-item', for: input.id }, el('span', { class: `dot bean-colour-${i + 1}` }), name, input, '%');
+        }),
+      );
+      splitHolder.replaceChildren(el('div', { class: 'split' }, bar, ...dividers), legend);
+      showSplit();
     };
 
     const renderBeans = () => {
-      shareNodes = [];
-      const last = beanForms.length - 1;
       beansHolder.replaceChildren(
         ...beanForms.map((form, i) => {
           const row = el('div', { class: `bean-row bean-${i + 1}` });
@@ -448,6 +505,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             lot.value = form.lotId;
             lot.addEventListener('change', () => {
               form.lotId = lot.value;
+              showSplit();
               update();
             });
             what.push(lot);
@@ -457,6 +515,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               node.value = form[key];
               node.addEventListener('input', () => {
                 form[key] = node.value;
+                if (key === 'plannedName') showSplit();
                 update();
               });
               return el('label', { class: 'bean-field', for: node.id }, el('span', { class: 'bean-field-label' }, label), node);
@@ -468,27 +527,6 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               infoTip('The price you were quoted for 1 kg of green beans, with delivery and without VAT. Leave the roast loss empty to use your usual one.'),
             );
           }
-          const shareLabel = el('span', { class: 'share-value' });
-          let slider: HTMLInputElement | null = null;
-          if (beanForms.length > 1 && i < last) {
-            const range = el('input', { type: 'range', min: '1', max: '99', step: '1', id: `bean-${i}-share`, 'aria-label': `Share of bean ${i + 1} in the bag` });
-            range.value = String(form.sharePercent);
-            range.addEventListener('input', () => {
-              const next = moveShare(
-                beanForms.map((f) => f.sharePercent),
-                i,
-                Number(range.value),
-              );
-              next.forEach((share, k) => {
-                const f = beanForms[k];
-                if (f) f.sharePercent = share;
-              });
-              showShares();
-              update();
-            });
-            slider = range;
-          }
-          shareNodes.push({ label: shareLabel, slider });
           const remove = button(
             'Remove',
             () => {
@@ -502,11 +540,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             },
             'link',
           );
-          row.append(
-            el('div', { class: 'bean-head' }, el('strong', {}, `Bean ${i + 1}`), kind, remove),
-            el('div', { class: 'bean-what' }, ...what),
-            el('div', { class: 'bean-share' }, el('span', { class: 'bean-field-label' }, 'Share of the bag'), ...(slider ? [slider] : []), shareLabel),
-          );
+          row.append(el('div', { class: 'bean-head' }, el('span', { class: `dot bean-colour-${i + 1}` }), el('strong', {}, `Bean ${i + 1}`), kind, remove), el('div', { class: 'bean-what' }, ...what));
           return row;
         }),
         ...(beanForms.length < MAX_BEANS
@@ -514,9 +548,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               button(
                 beanForms.length === 0 ? 'Choose a bean' : 'Add another bean',
                 () => {
-                  const shares = evenShares(beanForms.length + 1);
+                  const even = evenShares(beanForms.length + 1);
                   const added: BeanForm = { kind: 'lot', lotId: '', plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: 0 };
-                  beanForms = [...beanForms, added].map((f, k): BeanForm => ({ ...f, sharePercent: shares[k] ?? 0 }));
+                  beanForms = [...beanForms, added].map((f, k): BeanForm => ({ ...f, sharePercent: even[k] ?? 0 }));
                   renderBeans();
                   update();
                 },
@@ -525,7 +559,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             ]
           : []),
       );
-      showShares();
+      renderSplit();
     };
 
     const beansSection = el(
@@ -535,10 +569,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       el(
         'p',
         { class: 'muted small' },
-        `Up to ${MAX_BEANS} beans: lots you have, or a planned bean you are thinking of buying. Move the slider to set how much of each goes into the bag. `,
-        infoTip('The share is how much of the coffee in the bag is that bean, e.g. 60 % Kenya and 40 % Brazil. The last bean always takes the rest, so the total stays 100 %.'),
+        `Up to ${MAX_BEANS} beans: lots you have, or a planned bean you are thinking of buying. `,
+        infoTip('Drag a white divider on the bar to change how much of the bag each bean is, or type the percentage. The shares always add up to 100 %.'),
       ),
-      shareBar,
+      splitHolder,
       beansHolder,
       beansError,
     );
@@ -587,7 +621,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       }
     };
     const priceRow = (grams: BagSize) => {
-      const input = inputFor(PRICE_KEYS[grams], { inputmode: 'decimal', class: 'input-money', placeholder: 'not offered' });
+      const input = inputFor(PRICE_KEYS[grams], { inputmode: 'decimal', class: 'input-money', placeholder: '—' });
       input.addEventListener('input', update);
       const chips = el('div', { class: 'chips' });
       chipHolders.set(grams, chips);
@@ -611,7 +645,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       el(
         'p',
         { class: 'muted small' },
-        'What a shop customer pays. Click a suggestion or type your own; leave it empty if the size is not offered. ',
+        'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
         infoTip('Kraken works out what one bag costs you and suggests a price two, two and a half or three times higher, with VAT added. "Earns" is what is left for you after the cost of the bag, without VAT.'),
       ),
       summary,
@@ -685,8 +719,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       'form',
       { class: 'lot-form', novalidate: '' },
       ...SECTIONS.map((section) => el('fieldset', { class: 'form-section' }, el('legend', {}, section.title), el('div', { class: 'fields' }, ...section.fields.map(fieldNode)))),
-      beansSection,
-      priceSection,
+      // Beans on the left, prices on the right (stays in view while the shares change); stacked on a narrow screen.
+      el('div', { class: 'costing-grid' }, el('div', { class: 'costing-beans' }, beansSection), el('div', { class: 'costing-prices' }, priceSection)),
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     formNode.addEventListener('submit', (event) => {

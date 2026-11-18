@@ -106,3 +106,43 @@ export function evenShares(n: number): number[] {
   const each = Math.floor(100 / n);
   return Array.from({ length: n }, (_, i) => (i === n - 1 ? 100 - each * (n - 1) : each));
 }
+
+/** Where the dividers of the share bar are (whole percent from the left): 60/30/10 → [60, 90]. */
+export function dividersOf(shares: readonly number[]): number[] {
+  const out: number[] = [];
+  let sum = 0;
+  for (const share of shares.slice(0, -1)) {
+    sum += share;
+    out.push(sum);
+  }
+  return out;
+}
+
+/**
+ * New shares after divider `k` of the share bar was dragged to `value` (whole percent from the left). It stays at
+ * least 1 % away from its neighbours (and the ends), so every bean keeps at least 1 % and the total stays 100 %.
+ */
+export function moveDivider(shares: readonly number[], k: number, value: number): number[] {
+  const dividers = dividersOf(shares);
+  if (k < 0 || k >= dividers.length) return [...shares];
+  const low = (k === 0 ? 0 : (dividers[k - 1] ?? 0)) + 1;
+  const high = (k === dividers.length - 1 ? 100 : (dividers[k + 1] ?? 100)) - 1;
+  dividers[k] = Math.max(low, Math.min(high, Math.round(value)));
+  return [...dividers, 100].map((d, i) => d - (i === 0 ? 0 : (dividers[i - 1] ?? 0)));
+}
+
+/**
+ * New shares after a percentage was typed for bean `index`. The last bean takes up the difference; when the last
+ * bean's own share is typed, the bean before it does. Every bean keeps at least 1 %.
+ */
+export function typeShare(shares: readonly number[], index: number, value: number): number[] {
+  const last = shares.length - 1;
+  if (shares.length <= 1 || !Number.isFinite(value)) return shares.length === 1 ? [100] : [...shares];
+  if (index < last) return moveShare(shares, index, value);
+  const next = [...shares];
+  const fixed = next.slice(0, last - 1).reduce((sum, s) => sum + s, 0); // beans before the one that gives way
+  next[last] = Math.max(1, Math.min(Math.round(value), 100 - fixed - 1));
+  next[last - 1] = 100 - fixed - next[last];
+  return next;
+}
+

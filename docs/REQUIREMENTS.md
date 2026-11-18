@@ -354,8 +354,11 @@ need to know what price to put on my product".
 - A product is made of **up to 3 beans**: a **lot** (its price per kg from Lots, its roast loss) or a **planned
   bean** not bought yet (a name, the quoted price per kg with delivery and without VAT, an optional roast loss;
   empty: the usual loss). Saved with the product ("Product beans" tab).
-- Each bean has a **share of the bag** (whole percent) set with a **slider**; the last bean takes the rest, so the
-  total is always 100 % (each at least 1 %). A coloured bar shows the shares.
+- Each bean has a **share of the bag** (whole percent), set on **one bar** (owner, 2026-11-19): drag the white divider
+  between two colours, or type the percentage; the total is always 100 % (each at least 1 %). The colours are easy
+  to tell apart (lime, orange, sky blue).
+- In the form, the beans are on the left and the prices on the right (staying in view while the shares change);
+  stacked on a narrow screen.
 - Live under the beans, per size: **cost of one bag** (coffee + packaging), **suggested prices** at 2×, 2,5×, 3×
   (with VAT, whole złoty) as buttons with **what each earns per bag**, and what the typed price earns ("You earn" /
   "You lose" in red when it does not cover the cost). Earnings = the price without VAT minus the cost of one bag.
