@@ -65,7 +65,7 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `domain/`: shared business rules used by several features, pure (no Google, no screen): `bagSizes.ts` the fixed
   bag sizes (250 g, 500 g, 1 kg) and how a size is written; `prices.ts` VAT, rounding (grosz, whole złoty) and the
-  wholesale price (net, whole złoty), used by Costs & prices, Products and the Offer. Each rule is in one place.
+  wholesale price (net, whole złoty), used by the cost calculation, Products and the Offer. Each rule is in one place.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left, price (coffee +
@@ -79,7 +79,7 @@ test that reads every import line), so CI fails if a rule is broken.
   loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
   rounded), `pricingFor` (Products: settings, discounts, each lot's suggested prices) and `lotLosses` (Lots page);
   `products`: Products page, **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
-  list → click a product → its main gross prices and wholesale at each discount (+ "Another discount"), and its
+  list → click a product → its main gross prices and wholesale at each discount (one column per discount from Packaging & discounts), and its
   offer details; the form has suggestion buttons from a chosen lot (only the price is saved; products are not linked
   to lots); only the current price is kept;
   `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of

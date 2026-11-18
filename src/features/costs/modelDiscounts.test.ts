@@ -26,12 +26,13 @@ describe('activeDiscounts', () => {
   });
 
   it('reports rows it cannot use', () => {
-    const { discounts, problems } = activeDiscounts([row(2, 'dużo', 'x'), row(3, '0.15', 'y'), row(4, '15', 'a'), row(5, '15', 'b')]);
-    expect(discounts.map((d) => d.name)).toEqual(['a']);
+    const { discounts, problems } = activeDiscounts([row(2, 'dużo', 'x'), row(3, '0.15', 'y'), row(4, '15', 'a'), row(5, '15', 'b'), row(6, '20', 'Stali klienci hurt')]);
+    expect(discounts.map((d) => d.name)).toEqual(['a', 'Stali klienci hurt']);
     expect(problems).toEqual([
       'The discount "dużo" in row 2 of the Discounts tab cannot be read, so it is left out.',
       'The discount "0.15" in row 3 of the Discounts tab cannot be read, so it is left out.',
       'The Discounts tab has 15 % twice (row 5); Kraken uses the first.',
+      'The discount name "Stali klienci hurt" in row 6 of the Discounts tab is longer than 12 characters, so it will not fit on the offer. Edit it here to shorten it.',
     ]);
   });
 });

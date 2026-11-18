@@ -158,10 +158,16 @@ describe('lotLosses (for the Lots page)', () => {
     const own = lotCostFromFields({ id: 'O', lot_id: 'B', roast_loss_percent: '14.2' }, 2);
     const data = { settings: [], costs: [], lotCosts: [own], discounts: [], problems: [] };
     const roasts = [roast('R1', '1000', '850', { roastime_bean_id: 'BA' }), roast('R2', '1000', '830', { roastime_bean_id: 'BA' })];
-    const losses = lotLosses(data, [lot('A', { roastime_bean_id: 'BA' }), lot('B', { roastime_bean_id: 'BB' }), lot('C', { roastime_bean_id: 'BC' })], roasts);
+    const { losses, problems } = lotLosses(data, [lot('A', { roastime_bean_id: 'BA' }), lot('B', { roastime_bean_id: 'BB' }), lot('C', { roastime_bean_id: 'BC' })], roasts);
+    expect(problems).toEqual([]);
     expect(losses.get('A')).toEqual({ lossTenths: 160, source: 'average of 2 roasts', own: '' });
     expect(losses.get('B')).toEqual({ lossTenths: 142, source: 'your own', own: '14.2' });
     expect(losses.get('C')).toEqual({ lossTenths: 150, source: 'usual loss: no roasts with both weights yet', own: '' });
   });
-});
 
+  it('reports a saved loss it cannot read, so the owner can correct it on the Lots page', () => {
+    const odd = lotCostFromFields({ id: 'O', lot_id: 'A', roast_loss_percent: 'a lot' }, 2);
+    const { problems } = lotLosses({ settings: [], costs: [], lotCosts: [odd], discounts: [], problems: [] }, [lot('A')], []);
+    expect(problems).toEqual(['The roast loss "a lot" saved for KENYA-A cannot be read; the average of its roasts is used instead.']);
+  });
+});

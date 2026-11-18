@@ -25,7 +25,7 @@ export interface LotsPageDeps {
   /** Green coffee used and left per lot ID, counted from the roasts (oldest delivery first). */
   loadStock: (lots: readonly Lot[]) => Promise<StockByLot>;
   /** The roast loss of each lot (its own value, else the average of its roasts, else the usual loss). */
-  loadLosses: (lots: readonly Lot[]) => Promise<LossByLot>;
+  loadLosses: (lots: readonly Lot[]) => Promise<{ losses: LossByLot; problems: string[] }>;
   /** Checks a roast loss typed for a lot ('' = use the average again); gives the value to store. */
   checkLoss: (value: string) => { ok: true; value: string } | { ok: false; error: string };
   /** Saves a lot's own roast loss ('' = back to the average of its roasts). */
@@ -123,13 +123,13 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       );
       // The roast loss comes from the Roasts and cost tabs; if that cannot be read, the lots are still shown too.
       const lossResult = await deps.loadLosses(result.lots).then(
-        (map) => ({ map, problem: '' }),
+        (found) => ({ map: found.losses, problems: found.problems }),
         (error: unknown) => {
           if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          return { map: new Map() as LossByLot, problem: `The roast loss could not be worked out: ${deps.describeError(error)}` };
+          return { map: new Map() as LossByLot, problems: [`The roast loss could not be worked out: ${deps.describeError(error)}`] };
         },
       );
-      const extra = [stockResult.problem, lossResult.problem].filter((p) => p);
+      const extra = [stockResult.problem, ...lossResult.problems].filter((p) => p);
       return { ...result, stock: stockResult.map, losses: lossResult.map, problems: [...result.problems, ...extra] };
     };
     (fromClick ? deps.withGoogle(both) : both())
@@ -247,7 +247,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'nowrap' }, row.delivered),
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: `num nowrap${row.overdrawn ? ' overdrawn' : ''}` }, row.stockLeft),
-        el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted ? '—' : el('span', { class: 'badge badge-warn' }, 'Add price'))),
+        el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted || row.lot.coffeePriceGrosze !== null ? '—' : el('span', { class: 'badge badge-warn' }, 'Add price'))),
         el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossNote === 'your own' ? [el('span', { class: 'muted small' }, ' (own)')] : [])),
         el('td', {}, row.supplier),
         el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
@@ -362,6 +362,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     const otherCodes = others.map((lot) => lot.code);
     const initial = mode.kind === 'edit' ? formFromLot(mode.lot) : emptyLotForm(deps.now());
     let codeTyped = mode.kind === 'edit';
+    /** The lot once its row is saved: if the roast loss then fails, a retry saves only the loss (never a second lot). */
+    let savedLot: Lot | null = null;
 
     const inputs = {} as Record<keyof LotForm, HTMLInputElement | HTMLTextAreaElement>;
     const errorLines = {} as Record<keyof LotForm, HTMLParagraphElement>;
@@ -485,9 +487,11 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       deps
         .withGoogle(async () => {
           const saved =
-            mode.kind === 'add'
+            savedLot ??
+            (mode.kind === 'add'
               ? await deps.repo.add(result.fields, await deps.whoAmI(), deps.now())
-              : await deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now());
+              : await deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now()));
+          savedLot = saved;
           if (lossChanged) await deps.saveLoss(saved.id, loss.value);
           return saved;
         })

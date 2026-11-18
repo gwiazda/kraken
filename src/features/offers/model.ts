@@ -103,10 +103,10 @@ export function validateOffer(form: OfferForm): OfferErrors {
   if (!isValidDate(form.date)) errors.date = 'Enter the offer date.';
   if (form.productIds.length === 0) errors.products = 'Tick at least one product.';
   if (form.sizes.length === 0) errors.sizes = 'Tick at least one bag size.';
-  if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount.';
+  if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount (they are set under Packaging & discounts).';
   else if (form.tiers.length > MAX_TIERS) errors.tiers = `Tick at most ${MAX_TIERS} discounts, so the offer stays readable.`;
   for (const tier of form.tiers) {
-    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `A discount name can have at most ${TIER_LABEL_MAX} characters (it must fit next to the prices).`;
+    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `The name "${tier.label}" is longer than ${TIER_LABEL_MAX} characters, so it does not fit next to the prices. Shorten it under Packaging & discounts.`;
   }
   if (form.banner && [form.banner.title, form.banner.line, form.banner.note].some((part) => part.length > BANNER_MAX)) {
     errors.banner = `Each part of the banner can have at most ${BANNER_MAX} characters.`;

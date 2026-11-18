@@ -22,8 +22,14 @@ export function message(text: string, kind: 'info' | 'error' = 'info'): HTMLPara
 
 /** The one tooltip bubble of the page, floating above everything (so a table or card never cuts it off). */
 let bubble: HTMLDivElement | null = null;
+/** Checks while the bubble is shown, so it goes away if the page is redrawn under it (no mouseleave then). */
+let watch = 0;
 
 function showTip(target: HTMLElement, text: string): void {
+  window.clearInterval(watch);
+  watch = window.setInterval(() => {
+    if (!target.isConnected) hideTip();
+  }, 250);
   bubble ??= el('div', { class: 'tip-bubble', role: 'tooltip' });
   bubble.textContent = text;
   document.body.append(bubble);
@@ -38,6 +44,7 @@ function showTip(target: HTMLElement, text: string): void {
 }
 
 function hideTip(): void {
+  window.clearInterval(watch);
   bubble?.remove();
 }
 

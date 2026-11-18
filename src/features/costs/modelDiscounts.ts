@@ -69,6 +69,9 @@ export function activeDiscounts(rows: readonly DiscountRow[]): { discounts: Disc
       problems.push(`The Discounts tab has ${percentText(row.tenths).replace('.', ',')} % twice (row ${row.row}); Kraken uses the first.`);
       continue;
     }
+    if (row.name.length > DISCOUNT_NAME_MAX) {
+      problems.push(`The discount name "${row.name}" in row ${row.row} of the Discounts tab is longer than ${DISCOUNT_NAME_MAX} characters, so it will not fit on the offer. Edit it here to shorten it.`);
+    }
     discounts.push({ row, tenths: row.tenths, name: row.name });
   }
   return { discounts: discounts.sort((a, b) => a.tenths - b.tenths), usingDefaults: false, problems };

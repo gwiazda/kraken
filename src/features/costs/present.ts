@@ -237,10 +237,14 @@ export interface LotLoss {
   readonly own: string;
 }
 
-/** The roast loss of every active lot (see lotCards: own value, else the average of its roasts, else the usual). */
-export function lotLosses(data: CostData, lots: readonly Lot[], roasts: readonly Roast[]): Map<string, LotLoss> {
-  const { settings } = readSettings(data.settings);
-  const { cards } = lotCards(lots, roasts, data.lotCosts, [], settings);
-  return new Map(cards.map((card) => [card.lot.id, { lossTenths: card.lossTenths, source: card.lossSource, own: card.ownLoss?.lossTenths != null ? card.ownLoss.lossText : '' }]));
+/**
+ * The roast loss of every active lot (see lotCards: own value, else the average of its roasts, else the usual), and
+ * the problems found on the way (an unreadable saved loss, roast weights that make no sense), for the Lots page.
+ */
+export function lotLosses(data: CostData, lots: readonly Lot[], roasts: readonly Roast[]): { losses: Map<string, LotLoss>; problems: string[] } {
+  const { settings, problems: settingProblems } = readSettings(data.settings);
+  const { cards, problems } = lotCards(lots, roasts, data.lotCosts, [], settings);
+  const losses = new Map(cards.map((card) => [card.lot.id, { lossTenths: card.lossTenths, source: card.lossSource, own: card.ownLoss?.lossTenths != null ? card.ownLoss.lossText : '' }]));
+  return { losses, problems: [...settingProblems, ...problems] };
 }
 

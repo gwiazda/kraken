@@ -126,7 +126,12 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   // ---- Wholesale discounts ----
 
   /** Writes a whole list at once: while the defaults are in use nothing is in the tab yet, so the first change does. */
-  const writeAll = (list: readonly { tenths: number; name: string }[]) => async () => deps.repo.addDiscounts(list.map(discountFields), await deps.whoAmI(), deps.now());
+  const writeAll = (list: readonly { tenths: number; name: string }[]) => async () => {
+    // Someone else may have saved discounts since this page was loaded: then writing the defaults again would
+    // double them, so stop and ask to reload instead.
+    if ((await deps.repo.load()).discounts.length > 0) throw new Error('The discounts were changed meanwhile (maybe by your partner). Reload the page and try again.');
+    await deps.repo.addDiscounts(list.map(discountFields), await deps.whoAmI(), deps.now());
+  };
 
   function discountsNode(discounts: readonly Discount[], usingDefaults: boolean): HTMLElement {
     const rows = discounts.map((d) => {
