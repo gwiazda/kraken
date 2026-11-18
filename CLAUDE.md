@@ -68,16 +68,16 @@ test that reads every import line), so CI fails if a rule is broken.
   wholesale price (net, whole złoty), used by Costs & prices, Products and the Offer. Each rule is in one place.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
-- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left (no prices: those are
-  under Costs & prices); `present.ts` = pure text for the screen;
+- `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left, price (coffee +
+  delivery, price per kg) and roast loss (average of its roasts or the owner's own, via `LotsPageDeps.loadLosses/saveLoss`); `present.ts` = pure text for the screen;
   `roasts`: roasting log, `allocation.ts` which lot each roast used and stock left (pure, oldest delivery first), Roasts page;
   `roastime`: "Sync with RoasTime" (lots and roasts in one step; roasts with no coffee, or a coffee with no delivery, are samples, not tracked), `model.ts` reads the files, `plan.ts` / `roastPlan.ts` the
   preview (pure), `apply.ts` saves (at most 4 requests: lot adds, lot updates, roast adds, roast edits incl. removals and restores);
-  `costs`: "Costs & prices" (sub-tabs "Prices per lot" and "Bag costs & settings"; lot prices are edited here, stored
-  on the Lots tab; bag sizes fixed at 250 g, 500 g, 1 kg; settings and bag cost items; a lot card shows the short answer, the steps fold
-  under "Show calculation"; suggested gross prices rounded to whole złoty, net from the rounded gross;
-  `modelCalc.ts` the calculation, pure, exact until rounded for the screen; `pricingFor` gives Products the settings
-  and each lot's suggested prices; the `wholesale_discounts_percent` setting (15; 25; 30) lists the discounts);
+  `costs`: the **Packaging & discounts** page (owner, 2026-11-18; the Costs & prices page was removed): packaging
+  items per bag size, wholesale discounts with a name for the offer (`modelDiscounts.ts`, "Discounts" tab; while
+  the tab is empty the template's 15 / 25 / 30 % are used and the first change writes them), VAT and the usual roast
+  loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
+  rounded), `pricingFor` (Products: settings, discounts, each lot's suggested prices) and `lotLosses` (Lots page);
   `products`: Products page, **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
   list → click a product → its main gross prices and wholesale at each discount (+ "Another discount"), and its
   offer details; the form has suggestion buttons from a chosen lot (only the price is saved; products are not linked
@@ -88,10 +88,10 @@ test that reads every import line), so CI fails if a rule is broken.
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `googleErrors.ts` explains Google errors
-  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Costs & prices, Products (a product and its form), Offer and Settings (owner's
+  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Offer and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Roasts, Costs & prices, Products, Offer, Settings); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Lots page with a menu (Lots, Roasts, Products, Offer, Packaging & discounts, Settings; Settings is technical: sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has
