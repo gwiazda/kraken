@@ -1,7 +1,7 @@
 // The Products screen (owner, 2026-11-17/18), the one place for prices:
 // - the list: name, brew method, origin and main prices; click a name to open the product;
 // - a product's page: main (retail) gross prices and the wholesale prices at each discount, its offer details;
-// - the form: details and main gross prices, with suggested prices from a lot (Costs & prices) to click, or typed.
+// - the form: details and main gross prices, with suggested prices from a lot to click, or typed.
 // A product is named however the owner likes and is not linked to lots (a lot only gives suggestions).
 // Everything from outside comes through ProductsPageDeps (main.ts provides it).
 
@@ -25,7 +25,7 @@ import {
   type ProductForm,
   type ProductFormErrors,
 } from './model';
-import { discountHeader, parseDiscount, priceRows, productDetails, suggestedLot, type PriceCell } from './present';
+import { discountHeader, priceRows, productDetails, suggestedLot, type PriceCell } from './present';
 import type { ProductsRepository } from './repo';
 
 export interface ProductsPageDeps {
@@ -240,13 +240,12 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   function showProduct(product: Product, note?: string): void {
     deps.formOpened();
     const vat = settings.vatTenths;
-    let other: number | null = null;
 
     const priceCell = (c: PriceCell, extra = '') =>
       el('td', { class: `num nowrap${extra}` }, el('strong', { class: 'price-main' }, c.main), ...(c.other ? [el('span', { class: 'price-other' }, c.other)] : []));
     const pricesHolder = el('div', {});
     const showPrices = () => {
-      const columns: { tenths: number; name: string }[] = other === null ? discounts : [...discounts, { tenths: other, name: '' }];
+      const columns = discounts;
       const rows = priceRows(
         product,
         columns.map((d) => d.tenths),
@@ -276,29 +275,6 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
     };
     showPrices();
-
-    const otherInput = el('input', { type: 'text', inputmode: 'decimal', id: 'other-discount', class: 'input-short', autocomplete: 'off', placeholder: 'e.g. 20' });
-    const otherError = el('span', { class: 'field-error', role: 'alert' });
-    const otherForm = el(
-      'form',
-      { class: 'inline-form other-discount', novalidate: '' },
-      el('label', { for: otherInput.id }, 'Another discount'),
-      otherInput,
-      '%',
-      el('button', { type: 'submit', class: 'btn btn-secondary' }, 'Show'),
-      otherError,
-    );
-    otherForm.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const tenths = parseDiscount(otherInput.value);
-      if (tenths === null) {
-        otherError.textContent = 'Enter a discount from 0,1 to 99,9, e.g. 20.';
-        return;
-      }
-      otherError.textContent = '';
-      other = discounts.some((d) => d.tenths === tenths) ? null : tenths;
-      showPrices();
-    });
 
     const details = productDetails(product);
     const actions = el('div', { class: 'head-actions' });
@@ -333,11 +309,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           {},
           'Prices ',
           infoTip(
-            'Retail: the price a shop customer pays, with VAT (gross). Wholesale: what a business customer pays: the retail price without VAT, minus their discount, rounded to whole złoty. The gross under it is what goes on the invoice. The discounts are set under Packaging & discounts.',
+            'Retail: what a shop customer pays, with VAT. Wholesale: the retail price without VAT, minus the discount, rounded to whole złoty.',
           ),
         ),
         pricesHolder,
-        otherForm,
       ),
       el(
         'section',
@@ -401,7 +376,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           });
           return chip;
         });
-        holder.replaceChildren(...(chips.length > 0 ? chips : lot ? [el('span', { class: 'muted small' }, 'No suggestion: add the bag costs for this size under Costs & prices.')] : []));
+        holder.replaceChildren(...(chips.length > 0 ? chips : lot ? [el('span', { class: 'muted small' }, 'No suggestion: add the packaging for this size under Packaging & discounts.')] : []));
       }
     };
     const priceRow = (grams: BagSize) => {
@@ -432,10 +407,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               { class: 'suggest-from' },
               el('label', { for: lotSelect.id }, 'Suggestions from lot'),
               lotSelect,
-              infoTip('From Costs & prices: the cost of one bag × the markup, plus VAT, rounded to whole złoty. Only the price is saved, not the lot.'),
+              infoTip('Cost of one bag × 2, 2,5 or 3, plus VAT, in whole złoty. Only the price you pick is saved.'),
             ),
           ]
-        : [el('p', { class: 'muted small' }, 'No suggestions yet: add a lot price and the bag costs under Costs & prices.')]),
+        : [el('p', { class: 'muted small' }, 'No suggestions yet: add a price to a lot (Lots) and the packaging (Packaging & discounts).')]),
       el('div', { class: 'price-rows' }, ...BAG_SIZES_G.map(priceRow)),
     );
 

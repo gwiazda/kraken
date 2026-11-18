@@ -1,4 +1,4 @@
-// Shared price rules (owner, 2026-11-16/17; docs/REQUIREMENTS.md sections 5 and 6), used by Costs & prices,
+// Shared price rules (owner, 2026-11-16/17; docs/REQUIREMENTS.md sections 5 and 6), used by the cost calculation,
 // Products and the Offer, so every page calculates a price the same way. Pure: no Google, no screen.
 // Amounts are in grosze; calculations stay exact and are rounded only where a rule says so.
 //

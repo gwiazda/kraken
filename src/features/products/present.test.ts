@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from './model';
-import { discountHeader, parseDiscount, priceRows, productDetails, suggestedLot } from './present';
+import { discountHeader, priceRows, productDetails, suggestedLot } from './present';
 
 const kenia = productFromFields(
   { id: 'K', name: 'Kenia', country: 'Kenia', region: 'Kirinyaga', flavour_profile: 'Jagoda', brew_method: 'Filtr', price_250_gross_pln: '59', price_1000_gross_pln: '221' },
@@ -26,11 +26,6 @@ describe('priceRows', () => {
 
   it('shows a dash where the product has no price for a size', () => {
     expect(priceRows(kenia, [150], 230)[1]).toEqual({ size: '500 g', retail: { main: '—', other: '' }, wholesale: [{ main: '—', other: '' }] });
-  });
-
-  it('reads a discount typed by the owner', () => {
-    expect(['20', '12,5', ' 7.5 '].map(parseDiscount)).toEqual([200, 125, 75]);
-    expect(['', '0', '100', 'dużo', '-5', '1,25'].map(parseDiscount)).toEqual([null, null, null, null, null, null]);
   });
 
   it('writes the discount headers the Polish way', () => {

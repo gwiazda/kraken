@@ -22,8 +22,6 @@ export interface LotsPageDeps {
   isIgnorable: (error: unknown) => boolean;
   describeError: (error: unknown) => string;
   now: () => Date;
-  /** Opens "Sync with RoasTime". */
-  openSync: () => void;
   /** Green coffee used and left per lot ID, counted from the roasts (oldest delivery first). */
   loadStock: (lots: readonly Lot[]) => Promise<StockByLot>;
   /** The roast loss of each lot (its own value, else the average of its roasts, else the usual loss). */
@@ -81,14 +79,14 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
         key: 'coffeePrice',
         label: 'Coffee price (zł)',
         hint: 'For the whole delivery, e.g. 4500.',
-        tip: 'What you paid the supplier for this whole delivery, without VAT. Kraken divides it by the kg delivered to know what 1 kg of green coffee cost you.',
+        tip: 'What you paid for the whole delivery, without VAT.',
         decimal: true,
       },
       {
         key: 'deliveryCost',
         label: 'Delivery cost (zł)',
         hint: 'Leave empty if there was none.',
-        tip: 'Shipping or transport you paid for this delivery, without VAT. It is added to the coffee price, because it is part of what the beans really cost you.',
+        tip: 'Shipping for this delivery, without VAT. Added to the coffee price.',
         decimal: true,
       },
     ],
@@ -316,12 +314,12 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                   'tr',
                   {},
                   ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left'].map((h) => el('th', { scope: 'col' }, h)),
-                  el('th', { scope: 'col', class: 'num' }, 'Price / kg ', infoTip('What 1 kg of green coffee cost you: (coffee price + delivery cost) ÷ kg delivered, without VAT. Click Edit to add or change the price.')),
+                  el('th', { scope: 'col', class: 'num' }, 'Price / kg ', infoTip('What 1 kg of green coffee cost you: (price + delivery) ÷ kg, without VAT.')),
                   el(
                     'th',
                     { scope: 'col', class: 'num' },
                     'Roast loss ',
-                    infoTip('Coffee gets lighter when roasted (it loses water). 15 % loss means 1 kg of green beans gives 850 g of roasted coffee. Kraken takes the average of this lot\'s roasts; you can type your own in Edit.'),
+                    infoTip('Roasting dries the beans. 15 % loss: 1 kg green gives 850 g roasted. The average of this lot\'s roasts, or your own (Edit).'),
                   ),
                   ...['Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
@@ -342,7 +340,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         'div',
         { class: 'page-head' },
         el('h2', {}, 'Green coffee lots'),
-        el('div', { class: 'head-actions' }, button('Sync with RoasTime', () => deps.openSync(), 'secondary'), button('Add lot', () => showForm({ kind: 'add' }))),
+        el('div', { class: 'head-actions' }, button('Add lot', () => showForm({ kind: 'add' }))),
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
@@ -452,7 +450,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         { class: 'label-row' },
         el('label', { for: lossInput.id }, 'Roast loss % (optional)'),
         infoTip(
-          'Coffee gets lighter when roasted (it loses water). 15 % loss means 1 kg of green beans gives 850 g of roasted coffee, so 1 kg of roasted coffee costs more than 1 kg of green. Kraken uses the average of this lot\'s roasts; type a number only if you know better.',
+          'Roasting dries the beans. 15 % loss: 1 kg green gives 850 g roasted. Leave empty to use the average of this lot\'s roasts.',
         ),
       ),
       lossInput,

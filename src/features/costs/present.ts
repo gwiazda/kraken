@@ -1,4 +1,4 @@
-// What the Costs & prices page shows, as plain text, so it is tested without a browser. Joins the lots, the roasts
+// The cost calculation as plain text (bag costs per size, lot cards for suggestions and roast loss), so it is tested without a browser. Joins the lots, the roasts
 // (for the average roast loss) and the cost tabs, and runs the calculation.
 
 import { formatKg, formatPln, formatWholePln } from '../../core/numbers';

@@ -108,7 +108,7 @@ window.addEventListener('popstate', (event) => {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
     showProducts(info, false, 'none');
   }
-  else if (screen === 'sync') showSync(info, syncFrom, 'none');
+  else if (screen === 'sync') showSync(info, 'none');
   else if (screen === 'roasts' || screen === 'roast-form') {
     // A form cannot be brought back with Forward: that entry becomes the list.
     if (screen === 'roast-form') window.history.replaceState(stateFor('roasts'), '', '#roasts');
@@ -394,7 +394,6 @@ function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
       const existing = data.lotCosts.find((c) => c.deletedAt === '' && c.lotId === lotId);
       await costs.saveLoss(lotId, value, existing, () => whoAmI(client), new Date());
     },
-    openSync: () => showSync(info, 'lots'),
     formOpened: () => record('lot-form', 'push'),
     formClosed: () => {
       currentScreen = 'lots';
@@ -411,7 +410,6 @@ function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, mov
       ...googleDeps(),
       repo: sheetRoastsRepository(client, info.id),
       lots: sheetLotsRepository(client, info.id),
-      openSync: () => showSync(info, 'roasts'),
       formOpened: () => record('roast-form', 'push'),
       formClosed: () => {
         currentScreen = 'roasts';
@@ -464,29 +462,24 @@ function showOffer(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
   );
 }
 
-/** "Sync with RoasTime", opened from the Lots or the Roasts page; it returns there. */
-/** The page "Sync with RoasTime" was last opened from (Back/Forward returns to the same sync). */
-let syncFrom: 'lots' | 'roasts' = 'lots';
-
-function showSync(info: SpreadsheetInfo, from: 'lots' | 'roasts', move: HistoryMove = 'push'): void {
-  syncFrom = from;
+/** "Sync with RoasTime", opened from Settings (owner, 2026-11-18); it returns there. */
+function showSync(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
   record('sync', move);
-  showRoastimeSync(showApp(info, from), {
+  showRoastimeSync(showApp(info, 'settings'), {
     ...googleDeps(),
     lots: sheetLotsRepository(client, info.id),
     roasts: sheetRoastsRepository(client, info.id),
     copyText: (text: string) => navigator.clipboard.writeText(text),
     back: (note?: string) => {
       leave('sync');
-      if (from === 'roasts') showRoasts(info, note, true, 'none');
-      else showLots(info, note, true, 'none');
-      currentScreen = from;
+      showSettings(info, 'none', note);
+      currentScreen = 'settings';
     },
   });
 }
 
 /** The sheet Kraken uses, and signing out. Kept off the main page (owner, 2026-11-15). */
-function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
+function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push', note?: string): void {
   record('settings', move);
   // Only link to a real Google Sheets address (defence in depth: the URL comes from Google's reply).
   const link = isGoogleSheetsUrl(info.url)
@@ -494,6 +487,12 @@ function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push'): void {
     : el('span', {}, info.title);
   showApp(info, 'settings').append(
     el('h2', {}, 'Settings'),
+    ...(note ? [message(note)] : []),
+    el('section', { class: 'product-card' }, el('h3', {}, 'RoasTime'),
+      el('p', { class: 'muted small' }, 'Brings in the deliveries (lots) and the roasts from the RoasTime folder on this computer. You see a preview first; nothing is saved until you confirm.'),
+      el('div', { class: 'actions' }, button('Sync with RoasTime', () => showSync(info), 'primary')),
+    ),
+    el('h3', {}, 'Sheet and sign-in'),
     el('p', { class: 'connected' }, 'Connected to: ', link),
     el('p', { class: 'muted small' }, `Data version ${APP_SCHEMA_VERSION}.`),
     el(

@@ -22,8 +22,6 @@ export interface RoastsPageDeps {
   now: () => Date;
   /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
   busy: (on: boolean) => void;
-  /** Opens "Sync with RoasTime". */
-  openSync: () => void;
   /** The add/edit form opened (so the browser's Back closes it) / closed. */
   formOpened: () => void;
   formClosed: () => void;
@@ -186,7 +184,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         'div',
         { class: 'page-head' },
         el('h2', {}, 'Roasts'),
-        el('div', { class: 'head-actions' }, button('Sync with RoasTime', () => deps.openSync(), 'secondary'), button('Add roast', () => showForm({ kind: 'add' }))),
+        el('div', { class: 'head-actions' }, button('Add roast', () => showForm({ kind: 'add' }))),
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
@@ -204,7 +202,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         ...(deletedCount > 0 ? [switchBox('show-deleted-roasts', `Show deleted (${deletedCount})`, showDeleted, (on) => ((showDeleted = on), showList()))] : []),
       ),
       rows.length === 0
-        ? el('p', { class: 'muted' }, 'No roasts yet. Click "Sync with RoasTime" to bring in the roasting log, or "Add roast".')
+        ? el('p', { class: 'muted' }, 'No roasts yet. Bring in the roasting log with "Sync with RoasTime" under Settings, or click "Add roast".')
         : el(
             'div',
             { class: 'table-wrap' },

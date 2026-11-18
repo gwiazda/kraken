@@ -87,11 +87,11 @@ test that reads every import line), so CI fails if a rule is broken.
   name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip/busy spinner, `googleErrors.ts` explains Google errors
+- `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner, `googleErrors.ts` explains Google errors
   the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Offer and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Roasts, Products, Offer, Packaging & discounts, Settings; Settings is technical: sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Lots page with a menu (Lots, Roasts, Products, Offer, Packaging & discounts, Settings; Settings is technical: Sync with RoasTime, sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

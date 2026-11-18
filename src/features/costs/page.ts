@@ -155,7 +155,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         {},
         'Wholesale discounts ',
         infoTip(
-          'What a business customer gets off the main (retail) price. Their price is net (without VAT) and rounded to whole złoty. The name is printed next to the price on the offer, e.g. "Do 10 kg (-15%)", so the customer knows when each discount applies.',
+          'What a business customer gets off the retail price. The name is printed next to the price on the offer.',
         ),
       ),
       el('p', { class: 'muted small' }, `Each discount has a short name for the offer (at most ${DISCOUNT_NAME_MAX} characters). On the Offer page you tick which ones to include.`),
@@ -226,7 +226,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         'h3',
         {},
         'Packaging ',
-        infoTip('Everything that goes into one bag besides the coffee: the bag, the label, a valve, a sticker… Net price per piece. It is the same for every product, so it is entered once here and added to the cost of every bag.'),
+        infoTip('Bag, label, valve, sticker… everything in a bag except the coffee. Net, per piece. The same for every product.'),
       ),
       el('p', { class: 'muted small' }, 'What one bag of each size costs you besides the coffee (net, per piece).'),
       el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
@@ -286,12 +286,12 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       el(
         'div',
         { class: 'fields' },
-        field('vat', 'VAT %', 'Usually 23.', 'The tax added on top of a net price. A bag that costs 48 zł net is sold for 59,04 zł gross with 23 % VAT.'),
+        field('vat', 'VAT %', 'Usually 23.', 'Tax added on top of the net price. 48 zł net + 23 % = 59,04 zł gross.'),
         field(
           'defaultLoss',
           'Usual roast loss %',
           'Used for a lot with no roasts yet, and for a planned bean.',
-          'Coffee gets lighter when roasted (it loses water). 15 % loss means 1 kg of green beans gives 850 g of roasted coffee, so roasted coffee costs more per kg than green.',
+          'Roasting dries the beans. 15 % loss: 1 kg green gives 850 g roasted.',
         ),
       ),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),

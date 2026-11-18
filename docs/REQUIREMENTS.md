@@ -345,7 +345,9 @@ amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 - **Offer:** tick which discounts to include, **at most 4 per offer** (each adds a price line to every card); names
   come from Packaging & discounts. If the banner does not fit under the last products, the last product moves to the
   next page with it, so no page holds only the banner. Checked with 4 discounts, 12-character names and 3 sizes.
-- Plain-language tooltips next to every number (what it is and how it is worked out).
+- Short plain-language tooltips next to every number, in normal letters, floating above the page (owner, 2026-11-18).
+- **Sync with RoasTime** is under Settings (owner, 2026-11-18), not on the Lots or Roasts page.
+- The product page shows a column per discount from Packaging & discounts (no "Another discount" box).
 - **Next (step 3):** a product made of up to 3 beans (a lot, or a planned bean with a typed price per kg), share
   sliders, cost of one bag, suggested prices and earnings per bag, saved with the product.
 
