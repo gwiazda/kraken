@@ -50,15 +50,20 @@ describe('productDetails', () => {
 
 describe('suggestedLot', () => {
   const lots = [
-    { lotId: 'ETH', country: 'Ethiopia' },
-    { lotId: 'KEN-NEW', country: 'Kenia' },
-    { lotId: 'KEN-OLD', country: 'Kenia' },
+    { lotId: 'ETH', label: 'ETHIOPIA-26-10 · Guji', country: 'Ethiopia' },
+    { lotId: 'KEN-NEW', label: 'KENYA-26-09 · Kegwa', country: 'Kenya' },
+    { lotId: 'KEN-OLD', label: 'KENYA-26-03 · Kegwa', country: 'Kenya' },
+    { lotId: 'BUR', label: 'BURUNDI-26-08 · Burunga', country: 'Burundi' },
   ];
 
-  it('picks the newest lot from the same country, else the newest of all', () => {
-    expect(suggestedLot(' kenia ', lots)).toBe('KEN-NEW');
-    expect(suggestedLot('Peru', lots)).toBe('ETH');
-    expect(suggestedLot('', lots)).toBe('ETH');
-    expect(suggestedLot('Kenia', [])).toBe('');
+  it('picks the newest lot whose coffee name or country is in the product name or country', () => {
+    expect(suggestedLot({ name: 'Kenia Kegwa', country: '' }, lots)).toBe('KEN-NEW'); // by coffee name
+    expect(suggestedLot({ name: 'Burundi', country: 'Burundi' }, lots)).toBe('BUR'); // by country
+    expect(suggestedLot({ name: 'Etiopia', country: 'Etiopia' }, lots)).toBe(''); // Polish spelling: no guess
+  });
+
+  it('never guesses: no match (or no lots) means the owner chooses', () => {
+    expect(suggestedLot({ name: 'Gwatemala', country: 'Gwatemala' }, lots)).toBe('');
+    expect(suggestedLot({ name: 'Kenia Kegwa', country: '' }, [])).toBe('');
   });
 });

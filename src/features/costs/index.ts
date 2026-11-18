@@ -2,5 +2,5 @@
 
 export { sheetCostsRepository, type CostsRepository } from './repo';
 export { showCostsPage, type CostsPageDeps } from './page';
-export { readSettings, type CostSettings } from './model';
+export { DEFAULT_SETTINGS, readSettings, type CostSettings } from './model';
 export { pricingFor, type LotSuggestion } from './present';

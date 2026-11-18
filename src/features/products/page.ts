@@ -9,11 +9,12 @@ import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { pricingFor, type CostSettings, type CostsRepository, type LotSuggestion } from '../costs';
+import { DEFAULT_SETTINGS, pricingFor, type CostSettings, type CostsRepository, type LotSuggestion } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import {
   BREW_METHODS,
+  PRICE_FIELDS as PRICE_KEYS,
   changedProductFields,
   emptyProductForm,
   formFromProduct,
@@ -78,13 +79,12 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   },
 ];
 
-const PRICE_KEYS: Readonly<Record<BagSize, keyof ProductForm>> = { 250: 'price250', 500: 'price500', 1000: 'price1000' };
 const FIELD_KEYS: readonly (keyof ProductForm)[] = [...SECTIONS.flatMap((s) => s.fields.map((f) => f.key)), ...BAG_SIZES_G.map((g) => PRICE_KEYS[g])];
 
 export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false): void {
   let products: Product[] = [];
   let problems: string[] = [];
-  let settings: CostSettings | null = null;
+  let settings: CostSettings = DEFAULT_SETTINGS;
   let suggestions: LotSuggestion[] = [];
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
@@ -102,15 +102,28 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Loads everything, then shows the list, or the product `openId` (after saving it). */
   function load(note?: string, fromClick = false, openId?: string): void {
     render(el('p', {}, busy('Loading products…')));
-    const all = () => Promise.all([deps.repo.load(), deps.costs.load(), deps.lots.load(), deps.roasts.load()]);
+    // The products come first; the settings and suggestions (cost tabs, lots, roasts) are extras: if they cannot be
+    // read, the products are still shown, with the default VAT and discounts and a note.
+    const pricing = () =>
+      Promise.all([deps.costs.load(), deps.lots.load(), deps.roasts.load()]).then(
+        ([costs, lots, roasts]) => {
+          const found = pricingFor(costs, lots.lots, roasts.roasts);
+          return { ...found, problems: [...costs.problems, ...found.problems] };
+        },
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          const problem = `The price settings and suggestions could not be read (${deps.describeError(error)}); the default VAT and discounts are used.`;
+          return { settings: DEFAULT_SETTINGS, suggestions: [] as LotSuggestion[], problems: [problem] };
+        },
+      );
+    const all = () => Promise.all([deps.repo.load(), pricing()]);
     (fromClick ? deps.withGoogle(all) : all())
-      .then(([result, costs, lots, roasts]) => {
+      .then(([result, found]) => {
         if (!root.isConnected) return;
-        const pricing = pricingFor(costs, lots.lots, roasts.roasts);
         products = result.products;
-        settings = pricing.settings;
-        suggestions = pricing.suggestions;
-        problems = [...result.problems, ...costs.problems, ...pricing.problems];
+        settings = found.settings;
+        suggestions = found.suggestions;
+        problems = [...result.problems, ...found.problems];
         const open = openId ? products.find((p) => p.id === openId && !isDeleted(p)) : undefined;
         if (open) showProduct(open, note);
         else showList(note);
@@ -224,8 +237,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   function showProduct(product: Product, note?: string): void {
     deps.formOpened();
-    const vat = settings?.vatTenths ?? 230;
-    const presets = settings?.discountTenths ?? [150, 250, 300];
+    const vat = settings.vatTenths;
+    const presets = settings.discountTenths;
     let other: number | null = null;
 
     const priceCell = (c: PriceCell, extra = '') =>
@@ -357,8 +370,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
     // Prices: one row per size, typed in zł, with the chosen lot's suggestions as buttons that fill the price in.
     const lotSelect = el('select', { id: 'product-suggestions-lot' });
+    lotSelect.append(el('option', { value: '' }, 'Choose a lot…'));
     for (const s of suggestions) lotSelect.append(el('option', { value: s.lotId }, s.label));
-    lotSelect.value = suggestedLot(initial.country, suggestions);
+    lotSelect.value = suggestedLot(initial, suggestions);
     const chipHolders = new Map<BagSize, HTMLElement>();
     const showChips = () => {
       const lot = suggestions.find((s) => s.lotId === lotSelect.value);

@@ -46,6 +46,7 @@ export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[];
 }
 
 export interface BagLine {
+  readonly grams: number;
   readonly label: string;
   readonly coffee: string;
   readonly items: string;
@@ -58,7 +59,7 @@ export interface BagLine {
    */
   readonly prices: readonly {
     readonly markup: string;
-    /** The suggested gross price in grosze (whole złoty), to pick on the Price list. */
+    /** The suggested gross price in grosze (whole złoty), to pick in the product form. */
     readonly suggestedGrossGrosze: number;
     readonly suggestedGross: string;
     readonly suggestedNet: string;
@@ -165,6 +166,7 @@ export function lotCards(
       roastedFromKg: formatKg(Math.round(calc.roastedFromKg * 1000)),
       roastedPerKg: `${money(calc.roastedPerKg)} / kg`,
       bags: calc.bags.map((bag, i) => ({
+        grams: bag.grams,
         label: sizes[i]?.label ?? formatBagSize(bag.grams),
         coffee: money(bag.coffee),
         items: bag.items === null ? 'missing cost' : money(bag.items),
@@ -203,8 +205,8 @@ export function lotSuggestions(cards: readonly LotCard[]): LotSuggestion[] {
       label: card.title,
       country: card.lot.country,
       bySize: new Map(
-        card.bags.map((bag, i) => [
-          BAG_SIZES_G[i] ?? 0,
+        card.bags.map((bag) => [
+          bag.grams,
           bag.prices.map((p) => ({ markup: p.markup, grosze: p.suggestedGrossGrosze, text: p.suggestedGross })),
         ]),
       ),

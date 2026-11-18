@@ -64,11 +64,14 @@ export function productDetails(product: Product): { label: string; value: string
 }
 
 /**
- * Which lot's suggestions to show first in the product form: the newest lot from the product's country (ignoring
- * capitals), else the newest lot of all. `lots` are newest first. '' when there are none.
+ * Which lot's suggestions to show first in the product form: the newest lot whose label (code and coffee name) or
+ * country appears in the product's name or country, ignoring capitals (e.g. product "Kenia Kegwa" → lot
+ * "KENYA-26-09 · Kegwa"). `lots` are newest first. '' when none matches: the owner picks one, so suggestions from a
+ * different coffee are never shown by guess.
  */
-export function suggestedLot(country: string, lots: readonly { lotId: string; country: string }[]): string {
-  const wanted = country.trim().toLowerCase();
-  const same = wanted ? lots.find((l) => l.country.trim().toLowerCase() === wanted) : undefined;
-  return (same ?? lots[0])?.lotId ?? '';
+export function suggestedLot(product: { name: string; country: string }, lots: readonly { lotId: string; label: string; country: string }[]): string {
+  const text = `${product.name} ${product.country}`.toLowerCase();
+  const words = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
+  const match = lots.find((l) => [...words(l.label.split('·')[1] ?? ''), ...words(l.country)].some((w) => text.includes(w)));
+  return match?.lotId ?? '';
 }

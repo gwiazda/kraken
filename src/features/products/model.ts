@@ -115,6 +115,9 @@ const TEXT_KEYS = {
   brewMethod: 'brew_method',
 } as const satisfies Partial<Record<keyof ProductForm, string>>;
 
+/** The form field of each size's price. */
+export const PRICE_FIELDS: Readonly<Record<BagSize, keyof ProductForm>> = { 250: 'price250', 500: 'price500', 1000: 'price1000' };
+
 const PRICE_KEYS = { price250: 250, price500: 500, price1000: 1000 } as const satisfies Partial<Record<keyof ProductForm, BagSize>>;
 
 export const emptyProductForm = (): ProductForm => ({

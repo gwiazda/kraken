@@ -65,6 +65,7 @@ describe('lotCards', () => {
     });
     expect(cards[0]?.bags).toEqual([
       {
+        grams: 250,
         label: '250 g',
         coffee: '22,65\u00a0zł',
         items: '1,50\u00a0zł',
@@ -76,8 +77,8 @@ describe('lotCards', () => {
           { markup: '3×', suggestedGrossGrosze: 8900, suggestedGross: '89\u00a0zł', suggestedNet: '72,36\u00a0zł', net: '72,44\u00a0zł', gross: '89,10\u00a0zł' },
         ],
       },
-      { label: '500 g', coffee: '45,29\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
-      { label: '1 kg', coffee: '90,59\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
+      { grams: 500, label: '500 g', coffee: '45,29\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
+      { grams: 1000, label: '1 kg', coffee: '90,59\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
     ]);
   });
 
