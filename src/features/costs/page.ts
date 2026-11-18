@@ -155,7 +155,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         {},
         'Wholesale discounts ',
         infoTip(
-          'What a business customer gets off the retail price. The name is printed next to the price on the offer.',
+          'How much cheaper a business customer gets their coffee. The name appears next to the price on the offer, so they know when the discount applies.',
         ),
       ),
       el('p', { class: 'muted small' }, `Each discount has a short name for the offer (at most ${DISCOUNT_NAME_MAX} characters). On the Offer page you tick which ones to include.`),
@@ -226,7 +226,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         'h3',
         {},
         'Packaging ',
-        infoTip('Bag, label, valve, sticker… everything in a bag except the coffee. Net, per piece. The same for every product.'),
+        infoTip('Everything in a bag apart from the coffee: the bag, label, valve, sticker. Price per piece, without VAT. The same for every product.'),
       ),
       el('p', { class: 'muted small' }, 'What one bag of each size costs you besides the coffee (net, per piece).'),
       el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
@@ -286,12 +286,12 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       el(
         'div',
         { class: 'fields' },
-        field('vat', 'VAT %', 'Usually 23.', 'Tax added on top of the net price. 48 zł net + 23 % = 59,04 zł gross.'),
+        field('vat', 'VAT %', 'Usually 23.', 'The tax added on top of your price. A bag you sell for 48 zł becomes 59,04 zł with 23 % VAT.'),
         field(
           'defaultLoss',
           'Usual roast loss %',
           'Used for a lot with no roasts yet, and for a planned bean.',
-          'Roasting dries the beans. 15 % loss: 1 kg green gives 850 g roasted.',
+          'Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Used until a lot has roasts of its own.',
         ),
       ),
       el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),

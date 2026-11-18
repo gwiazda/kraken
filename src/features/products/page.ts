@@ -309,7 +309,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           {},
           'Prices ',
           infoTip(
-            'Retail: what a shop customer pays, with VAT. Wholesale: the retail price without VAT, minus the discount, rounded to whole złoty.',
+            'Retail is what a shop customer pays, with VAT. Wholesale is what a business pays: the retail price without VAT, made cheaper by their discount and rounded to whole złoty.',
           ),
         ),
         pricesHolder,
@@ -407,7 +407,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               { class: 'suggest-from' },
               el('label', { for: lotSelect.id }, 'Suggestions from lot'),
               lotSelect,
-              infoTip('Cost of one bag × 2, 2,5 or 3, plus VAT, in whole złoty. Only the price you pick is saved.'),
+              infoTip('Kraken takes what one bag costs you and suggests a price two, two and a half or three times higher, with VAT added. Only the price you pick is saved.'),
             ),
           ]
         : [el('p', { class: 'muted small' }, 'No suggestions yet: add a price to a lot (Lots) and the packaging (Packaging & discounts).')]),
