@@ -4,8 +4,9 @@
 
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
-import { PRICE_FIX_NOTE, changedFields, emptyLotForm, formFromLot, lotSource, validateLotDetails, type Lot, type LotForm, type LotFormErrors } from './model';
-import { codeAfterChange, deletedCount, lotListRows, type LotListRow, type StockByLot } from './present';
+import { formatPln, parseKg } from '../../core/numbers';
+import { changedFields, emptyLotForm, formFromLot, lotSource, typedPricePerKg, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
+import { codeAfterChange, deletedCount, formatLoss, lotListRows, type LossByLot, type LotListRow, type StockByLot } from './present';
 import type { LotsRepository } from './repo';
 
 export interface LotsPageDeps {
@@ -25,6 +26,12 @@ export interface LotsPageDeps {
   openSync: () => void;
   /** Green coffee used and left per lot ID, counted from the roasts (oldest delivery first). */
   loadStock: (lots: readonly Lot[]) => Promise<StockByLot>;
+  /** The roast loss of each lot (its own value, else the average of its roasts, else the usual loss). */
+  loadLosses: (lots: readonly Lot[]) => Promise<LossByLot>;
+  /** Checks a roast loss typed for a lot ('' = use the average again); gives the value to store. */
+  checkLoss: (value: string) => { ok: true; value: string } | { ok: false; error: string };
+  /** Saves a lot's own roast loss ('' = back to the average of its roasts). */
+  saveLoss: (lotId: string, value: string) => Promise<void>;
   /** The add/edit form opened (so the browser's Back closes it) / closed. */
   formOpened: () => void;
   formClosed: () => void;
@@ -45,7 +52,7 @@ interface FieldSpec {
   required?: boolean;
 }
 
-/** The form, in sections (owner, 2026-11-15). Prices are edited under Costs & prices (owner, 2026-11-16). */
+/** The form, in sections (owner, 2026-11-15). The price is back on the lot (owner, 2026-11-18). */
 const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   {
     title: 'Coffee',
@@ -67,6 +74,25 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
       { key: 'supplier', label: 'Supplier' },
     ],
   },
+  {
+    title: 'Price (what you paid, without VAT)',
+    fields: [
+      {
+        key: 'coffeePrice',
+        label: 'Coffee price (zł)',
+        hint: 'For the whole delivery, e.g. 4500.',
+        tip: 'What you paid the supplier for this whole delivery, without VAT. Kraken divides it by the kg delivered to know what 1 kg of green coffee cost you.',
+        decimal: true,
+      },
+      {
+        key: 'deliveryCost',
+        label: 'Delivery cost (zł)',
+        hint: 'Leave empty if there was none.',
+        tip: 'Shipping or transport you paid for this delivery, without VAT. It is added to the coffee price, because it is part of what the beans really cost you.',
+        decimal: true,
+      },
+    ],
+  },
   { title: 'Notes', fields: [{ key: 'notes', label: 'Notes', type: 'textarea' }] },
 ];
 
@@ -77,6 +103,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
   let lots: Lot[] = [];
   let problems: string[] = [];
   let stock: StockByLot = new Map();
+  let losses: LossByLot = new Map();
   let showDeleted = false;
 
   function render(...children: (Node | string)[]): void {
@@ -96,7 +123,16 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           return { map: new Map() as StockByLot, problem: `Stock left could not be calculated: ${deps.describeError(error)}` };
         },
       );
-      return { ...result, stock: stockResult.map, problems: stockResult.problem ? [...result.problems, stockResult.problem] : result.problems };
+      // The roast loss comes from the Roasts and cost tabs; if that cannot be read, the lots are still shown too.
+      const lossResult = await deps.loadLosses(result.lots).then(
+        (map) => ({ map, problem: '' }),
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          return { map: new Map() as LossByLot, problem: `The roast loss could not be worked out: ${deps.describeError(error)}` };
+        },
+      );
+      const extra = [stockResult.problem, lossResult.problem].filter((p) => p);
+      return { ...result, stock: stockResult.map, losses: lossResult.map, problems: [...result.problems, ...extra] };
     };
     (fromClick ? deps.withGoogle(both) : both())
       .then((result) => {
@@ -104,6 +140,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         lots = result.lots;
         problems = result.problems;
         stock = result.stock;
+        losses = result.losses;
         showList(note);
       })
       .catch((error: unknown) => {
@@ -193,7 +230,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     deps.formClosed(); // the list replaces any open form
     const hidden = deletedCount(lots);
     if (hidden === 0) showDeleted = false; // the switch is not shown, so it must not stay on unseen
-    const rows = lotListRows(lots, showDeleted, stock);
+    const rows = lotListRows(lots, showDeleted, stock, losses);
 
     function rowNodes(row: LotListRow): HTMLTableRowElement[] {
       const cell = el('td', { class: 'row-actions nowrap' });
@@ -212,6 +249,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'nowrap' }, row.delivered),
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: `num nowrap${row.overdrawn ? ' overdrawn' : ''}` }, row.stockLeft),
+        el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted ? '—' : el('span', { class: 'badge badge-warn' }, 'Add price'))),
+        el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossNote === 'your own' ? [el('span', { class: 'muted small' }, ' (own)')] : [])),
         el('td', {}, row.supplier),
         el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,
@@ -240,7 +279,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         confirmRow.replaceChildren(
           el(
             'td',
-            { colspan: '9' },
+            { colspan: '11' },
             el('span', {}, `Delete ${row.code}? It can be restored later under "Show deleted". `),
             button(
               'Yes, delete',
@@ -276,7 +315,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 el(
                   'tr',
                   {},
-                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left', 'Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
+                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left'].map((h) => el('th', { scope: 'col' }, h)),
+                  el('th', { scope: 'col', class: 'num' }, 'Price / kg ', infoTip('What 1 kg of green coffee cost you: (coffee price + delivery cost) ÷ kg delivered, without VAT. Click Edit to add or change the price.')),
+                  el(
+                    'th',
+                    { scope: 'col', class: 'num' },
+                    'Roast loss ',
+                    infoTip('Coffee gets lighter when roasted (it loses water). 15 % loss means 1 kg of green beans gives 850 g of roasted coffee. Kraken takes the average of this lot\'s roasts; you can type your own in Edit.'),
+                  ),
+                  ...['Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
@@ -302,10 +349,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       ...problems.map((text) => message(text, 'error')),
       ...rows
         .filter((row) => row.problems.length > 0 && !row.deleted)
-        .map((row) => {
-          const elsewhere = row.problems.every((p) => p.endsWith(PRICE_FIX_NOTE)); // prices are fixed under Costs & prices
-          return message(`${row.code}: ${row.problems.join(' ')}${elsewhere ? '' : ' Open Edit to correct it.'}`, 'error');
-        }),
+        .map((row) => message(`${row.code}: ${row.problems.join(' ')} Open Edit to correct it.`, 'error')),
       ...rows.filter((row) => row.overdrawn && !row.deleted).map((row) => message(row.stockNote, 'error')),
       table,
       ...(hidden > 0
@@ -346,7 +390,6 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       fieldNodes.set(spec.key, node);
     });
 
-    // The price fields are not on this form: they keep the lot's values (and are never written from here).
     const readForm = (): LotForm => ({ ...initial, ...(Object.fromEntries(FIELDS.map((spec) => [spec.key, inputs[spec.key].value])) as Partial<LotForm>) });
 
     const updateCode = () => {
@@ -374,6 +417,49 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       if (first) inputs[first.key].focus();
     };
 
+    // Under the price: what 1 kg of green coffee cost, worked out while typing.
+    const perKg = el('p', { class: 'price-per-kg', 'aria-live': 'polite' });
+    const showPerKg = () => {
+      const form = readForm();
+      const grams = parseKg(form.quantityKg);
+      const value = typedPricePerKg(form, typeof grams === 'number' ? grams : null);
+      perKg.replaceChildren(
+        ...(value !== null
+          ? ['= ', el('strong', {}, formatPln(value)), ' for 1 kg of green coffee']
+          : [el('span', { class: 'muted' }, 'Fill in the coffee price and the kg delivered to see what 1 kg cost you.')]),
+      );
+    };
+    for (const key of ['coffeePrice', 'deliveryCost', 'quantityKg'] as const) inputs[key].addEventListener('input', showPerKg);
+    showPerKg();
+
+    // The roast loss: empty uses the average of this lot's roasts (or the usual loss); a number is the owner's own.
+    const lossNow = mode.kind === 'edit' ? losses.get(mode.lot.id) : undefined;
+    const lossInput = el('input', { id: 'lot-roastLoss', type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', 'aria-describedby': 'lot-roastLoss-error' });
+    lossInput.value = lossNow?.own.replace('.', ',') ?? '';
+    lossInput.placeholder = lossNow && !lossNow.own ? formatLoss(lossNow.lossTenths).replace(' %', '') : '';
+    const lossError = el('p', { class: 'field-error', id: 'lot-roastLoss-error', role: 'alert' });
+    const lossHint =
+      lossNow && !lossNow.own
+        ? `Empty: ${formatLoss(lossNow.lossTenths)}, the ${lossNow.source}.`
+        : lossNow?.own
+          ? 'Empty it to use the average of this lot\'s roasts again.'
+          : 'Empty: the average of this lot\'s roasts once there are some, until then the usual loss.';
+    const lossField = el(
+      'div',
+      { class: 'field' },
+      el(
+        'div',
+        { class: 'label-row' },
+        el('label', { for: lossInput.id }, 'Roast loss % (optional)'),
+        infoTip(
+          'Coffee gets lighter when roasted (it loses water). 15 % loss means 1 kg of green beans gives 850 g of roasted coffee, so 1 kg of roasted coffee costs more than 1 kg of green. Kraken uses the average of this lot\'s roasts; type a number only if you know better.',
+        ),
+      ),
+      lossInput,
+      el('p', { class: 'field-hint' }, lossHint),
+      lossError,
+    );
+
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
       cancelButton.disabled = working;
@@ -383,22 +469,30 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     // Called directly inside the Save click, so a sign-in renewal can open Google's window.
     function save(): void {
       const form = readForm();
-      const result = validateLotDetails(form, others);
-      if (!result.ok) {
-        showErrors(result.errors);
+      const result = validateLotForm(form, others);
+      const loss = deps.checkLoss(lossInput.value);
+      lossError.textContent = loss.ok ? '' : loss.error;
+      lossInput.setAttribute('aria-invalid', loss.ok ? 'false' : 'true');
+      if (!result.ok || !loss.ok) {
+        showErrors(result.ok ? {} : result.errors);
+        if (result.ok) lossInput.focus();
         banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
         return;
       }
+      const lossChanged = loss.value !== (lossNow?.own ?? '');
       showErrors({});
       banner.replaceChildren();
       setBusy(true);
       deps.busy(true);
       deps
-        .withGoogle(async () =>
-          mode.kind === 'add'
-            ? deps.repo.add(result.fields, await deps.whoAmI(), deps.now())
-            : deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now()),
-        )
+        .withGoogle(async () => {
+          const saved =
+            mode.kind === 'add'
+              ? await deps.repo.add(result.fields, await deps.whoAmI(), deps.now())
+              : await deps.repo.update(mode.lot, changedFields(initial, form, result.fields), deps.now());
+          if (lossChanged) await deps.saveLoss(saved.id, loss.value);
+          return saved;
+        })
         .finally(() => deps.busy(false))
         .then((saved) => load(`Saved ${saved.code}.`))
         .catch((error: unknown) => {
@@ -433,7 +527,9 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
             'div',
             { class: 'fields' },
             ...section.fields.map((spec) => fieldNodes.get(spec.key) ?? ''),
+            ...(section.fields.some((spec) => spec.key === 'coffeePrice') ? [lossField] : []),
           ),
+          ...(section.fields.some((spec) => spec.key === 'coffeePrice') ? [perKg] : []),
         ),
       ),
       el('div', { class: 'actions' }, saveButton, cancelButton),
@@ -454,8 +550,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
             ? 'Entered by hand. Imports from RoasTime never change it. Fields marked * are required.'
             : 'Fields marked * are required. One lot = one delivery of green coffee.',
       ),
-      // Price problems are not shown here: this form has no price fields (they are fixed under Costs & prices).
-      ...(mode.kind === 'edit' ? mode.lot.problems.filter((text) => !text.endsWith(PRICE_FIX_NOTE)).map((text) => message(text, 'error')) : []),
+      ...(mode.kind === 'edit' ? mode.lot.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,
     );

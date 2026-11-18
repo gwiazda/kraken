@@ -1351,3 +1351,26 @@ details summary {
     page-break-after: auto;
   }
 }
+
+/* ---- Lots: price per kg under the price fields; Packaging & discounts ---- */
+
+.price-per-kg {
+  margin: 0.25rem 0 1.5rem;
+  font-size: 1.05rem;
+}
+
+.price-per-kg strong {
+  color: var(--lime);
+}
+
+.discounts-table {
+  width: auto;
+  min-width: 20rem;
+  margin-bottom: 0.75rem;
+}
+
+.col-name {
+  color: var(--white);
+  text-transform: none;
+  letter-spacing: 0;
+}

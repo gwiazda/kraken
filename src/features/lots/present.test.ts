@@ -54,6 +54,13 @@ describe('lotListRows', () => {
     });
   });
 
+  it('shows what 1 kg of green coffee cost, and the roast loss with where it comes from', () => {
+    const losses = new Map([['id-2', { lossTenths: 162, source: 'average of 23 roasts', own: '' }]]);
+    // (4500 + 120,50) ÷ 60 kg = 77,01 zł per kg
+    expect(lotListRows([lot({})], false, new Map(), losses)[0]).toMatchObject({ pricePerKg: '77,01\u00a0zł', loss: '16,2 %', lossNote: 'average of 23 roasts' });
+    expect(lotListRows([lot({ coffee_price_net_pln: '' })])[0]).toMatchObject({ pricePerKg: '', loss: '', lossNote: '' });
+  });
+
   it('shows lots imported from RoasTime as such', () => {
     expect(lotListRows([lot({ roastime_container_id: 'C1' })])[0]?.source).toBe('RoasTime');
   });

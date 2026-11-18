@@ -18,7 +18,7 @@ import { SheetsError, isGoogleSheetsUrl, type SheetsClient, type SpreadsheetInfo
 import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId } from './core/storage';
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
-import { sheetCostsRepository, showCostsPage } from './features/costs';
+import { lotLosses, sheetCostsRepository, showPackagingPage, validateLoss } from './features/costs';
 import { showOfferPage } from './features/offers';
 import { sheetProductsRepository, showProductsPage } from './features/products';
 import { showRoastimeSync } from './features/roastime';
@@ -102,7 +102,7 @@ window.addEventListener('popstate', (event) => {
   }
   const screen = screenOf(event.state);
   if (screen === 'settings') showSettings(info, 'none');
-  else if (screen === 'costs') showCosts(info, false, 'none');
+  else if (screen === 'packaging') showPackaging(info, false, 'none');
   else if (screen === 'offer') showOffer(info, false, 'none');
   else if (screen === 'products' || screen === 'product-form') {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
@@ -120,7 +120,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'costs' | 'products' | 'offer' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'products' | 'offer' | 'packaging' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -141,14 +141,14 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       tab('Roasts', 'roasts', () => {
         if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
       }),
-      tab('Costs & prices', 'costs', () => {
-        if (!saving) showCosts(info, true, menuMove('costs'));
-      }),
       tab('Products', 'products', () => {
         if (!saving) showProducts(info, true, menuMove('products'));
       }),
       tab('Offer', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
+      }),
+      tab('Packaging & discounts', 'packaging', () => {
+        if (!saving) showPackaging(info, true, menuMove('packaging'));
       }),
       tab('Settings', 'settings', () => {
         if (!saving) showSettings(info, menuMove('settings'));
@@ -377,11 +377,23 @@ function googleDeps() {
 
 function lotsPageDeps(info: SpreadsheetInfo): LotsPageDeps {
   const roasts = sheetRoastsRepository(client, info.id);
+  const costs = sheetCostsRepository(client, info.id);
   return {
     ...googleDeps(),
     repo: sheetLotsRepository(client, info.id),
     // Stock left: the roasts are loaded and counted against the lots (oldest delivery first).
     loadStock: async (lots) => allocate(lots, (await roasts.load()).roasts).lots,
+    // Roast loss: the lot's own value (Lot costs tab), else the average of its roasts, else the usual loss.
+    loadLosses: async (lots) => {
+      const [data, all] = await Promise.all([costs.load(), roasts.load()]);
+      return lotLosses(data, lots, all.roasts);
+    },
+    checkLoss: validateLoss,
+    saveLoss: async (lotId, value) => {
+      const data = await costs.load();
+      const existing = data.lotCosts.find((c) => c.deletedAt === '' && c.lotId === lotId);
+      await costs.saveLoss(lotId, value, existing, () => whoAmI(client), new Date());
+    },
     openSync: () => showSync(info, 'lots'),
     formOpened: () => record('lot-form', 'push'),
     formClosed: () => {
@@ -411,14 +423,9 @@ function showRoasts(info: SpreadsheetInfo, note?: string, fromClick = false, mov
   );
 }
 
-function showCosts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
-  record('costs', move);
-  showCostsPage(
-    showApp(info, 'costs'),
-    { ...googleDeps(), repo: sheetCostsRepository(client, info.id), lots: sheetLotsRepository(client, info.id), roasts: sheetRoastsRepository(client, info.id) },
-    undefined,
-    fromClick,
-  );
+function showPackaging(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('packaging', move);
+  showPackagingPage(showApp(info, 'packaging'), { ...googleDeps(), repo: sheetCostsRepository(client, info.id) }, undefined, fromClick);
 }
 
 function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {

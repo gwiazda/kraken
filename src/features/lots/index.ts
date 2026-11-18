@@ -11,7 +11,6 @@ export {
   sortLots,
   suggestCode,
   typedPricePerKg,
-  validateLotPrice,
   validateLotForm,
   type Lot,
   type LotForm,

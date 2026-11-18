@@ -7,8 +7,6 @@ import {
   formatMarkup,
   formatPercent,
   lotCostFromFields,
-  parseDiscounts,
-  parseMarkups,
   parsePercent,
   percentFromCell,
   readSettings,
@@ -31,15 +29,6 @@ describe('numbers typed by the owner', () => {
     expect(parsePercent('-5')).toBeUndefined();
   });
 
-  it('reads markups separated by ";"', () => {
-    expect(parseMarkups('2; 2,5; 3')).toEqual([200, 250, 300]);
-    expect(parseMarkups('2.2;')).toEqual([220]);
-    expect(parseMarkups('')).toBeUndefined();
-    expect(parseMarkups('2; 0')).toBeUndefined();
-    expect(parseMarkups('2, 3')).toBeUndefined(); // a comma is a decimal comma, not a separator
-    expect(parseMarkups('1;2;3;4;5;6')).toBeUndefined();
-  });
-
   it('refuses 0 < x < 1 % from a cell or a form: "20%" typed in the sheet arrives as 0.2', () => {
     expect(percentFromCell('0.2')).toBeUndefined();
     expect(percentFromCell('0.15')).toBeUndefined();
@@ -60,59 +49,33 @@ describe('numbers typed by the owner', () => {
 
 describe('settings', () => {
   it('uses the defaults agreed with the owner when nothing is saved', () => {
-    expect(readSettings([])).toEqual({ settings: { vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150, discountTenths: [150, 250, 300] }, problems: [] });
+    expect(readSettings([])).toEqual({ settings: { vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150 }, problems: [] });
   });
 
-  it('uses saved values, ignoring deleted rows', () => {
-    const rows = [setting('vat_percent', '8'), setting('markups', '2;3', 3), setting('default_roast_loss_percent', '16.5', 4), setting('wholesale_discounts_percent', '10;20', 6), setting('vat_percent', '5', 5, '2026-11-16T10:00:00.000Z')];
-    expect(readSettings(rows).settings).toEqual({ vatTenths: 80, markupHundredths: [200, 300], defaultLossTenths: 165, discountTenths: [100, 200] });
+  it('uses saved values, ignoring deleted rows; the multipliers are fixed (owner, 2026-11-18)', () => {
+    const rows = [setting('vat_percent', '8'), setting('markups', '2;3', 3), setting('default_roast_loss_percent', '16.5', 4), setting('vat_percent', '5', 5, '2026-11-16T10:00:00.000Z')];
+    expect(readSettings(rows).settings).toEqual({ vatTenths: 80, markupHundredths: [200, 250, 300], defaultLossTenths: 165 });
   });
 
   it('reports a value it cannot read or a duplicate row, and uses the default or the first row', () => {
-    const { settings, problems } = readSettings([setting('vat_percent', 'lots'), setting('markups', '2', 3), setting('markups', '4', 7)]);
-    expect(settings).toEqual({ ...DEFAULT_SETTINGS, markupHundredths: [200] });
+    const { settings, problems } = readSettings([setting('vat_percent', 'lots'), setting('default_roast_loss_percent', '14', 3), setting('default_roast_loss_percent', '16', 7)]);
+    expect(settings).toEqual({ ...DEFAULT_SETTINGS, defaultLossTenths: 140 });
     expect(problems).toEqual([
       'The setting "vat_percent" has the value "lots", which Kraken cannot read; it uses the default instead.',
-      'The Cost settings tab has 2 rows named "markups" (rows 3, 7); Kraken uses the first.',
+      'The Cost settings tab has 2 rows named "default_roast_loss_percent" (rows 3, 7); Kraken uses the first.',
     ]);
   });
 
   it('fills the form the Polish way and stores the values the same way every time', () => {
-    expect(formFromSettings({ vatTenths: 230, markupHundredths: [200, 250], defaultLossTenths: 155, discountTenths: [150, 125] })).toEqual({
-      vat: '23',
-      markups: '2; 2,5',
-      defaultLoss: '15,5',
-      discounts: '15; 12,5',
-    });
-    expect(validateSettingsForm({ vat: '23', markups: '2; 2,5; 3', defaultLoss: '15,5', discounts: '15; 25; 30; 12,5' })).toEqual({
-      ok: true,
-      values: { vat_percent: '23', markups: '2;2.5;3', default_roast_loss_percent: '15.5', wholesale_discounts_percent: '15;25;30;12.5' },
-    });
+    expect(formFromSettings({ vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 155 })).toEqual({ vat: '23', defaultLoss: '15,5' });
+    expect(validateSettingsForm({ vat: '23', defaultLoss: '15,5' })).toEqual({ ok: true, values: { vat_percent: '23', default_roast_loss_percent: '15.5' } });
   });
 
   it('explains what is wrong in the settings form', () => {
-    expect(validateSettingsForm({ vat: '', markups: 'x', defaultLoss: '120', discounts: '15, 25' })).toEqual({
+    expect(validateSettingsForm({ vat: '', defaultLoss: '120' })).toEqual({
       ok: false,
-      errors: {
-        vat: 'Enter the VAT rate, e.g. 23.',
-        markups: 'Enter 1 to 5 multipliers separated by ";", e.g. 2; 2,5; 3.',
-        defaultLoss: 'Enter a percentage from 1 to 99, e.g. 15.',
-        discounts: 'Enter 1 to 10 percentages from 1 to 99 separated by ";", e.g. 15; 25; 30.',
-      },
+      errors: { vat: 'Enter the VAT rate, e.g. 23.', defaultLoss: 'Enter a percentage from 1 to 99, e.g. 15.' },
     });
-  });
-});
-
-describe('wholesale discounts', () => {
-  it('reads 1 to 10 percentages separated by ";"', () => {
-    expect(parseDiscounts('15; 25; 30')).toEqual([150, 250, 300]);
-    expect(parseDiscounts('12,5;40')).toEqual([125, 400]);
-    expect(parseDiscounts(' 15 ; ')).toEqual([150]);
-    expect(parseDiscounts('15; 25; 15')).toEqual([150, 250]);
-  });
-
-  it('refuses commas between them, 0 %, under 1 % (a "15%" cell arrives as 0.15), 100 % or more, and too many', () => {
-    for (const bad of ['', '15, 25', '0', '0.15', '100', 'a lot', '1;2;3;4;5;6;7;8;9;10;11']) expect(parseDiscounts(bad)).toBeUndefined();
   });
 });
 

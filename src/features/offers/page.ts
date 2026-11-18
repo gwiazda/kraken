@@ -6,11 +6,11 @@
 import { isValidDate, localDate } from '../../core/dates';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { readSettings, type CostSettings, type CostsRepository } from '../costs';
+import { activeDiscounts, readSettings, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
-import { DEFAULT_TIER_LABELS, OFFER_VALID_DAYS, TIER_LABEL_MAX, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
+import { MAX_TIERS, OFFER_VALID_DAYS, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
 import { buildOffer } from './present';
 
 export interface OfferPageDeps {
@@ -39,9 +39,10 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       .then(([products, costs]) => {
         if (!root.isConnected) return;
         const { settings, problems } = readSettings(costs.settings);
+        const discounts = activeDiscounts(costs.discounts);
         // A price Kraken cannot read is named here, so a missing size on the offer is not a mystery.
         const productProblems = products.products.filter((p) => !isProductDeleted(p)).flatMap((p) => p.problems);
-        showForm(products.products, settings, [...products.problems, ...problems, ...productProblems]);
+        showForm(products.products, settings, discounts.discounts, [...products.problems, ...problems, ...discounts.problems, ...productProblems]);
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
@@ -59,7 +60,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       });
   }
 
-  function showForm(all: readonly Product[], settings: CostSettings, problems: readonly string[]): void {
+  function showForm(all: readonly Product[], settings: CostSettings, discounts: readonly Discount[], problems: readonly string[]): void {
     const products = sortProducts(all).filter((p) => !isProductDeleted(p));
     const today = localDate(deps.now());
     const errorLines = new Map<keyof OfferErrors, HTMLElement>();
@@ -112,19 +113,24 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     };
     showOrder();
     const sizeBoxes = BAG_SIZES_G.map((g) => ({ grams: g, ...checkbox(`offer-size-${g}`, START_SIZES.includes(g), formatBagSize(g)) }));
-    const tierRows = settings.discountTenths.map((tenths) => {
-      const name = el('input', { type: 'text', id: `offer-tier-${tenths}`, class: 'input-money', autocomplete: 'off', placeholder: 'no name', maxlength: String(TIER_LABEL_MAX) });
-      name.value = DEFAULT_TIER_LABELS[tenths] ?? '';
-      const { box, node } = checkbox(`offer-tier-box-${tenths}`, true, discountText(tenths).replace('-', '−'));
-      return { tenths, box, name, node: el('span', { class: 'offer-tier-choice' }, node, ' ', name) };
+    // The discounts from Packaging & discounts, with their names. At most MAX_TIERS on one offer (each adds a price
+    // line to every card), so the first ones are ticked and the rest wait until one is unticked.
+    const tierRows = discounts.map((d, i) => {
+      const { box, node } = checkbox(`offer-tier-${d.tenths}`, i < MAX_TIERS, el('span', {}, el('strong', {}, discountText(d.tenths).replace('-', '−')), ' ', d.name || el('span', { class: 'muted' }, '(no name)')));
+      return { tenths: d.tenths, name: d.name, box, node };
     });
+    const limitTiers = () => {
+      const full = tierRows.filter((t) => t.box.checked).length >= MAX_TIERS;
+      for (const t of tierRows) t.box.disabled = full && !t.box.checked;
+    };
+    limitTiers();
 
     const readForm = (): OfferForm => ({
       customer: customer.value,
       date: date.value,
       productIds: order.filter((b) => b.box.checked).map((b) => b.id),
       sizes: sizeBoxes.filter((b) => b.box.checked).map((b) => b.grams),
-      tiers: tierRows.filter((t) => t.box.checked).map((t) => ({ tenths: t.tenths, label: t.name.value.trim() })),
+      tiers: tierRows.filter((t) => t.box.checked).map((t) => ({ tenths: t.tenths, label: t.name })),
       banner: bannerEdited ? { title: bannerTitle.value.trim(), line: bannerLine.value.trim(), note: bannerNote.value.trim() } : null,
     });
 
@@ -191,7 +197,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       void printOffer(preview, fileName);
     };
 
-    for (const input of [customer, date, ...productBoxes.map((b) => b.box), ...sizeBoxes.map((b) => b.box), ...tierRows.flatMap((t) => [t.box, t.name])]) {
+    for (const t of tierRows) t.box.addEventListener('input', limitTiers);
+    for (const input of [customer, date, ...productBoxes.map((b) => b.box), ...sizeBoxes.map((b) => b.box), ...tierRows.map((t) => t.box)]) {
       input.addEventListener('input', update);
     }
 
@@ -232,8 +239,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       section('Bag sizes', el('div', { class: 'offer-choices' }, ...sizeBoxes.map((b) => b.node)), errorLine('sizes')),
       section(
         'Discounts',
-        el('p', { class: 'muted small' }, 'The name is shown next to the price, e.g. "Do 10 kg (-15%)". More discounts: Costs & prices → Bag costs & settings.'),
-        el('div', { class: 'offer-choices' }, ...tierRows.map((t) => t.node)),
+        el('p', { class: 'muted small' }, `Up to ${MAX_TIERS} on one offer, so it stays readable. The name is shown next to each price, e.g. "Do 10 kg (-15%)". Add or change discounts under Packaging & discounts.`),
+        ...(tierRows.length > 0 ? [el('div', { class: 'offer-choices' }, ...tierRows.map((t) => t.node))] : [el('p', { class: 'muted' }, 'No discounts yet: add them under Packaging & discounts.')]),
         errorLine('tiers'),
       ),
       section(

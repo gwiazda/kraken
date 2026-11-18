@@ -9,7 +9,7 @@ import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { DEFAULT_SETTINGS, pricingFor, type CostSettings, type CostsRepository, type LotSuggestion } from '../costs';
+import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type CostSettings, type CostsRepository, type Discount, type LotSuggestion } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import {
@@ -30,7 +30,7 @@ import type { ProductsRepository } from './repo';
 
 export interface ProductsPageDeps {
   repo: ProductsRepository;
-  /** For the VAT, the discounts and the suggested prices (Costs & prices). */
+  /** For the VAT, the discounts and the suggested prices (Packaging & discounts, lots). */
   costs: CostsRepository;
   lots: LotsRepository;
   roasts: RoastsRepository;
@@ -85,6 +85,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   let products: Product[] = [];
   let problems: string[] = [];
   let settings: CostSettings = DEFAULT_SETTINGS;
+  let discounts: Discount[] = activeDiscounts([]).discounts;
   let suggestions: LotSuggestion[] = [];
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
@@ -113,7 +114,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         (error: unknown) => {
           if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
           const problem = `The price settings and suggestions could not be read (${deps.describeError(error)}); the default VAT and discounts are used.`;
-          return { settings: DEFAULT_SETTINGS, suggestions: [] as LotSuggestion[], problems: [problem] };
+          return { settings: DEFAULT_SETTINGS, discounts: activeDiscounts([]).discounts, suggestions: [] as LotSuggestion[], problems: [problem] };
         },
       );
     const all = () => Promise.all([deps.repo.load(), pricing()]);
@@ -122,6 +123,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         if (!root.isConnected) return;
         products = result.products;
         settings = found.settings;
+        discounts = found.discounts;
         suggestions = found.suggestions;
         problems = [...result.problems, ...found.problems];
         const open = openId ? products.find((p) => p.id === openId && !isDeleted(p)) : undefined;
@@ -238,15 +240,18 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   function showProduct(product: Product, note?: string): void {
     deps.formOpened();
     const vat = settings.vatTenths;
-    const presets = settings.discountTenths;
     let other: number | null = null;
 
     const priceCell = (c: PriceCell, extra = '') =>
       el('td', { class: `num nowrap${extra}` }, el('strong', { class: 'price-main' }, c.main), ...(c.other ? [el('span', { class: 'price-other' }, c.other)] : []));
     const pricesHolder = el('div', {});
     const showPrices = () => {
-      const discounts = other === null ? presets : [...presets, other];
-      const rows = priceRows(product, discounts, vat);
+      const columns: { tenths: number; name: string }[] = other === null ? discounts : [...discounts, { tenths: other, name: '' }];
+      const rows = priceRows(
+        product,
+        columns.map((d) => d.tenths),
+        vat,
+      );
       pricesHolder.replaceChildren(
         el(
           'div',
@@ -262,7 +267,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
                 {},
                 el('th', { scope: 'col' }, ''),
                 el('th', { scope: 'col', class: 'num col-retail' }, 'Retail'),
-                ...discounts.map((d) => el('th', { scope: 'col', class: 'num' }, `Wholesale ${discountHeader(d)}`)),
+                ...columns.map((d) => el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), discountHeader(d.tenths))),
               ),
             ),
             el('tbody', {}, ...rows.map((r) => el('tr', {}, el('th', { scope: 'row' }, r.size), priceCell(r.retail, ' col-retail'), ...r.wholesale.map((c) => priceCell(c))))),
@@ -291,7 +296,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         return;
       }
       otherError.textContent = '';
-      other = presets.includes(tenths) ? null : tenths;
+      other = discounts.some((d) => d.tenths === tenths) ? null : tenths;
       showPrices();
     });
 
@@ -323,7 +328,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       el(
         'section',
         { class: 'product-card' },
-        el('h3', {}, 'Prices ', infoTip('Retail: the main price, gross. Wholesale: net, the main price without VAT minus the discount, rounded to whole złoty; the gross under it is for the invoice.')),
+        el(
+          'h3',
+          {},
+          'Prices ',
+          infoTip(
+            'Retail: the price a shop customer pays, with VAT (gross). Wholesale: what a business customer pays: the retail price without VAT, minus their discount, rounded to whole złoty. The gross under it is what goes on the invoice. The discounts are set under Packaging & discounts.',
+          ),
+        ),
         pricesHolder,
         otherForm,
       ),

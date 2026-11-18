@@ -146,11 +146,27 @@ describe('version 6', () => {
 
   it('updates a version 5 sheet with the Products tab, keeping the data', async () => {
     const google = sheetAt(5, [{ title: 'Price list', sheetId: 3, rows: [['id', 'country'], ['P1', 'Kenya']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 5), appVersion: 6 });
     expect(result.toVersion).toBe(6);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Price list', 'Products']);
     expect(tab(google, 'Price list')?.rows).toEqual([['id', 'country'], ['P1', 'Kenya']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '6']);
+  });
+});
+
+describe('version 7', () => {
+  it('adds the Discounts tab, agreed on 2026-11-18', () => {
+    const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
+    expect(MIGRATIONS[5]?.steps).toEqual([{ kind: 'add-tab', tab: 'Discounts', headers: ['id', 'percent', 'name', ...safety] }]);
+  });
+
+  it('updates a version 6 sheet with the Discounts tab, keeping the data', async () => {
+    const google = sheetAt(6, [{ title: 'Products', sheetId: 3, rows: [['id', 'name'], ['P1', 'Kenia']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result.toVersion).toBe(7);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Products', 'Discounts']);
+    expect(tab(google, 'Products')?.rows).toEqual([['id', 'name'], ['P1', 'Kenia']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '7']);
   });
 });
 

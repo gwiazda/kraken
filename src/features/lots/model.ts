@@ -61,8 +61,6 @@ export interface Lot {
 
 type Fields = Readonly<Record<string, string>>;
 
-export const PRICE_FIX_NOTE = 'Correct it under Costs & prices (Edit price).';
-
 /** Turns a stored row into a Lot. A broken number never stops the page: the lot is shown with a problem note. */
 export function lotFromFields(fields: Fields, row: number): Lot {
   const text = (name: string) => (fields[name] ?? '').trim();
@@ -90,9 +88,8 @@ export function lotFromFields(fields: Fields, row: number): Lot {
     supplier: text('supplier'),
     deliveryDate,
     quantityGrams: number('quantity_kg', 'Quantity', parseKg),
-    // Prices are edited under Costs & prices (owner, 2026-11-16), so the note says where to fix them.
-    coffeePriceGrosze: number('coffee_price_net_pln', 'Coffee price', parseMoney, ` ${PRICE_FIX_NOTE}`),
-    deliveryCostGrosze: number('delivery_cost_net_pln', 'Delivery cost', parseMoney, ` ${PRICE_FIX_NOTE}`),
+    coffeePriceGrosze: number('coffee_price_net_pln', 'Coffee price', parseMoney),
+    deliveryCostGrosze: number('delivery_cost_net_pln', 'Delivery cost', parseMoney),
     notes: fields.notes ?? '',
     roastime: { containerId: text('roastime_container_id'), beanId: text('roastime_bean_id'), supplierCode: text('roastime_supplier_code') },
     createdAt: text('created_at'),
@@ -271,42 +268,12 @@ const PRICE_ERRORS = {
 /** The two price fields of a lot (whole delivery, net), as typed. */
 export type LotPriceForm = Pick<LotForm, 'coffeePrice' | 'deliveryCost'>;
 
-/**
- * Checks a lot's price typed under Costs & prices. Gives only the columns whose text changed compared with `initial`
- * (what the form showed), so an untouched cell is never rewritten.
- */
-export function validateLotPrice(form: LotPriceForm, initial: LotPriceForm): { ok: true; fields: Record<string, string> } | { ok: false; errors: Partial<LotPriceForm> } {
-  const price = parseMoney(form.coffeePrice);
-  const delivery = parseMoney(form.deliveryCost);
-  if (price === undefined || delivery === undefined) {
-    return {
-      ok: false,
-      errors: { ...(price === undefined ? { coffeePrice: PRICE_ERRORS.coffeePrice } : {}), ...(delivery === undefined ? { deliveryCost: PRICE_ERRORS.deliveryCost } : {}) },
-    };
-  }
-  const fields: Record<string, string> = {};
-  if (form.coffeePrice.trim() !== initial.coffeePrice.trim()) fields.coffee_price_net_pln = price === null ? '' : moneyText(price);
-  if (form.deliveryCost.trim() !== initial.deliveryCost.trim()) fields.delivery_cost_net_pln = delivery === null ? '' : moneyText(delivery);
-  return { ok: true, fields };
-}
-
 /** The green price per kg while typing a price (grosze); null until the price and the kg are readable. */
 export function typedPricePerKg(form: LotPriceForm, quantityGrams: number | null): number | null {
   const price = parseMoney(form.coffeePrice);
   const delivery = parseMoney(form.deliveryCost);
   if (typeof price !== 'number' || delivery === undefined) return null;
   return greenPricePerKg({ coffeePriceGrosze: price, deliveryCostGrosze: delivery, quantityGrams });
-}
-
-/**
- * Checks the lot form of the Lots page, which has no price fields (owner, 2026-11-16: prices are edited under
- * Costs & prices). The prices are left out of the check and of the fields to store, so they are never touched here.
- */
-export function validateLotDetails(form: LotForm, others: readonly Lot[]): ReturnType<typeof validateLotForm> {
-  const result = validateLotForm({ ...form, coffeePrice: '', deliveryCost: '' }, others);
-  if (!result.ok) return result;
-  const { coffee_price_net_pln: _price, delivery_cost_net_pln: _delivery, ...fields } = result.fields;
-  return { ok: true, fields };
 }
 
 /** Newest delivery first; same day by code. */

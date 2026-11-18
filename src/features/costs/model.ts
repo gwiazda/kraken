@@ -1,6 +1,6 @@
-// Costs & prices: the tabs, what a row means, and checking what the owner types. Pure: no Google, no screen.
-// Settings (VAT, markups, default roast loss), the cost items of each bag size (fixed sizes), and a per-lot roast
-// loss override. The lot's price is checked by the Lots feature (validateLotPrice), stored on the Lots tab.
+// Packaging & discounts and the cost calculation: the tabs, what a row means, and checking what the owner types.
+// Pure: no Google, no screen. Settings (VAT, default roast loss), the packaging cost items of each bag size, and a
+// per-lot roast loss override. The multipliers are fixed (owner, 2026-11-18). Discounts: modelDiscounts.ts.
 // Rules agreed with the owner on 2026-11-16 (docs/REQUIREMENTS.md section 6): all costs are net; markups give the
 // net price; gross = net × (1 + VAT); roast loss = the average of the lot's roasts unless the owner types one.
 
@@ -20,22 +20,25 @@ const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 
 // ---- Settings ----
 
+/** The price multipliers, fixed (owner, 2026-11-18): 2×, 2,5× and 3× the cost of one bag. In hundredths. */
+export const MARKUPS: readonly number[] = [200, 250, 300];
+
 /** Percentages in tenths (230 = 23,0 %), markups in hundredths (250 = 2,5×). */
 export interface CostSettings {
   readonly vatTenths: number;
+  /** Always MARKUPS; kept here so the calculation gets everything it needs in one place. */
   readonly markupHundredths: readonly number[];
   readonly defaultLossTenths: number;
-  /** Wholesale discounts, shown on each product's page and offered on the Offer, in tenths of a percent (150 = 15 %). */
-  readonly discountTenths: readonly number[];
 }
 
-/**
- * Used until the owner saves their own (owner, 2026-11-16: VAT 23 %, markups 2×, 2,5×, 3×, default loss 15 %,
- * wholesale discounts 15 %, 25 %, 30 %).
- */
-export const DEFAULT_SETTINGS: CostSettings = { vatTenths: 230, markupHundredths: [200, 250, 300], defaultLossTenths: 150, discountTenths: [150, 250, 300] };
+/** Used until the owner saves their own (owner, 2026-11-16: VAT 23 %, default loss 15 %). */
+export const DEFAULT_SETTINGS: CostSettings = { vatTenths: 230, markupHundredths: MARKUPS, defaultLossTenths: 150 };
 
-export const SETTING_NAMES = { vat: 'vat_percent', markups: 'markups', defaultLoss: 'default_roast_loss_percent', discounts: 'wholesale_discounts_percent' } as const;
+/**
+ * The settings rows Kraken reads. Rows named "markups" or "wholesale_discounts_percent" may still be in the tab from
+ * earlier versions; they are no longer read (the multipliers are fixed, discounts have their own tab).
+ */
+export const SETTING_NAMES = { vat: 'vat_percent', defaultLoss: 'default_roast_loss_percent' } as const;
 
 export interface SettingRow {
   readonly id: string;
@@ -76,38 +79,6 @@ export const percentText = (tenths: number) => toDecimalText(tenths, 1);
 /** For the screen: "23 %", "15,5 %". */
 export const formatPercent = (tenths: number) => `${percentText(tenths).replace('.', ',')} %`;
 
-/** Markups typed as "2; 2,5; 3" → hundredths. Undefined if any part is not a number above 0, or there are none or over 5. */
-export function parseMarkups(value: string): number[] | undefined {
-  const parts = value.split(';').map((p) => p.trim()).filter((p) => p !== '');
-  if (parts.length === 0 || parts.length > 5) return undefined;
-  const result: number[] = [];
-  for (const part of parts) {
-    // A space inside a part means the owner used "," to separate ("2, 3" would otherwise read as 2,3).
-    if (/\s/.test(part)) return undefined;
-    const hundredths = parseDecimal(part, 2);
-    if (typeof hundredths !== 'number' || hundredths <= 0 || hundredths > 10000) return undefined;
-    result.push(hundredths);
-  }
-  return result;
-}
-
-/** Discounts typed as "15; 25; 30" → tenths. Undefined unless 1 to 10 percentages, each from 1 to 99 %. */
-export function parseDiscounts(value: string): number[] | undefined {
-  const parts = value.split(';').map((p) => p.trim()).filter((p) => p !== '');
-  if (parts.length === 0 || parts.length > 10) return undefined;
-  const result: number[] = [];
-  for (const part of parts) {
-    if (/\s/.test(part)) return undefined; // "15, 25" was typed with "," between them
-    const tenths = percentFromCell(part);
-    if (typeof tenths !== 'number' || tenths === 0) return undefined;
-    if (!result.includes(tenths)) result.push(tenths); // "15; 15" is one discount
-  }
-  return result;
-}
-
-export const discountsText = (tenths: readonly number[]) => tenths.map(percentText).join(';');
-
-export const markupsText = (hundredths: readonly number[]) => hundredths.map((m) => toDecimalText(m, 2)).join(';');
 /** For the screen: "2,5×". */
 export const formatMarkup = (hundredths: number) => `${toDecimalText(hundredths, 2).replace('.', ',')}×`;
 
@@ -136,9 +107,8 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
   return {
     settings: {
       vatTenths: read(SETTING_NAMES.vat, percentFromCell, DEFAULT_SETTINGS.vatTenths),
-      markupHundredths: read(SETTING_NAMES.markups, parseMarkups, DEFAULT_SETTINGS.markupHundredths),
+      markupHundredths: MARKUPS,
       defaultLossTenths: read(SETTING_NAMES.defaultLoss, percentFromCell, DEFAULT_SETTINGS.defaultLossTenths),
-      discountTenths: read(SETTING_NAMES.discounts, parseDiscounts, DEFAULT_SETTINGS.discountTenths),
     },
     problems,
   };
@@ -146,16 +116,12 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
 
 export interface SettingsForm {
   vat: string;
-  markups: string;
   defaultLoss: string;
-  discounts: string;
 }
 
 export const formFromSettings = (s: CostSettings): SettingsForm => ({
   vat: percentText(s.vatTenths).replace('.', ','),
-  markups: s.markupHundredths.map((m) => toDecimalText(m, 2).replace('.', ',')).join('; '),
   defaultLoss: percentText(s.defaultLossTenths).replace('.', ','),
-  discounts: s.discountTenths.map((d) => percentText(d).replace('.', ',')).join('; '),
 });
 
 export type SettingsErrors = Partial<Record<keyof SettingsForm, string>>;
@@ -165,22 +131,10 @@ export function validateSettingsForm(form: SettingsForm): { ok: true; values: Re
   const errors: SettingsErrors = {};
   const vat = percentFromCell(form.vat);
   if (typeof vat !== 'number') errors.vat = 'Enter the VAT rate, e.g. 23.';
-  const markups = parseMarkups(form.markups);
-  if (!markups) errors.markups = 'Enter 1 to 5 multipliers separated by ";", e.g. 2; 2,5; 3.';
   const loss = percentFromCell(form.defaultLoss);
   if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage from 1 to 99, e.g. 15.';
-  const discounts = parseDiscounts(form.discounts);
-  if (!discounts) errors.discounts = 'Enter 1 to 10 percentages from 1 to 99 separated by ";", e.g. 15; 25; 30.';
-  if (typeof vat !== 'number' || !markups || typeof loss !== 'number' || !discounts) return { ok: false, errors };
-  return {
-    ok: true,
-    values: {
-      [SETTING_NAMES.vat]: percentText(vat),
-      [SETTING_NAMES.markups]: markupsText(markups),
-      [SETTING_NAMES.defaultLoss]: percentText(loss),
-      [SETTING_NAMES.discounts]: discountsText(discounts),
-    },
-  };
+  if (typeof vat !== 'number' || typeof loss !== 'number') return { ok: false, errors };
+  return { ok: true, values: { [SETTING_NAMES.vat]: percentText(vat), [SETTING_NAMES.defaultLoss]: percentText(loss) } };
 }
 
 // ---- Bag costs (the sizes are fixed: domain/bagSizes.ts; a cost item stores its size in grams) ----

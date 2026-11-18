@@ -1,8 +1,8 @@
 // What the Lots screen shows, as plain text. Pure (no screen, no Google), so it is tested directly.
 
 import { localDate } from '../../core/dates';
-import { formatKg } from '../../core/numbers';
-import { isDeleted, lotSource, sortLots, suggestCode, type Lot, type LotForm } from './model';
+import { formatKg, formatPln, toDecimalText } from '../../core/numbers';
+import { greenPricePerKg, isDeleted, lotSource, sortLots, suggestCode, type Lot, type LotForm } from './model';
 
 export interface LotListRow {
   readonly lot: Lot;
@@ -20,6 +20,12 @@ export interface LotListRow {
   readonly overdrawn: boolean;
   /** e.g. "2,4 kg more roasted than delivered: check the lots or the coffee chosen in RoasTime." */
   readonly stockNote: string;
+  /** What 1 kg of green coffee cost: "77,00 zł"; '' when the price or the quantity is missing. */
+  readonly pricePerKg: string;
+  /** The roast loss in use: "16 %"; '' when not known (deleted lots). */
+  readonly loss: string;
+  /** Where it comes from: "average of 23 roasts", "your own", … */
+  readonly lossNote: string;
   /** Problems with this lot's cells, one sentence each. */
   readonly problems: readonly string[];
   /** Deleted lots are only listed with "Show deleted", greyed out, with Restore. */
@@ -33,14 +39,22 @@ const DASH = '—';
 /** Green stock per lot ID, counted from the roasts (see features/roasts allocation). */
 export type StockByLot = ReadonlyMap<string, { readonly usedGrams: number; readonly leftGrams: number | null }>;
 
+/** Roast loss per lot ID (from Packaging & discounts' calculation, given through LotsPageDeps). */
+export type LossByLot = ReadonlyMap<string, { readonly lossTenths: number; readonly source: string; readonly own: string }>;
+
+/** "16 %", "14,2 %" */
+export const formatLoss = (tenths: number) => `${toDecimalText(tenths, 1).replace('.', ',')} %`;
+
 /** "21,5 kg", "−2,4 kg" */
 export function formatSignedKg(grams: number): string {
   return grams < 0 ? `−${formatKg(-grams)}` : formatKg(grams);
 }
 
 /** The lots to show, newest delivery first: active ones, plus deleted ones when `showDeleted` is on. */
-export function lotListRows(lots: readonly Lot[], showDeleted = false, stock: StockByLot = new Map()): LotListRow[] {
+export function lotListRows(lots: readonly Lot[], showDeleted = false, stock: StockByLot = new Map(), losses: LossByLot = new Map()): LotListRow[] {
   return sortLots(lots.filter((lot) => showDeleted || !isDeleted(lot))).map((lot) => {
+    const perKg = greenPricePerKg(lot);
+    const loss = losses.get(lot.id);
     return {
       lot,
       code: lot.code || DASH,
@@ -51,6 +65,9 @@ export function lotListRows(lots: readonly Lot[], showDeleted = false, stock: St
       supplier: lot.supplier || DASH,
       source: lotSource(lot),
       ...stockOf(lot, stock),
+      pricePerKg: perKg === null ? '' : formatPln(perKg),
+      loss: loss ? formatLoss(loss.lossTenths) : '',
+      lossNote: loss?.source ?? '',
       problems: lot.problems,
       deleted: isDeleted(lot),
       deletedNote: isDeleted(lot) ? deletedNote(lot.deletedAt) : '',

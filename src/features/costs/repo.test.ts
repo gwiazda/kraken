@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createKrakenSpreadsheet } from '../../schema';
 import { fakeGoogleDrive } from '../../testing/fakeGoogleDrive';
 import { DEFAULT_SETTINGS, readSettings } from './model';
+import { activeDiscounts, discountFields } from './modelDiscounts';
 import { sheetCostsRepository } from './repo';
 
 const now = new Date('2026-11-16T10:00:00.000Z');
@@ -21,19 +22,19 @@ async function setup() {
 describe('sheetCostsRepository (in-memory Google)', () => {
   it('starts empty on a new sheet', async () => {
     const { repo } = await setup();
-    expect(await repo.load()).toEqual({ settings: [], costs: [], lotCosts: [], problems: [] });
+    expect(await repo.load()).toEqual({ settings: [], costs: [], lotCosts: [], discounts: [], problems: [] });
   });
 
   it('saves settings: adds new ones, then changes only what changed', async () => {
     const { google, repo } = await setup();
-    await repo.saveSettings({ vat_percent: '23', markups: '2;2.5;3', default_roast_loss_percent: '15' }, [], who, now);
+    await repo.saveSettings({ vat_percent: '23', default_roast_loss_percent: '15' }, [], who, now);
     let data = await repo.load();
     expect(readSettings(data.settings).settings).toEqual(DEFAULT_SETTINGS);
     google.requests.length = 0;
-    await repo.saveSettings({ vat_percent: '8', markups: '2;2.5;3', default_roast_loss_percent: '15' }, data.settings, notAsked, later);
+    await repo.saveSettings({ vat_percent: '8', default_roast_loss_percent: '15' }, data.settings, notAsked, later);
     expect(google.requests.filter((r) => r.method !== 'GET' && !r.url.includes(':batchGet'))).toHaveLength(1);
     data = await repo.load();
-    expect(data.settings).toHaveLength(3);
+    expect(data.settings).toHaveLength(2);
     expect(readSettings(data.settings).settings.vatTenths).toBe(80);
   });
 
@@ -62,5 +63,24 @@ describe('sheetCostsRepository (in-memory Google)', () => {
     await repo.saveLoss('L1', '', own, notAsked, later);
     [own] = (await repo.load()).lotCosts;
     expect(own).toMatchObject({ lotId: 'L1', lossTenths: null, lossText: '' });
+  });
+
+  it('writes the default discounts on the first change, then adds, edits and soft-deletes single ones', async () => {
+    const { repo } = await setup();
+    expect(activeDiscounts((await repo.load()).discounts).usingDefaults).toBe(true);
+    await repo.addDiscounts([discountFields({ tenths: 150, name: 'Do 10 kg' }), discountFields({ tenths: 200, name: 'Partnerzy' })], 'owner@example.com', now);
+    let rows = (await repo.load()).discounts;
+    expect(activeDiscounts(rows).discounts.map((d) => [d.tenths, d.name])).toEqual([
+      [150, 'Do 10 kg'],
+      [200, 'Partnerzy'],
+    ]);
+    const partners = rows[1];
+    if (!partners) throw new Error('setup');
+    await repo.updateDiscount(partners, { name: 'Stali' }, later);
+    rows = (await repo.load()).discounts;
+    const first = rows[0];
+    if (!first) throw new Error('setup');
+    await repo.removeDiscount(first, later);
+    expect(activeDiscounts((await repo.load()).discounts).discounts.map((d) => [d.tenths, d.name])).toEqual([[200, 'Stali']]);
   });
 });
