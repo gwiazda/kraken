@@ -4,17 +4,22 @@
 import { el, infoTip } from '../../ui/dom';
 import { discountHeader, type CompareRow, type PriceCell, type PriceRow } from './present';
 
+/** What gross margin means, in plain words (owner, 2026-11-19: clear and transparent), for every tooltip that shows it. */
+export const MARGIN_TIP =
+  'Gross margin: the part of the price without VAT that stays with you after paying for the bag (its coffee and packaging). 50 % means that of every 100 zł without VAT, 50 zł is yours. The higher, the better; below 0 % you lose money on every bag.';
+
 /** A wholesale column's header: the discount's name on top, then "−15 %". */
 const discountTh = (d: { tenths: number; name: string }) =>
   el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), discountHeader(d.tenths));
 
-function priceCell(cell: Pick<PriceCell, 'main' | 'earn' | 'losing'> & { other?: string }, extra = ''): HTMLTableCellElement {
+function priceCell(cell: Pick<PriceCell, 'main' | 'earn' | 'margin' | 'losing'> & { other?: string }, extra = ''): HTMLTableCellElement {
   return el(
     'td',
     { class: `num nowrap${extra}` },
     cell.main ? el('strong', { class: 'price-main' }, cell.main) : el('span', { class: 'muted' }, '—'),
     ...(cell.other ? [el('span', { class: 'price-other' }, cell.other)] : []),
     ...(cell.earn ? [el('span', { class: cell.losing ? 'price-earn-line losing' : 'price-earn-line' }, cell.earn)] : []),
+    ...(cell.margin ? [el('span', { class: cell.losing ? 'price-margin-line losing' : 'price-margin-line' }, cell.margin)] : []),
   );
 }
 
@@ -33,7 +38,7 @@ export function pricesTable(rows: readonly PriceRow[], discounts: readonly { ten
           'tr',
           {},
           el('th', { scope: 'col' }, ''),
-          el('th', { scope: 'col', class: 'num col-retail' }, 'Retail'),
+          el('th', { scope: 'col', class: 'num col-retail' }, 'Retail ', infoTip(`What a shop customer pays, with VAT. Under each price, once the cost of a bag is known: what one bag earns (without VAT) and the gross margin. ${MARGIN_TIP}`)),
           ...discounts.map(discountTh),
         ),
       ),
@@ -66,7 +71,7 @@ export function compareTable(rows: readonly CompareRow[], discounts: readonly { 
           {},
           el('th', { scope: 'col' }, 'Product'),
           el('th', { scope: 'col', class: 'num' }, 'Cost of a bag ', infoTip('What one bag costs you: the coffee from its beans plus the packaging, without VAT.')),
-          el('th', { scope: 'col', class: 'num' }, 'Retail price ', infoTip('What a shop customer pays, with VAT. The wholesale columns show the price after each discount, without VAT, and what one bag earns at it.')),
+          el('th', { scope: 'col', class: 'num' }, 'Retail price ', infoTip(`What a shop customer pays, with VAT. The wholesale columns show the price after each discount, without VAT. Under each price: what one bag earns at it and the gross margin. ${MARGIN_TIP}`)),
           ...discounts.map(discountTh),
         ),
       ),
@@ -79,8 +84,8 @@ export function compareTable(rows: readonly CompareRow[], discounts: readonly { 
             r.isPlan ? { class: 'compare-plan' } : {},
             el('th', { scope: 'row' }, r.isPlan ? '▶ This plan' : r.name),
             el('td', { class: 'num nowrap' }, r.cost || muted(r.note)),
-            priceCell({ main: r.price, earn: r.earn, losing: r.losing }),
-            ...r.atDiscounts.map((a) => priceCell({ main: a.price, earn: a.earn, losing: a.losing })),
+            priceCell({ main: r.price, earn: r.earn, margin: r.margin, losing: r.losing }),
+            ...r.atDiscounts.map((a) => priceCell({ main: a.price, earn: a.earn, margin: a.margin, losing: a.losing })),
           ),
         ),
       ),

@@ -396,6 +396,11 @@ need to know what price to put on my product".
   retail price, what it earns, and what it earns at **each wholesale discount** set under Packaging & discounts,
   one column each with its name), sorted by what they earn. The product form
   stays without these. A product's page shows the earnings under its prices too (same table).
+- **Gross margin next to every earning** (owner, 2026-11-19): wherever Kraken says what a bag earns (a product's
+  Cost and earnings and its prices table, the Product planner's prices, suggestions, wholesale prices and comparison)
+  it also shows the gross margin: the part of the price without VAT left after the cost of the bag, in whole
+  percent (rule in `domain/prices.ts`). Every place has the same plain-words tooltip, and "How is this worked out?"
+  explains it with the real numbers. Red below 0 %.
 - **Product planner tab** (owner, 2026-11-19): the same beans-and-prices tool as in the product form, as a scratchpad:
   try beans (lots or planned), shares and prices, nothing saved. "Try in Product planner" on a product's page copies its
   beans and prices there (the product is not changed); "Create product from this" opens Add product with them

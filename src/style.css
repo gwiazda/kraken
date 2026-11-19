@@ -1705,6 +1705,18 @@ details summary {
   color: #ff6b6b;
 }
 
+/* The gross margin under "earns …": the same colour, a little quieter. */
+.price-margin-line {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--lime);
+  opacity: 0.8;
+}
+
+.price-margin-line.losing {
+  color: #ff6b6b;
+}
+
 .planner-extra {
   margin-top: 1.5rem;
 }

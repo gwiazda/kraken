@@ -27,7 +27,7 @@ import {
 } from './model';
 import { beansOf, formFromBean, validateBeans, type ProductBean } from './modelBeans';
 import { costing, priceRows, productDetails, type Costing } from './present';
-import { costsBySize, pricesTable } from './priceTable';
+import { MARGIN_TIP, costsBySize, pricesTable } from './priceTable';
 import { beanName, createPlanner, loadPlannerData, type PlannerStart } from './planner';
 import type { ProductsRepository } from './repo';
 
@@ -273,7 +273,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const costCard = el(
       'section',
       { class: 'product-card' },
-      el('h3', {}, 'Cost and earnings ', infoTip('What one bag costs you (the coffee from its beans plus the packaging), and what you earn on it at the retail price, without VAT.')),
+      el('h3', {}, 'Cost and earnings ', infoTip(`What one bag costs you (the coffee from its beans plus the packaging), what you earn on it at the retail price, without VAT, and the gross margin. ${MARGIN_TIP}`)),
       ...(made.madeOf
         ? [
             el('p', { class: 'made-of' }, made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])),
@@ -350,7 +350,18 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       el(
         'table',
         { class: 'data-table product-prices' },
-        el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, ''), el('th', { scope: 'col', class: 'num' }, 'Cost of one bag'), el('th', { scope: 'col', class: 'num' }, 'You earn per bag'))),
+        el(
+          'thead',
+          {},
+          el(
+            'tr',
+            {},
+            el('th', { scope: 'col' }, ''),
+            el('th', { scope: 'col', class: 'num' }, 'Cost of one bag'),
+            el('th', { scope: 'col', class: 'num' }, 'You earn per bag'),
+            el('th', { scope: 'col', class: 'num' }, 'Gross margin ', infoTip(MARGIN_TIP)),
+          ),
+        ),
         el(
           'tbody',
           {},
@@ -361,6 +372,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               el('th', { scope: 'row' }, r.size),
               el('td', { class: 'num nowrap' }, el('strong', { class: 'price-main' }, r.cost || '—'), ...(r.parts ? [el('span', { class: 'price-other' }, r.parts)] : [])),
               el('td', { class: `num nowrap${r.losing ? ' losing' : ''}` }, r.earnings ? el('strong', { class: 'price-main' }, r.earnings) : el('span', { class: 'muted' }, r.cost ? 'no retail price' : '—')),
+              el('td', { class: `num nowrap${r.losing ? ' losing' : ''}` }, r.margin ? el('strong', { class: 'price-main' }, r.margin) : el('span', { class: 'muted' }, '—')),
             ),
           ),
         ),

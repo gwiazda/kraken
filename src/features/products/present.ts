@@ -5,7 +5,7 @@
 import { formatPln, formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { BASE_GRAMS, bagCost, blendPerKg, earningsAt, roastedPerKg, scaledPrice, suggestionsFor, type BeanCost } from '../../domain/blend';
-import { grossOf, netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
+import { grossMarginPercent, grossOf, netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
 import type { BeanLot } from '../costs';
 import { typedBeanLoss, typedBeanPrice, type BeanForm } from './modelBeans';
 import type { Product } from './model';
@@ -17,6 +17,8 @@ export interface PriceCell {
   readonly other: string;
   /** What one bag earns at this price: "earns 26,70 zł" / "loses 2,10 zł"; '' when the cost is not known. */
   readonly earn: string;
+  /** The gross margin at this price: "margin 56 %"; '' when the cost is not known. */
+  readonly margin: string;
   /** True when this price does not cover what the bag costs. */
   readonly losing: boolean;
 }
@@ -30,14 +32,25 @@ export interface PriceRow {
 }
 
 const money = (grosze: number) => formatPln(roundGrosze(grosze));
-const NONE: PriceCell = { main: '—', other: '', earn: '', losing: false };
+const NONE: PriceCell = { main: '—', other: '', earn: '', margin: '', losing: false };
 
-/** "earns 26,70 zł" or "loses 2,10 zł" (rounded to the grosz, as shown); '' without a cost. */
-function earnText(earned: number | null): { earn: string; losing: boolean } {
-  if (earned === null) return { earn: '', losing: false };
+/** "56 %", "−5 %" (a loss); '' when it cannot be worked out. */
+export function marginPercentText(netGrosze: number, costGrosze: number): string {
+  const margin = grossMarginPercent(netGrosze, costGrosze);
+  return margin === null ? '' : `${margin < 0 ? '−' : ''}${Math.abs(margin)} %`;
+}
+
+/**
+ * At a price without VAT (`net`) and the cost of one bag: "earns 26,70 zł" or "loses 2,10 zł" (rounded to the grosz,
+ * as shown) and the gross margin "margin 56 %"; both '' without a cost.
+ */
+function earnText(net: number | null, cost: number | null | undefined): { earn: string; margin: string; losing: boolean } {
+  if (net === null || cost === null || cost === undefined) return { earn: '', margin: '', losing: false };
+  const earned = net - cost;
   // Rounded like signedMoney ("You earn / You lose"): the amount first, then the sign, so both lines always agree.
   const amount = roundGrosze(Math.abs(earned));
-  return earned < 0 && amount > 0 ? { earn: `loses ${formatPln(amount)}`, losing: true } : { earn: `earns ${formatPln(amount)}`, losing: false };
+  const margin = marginPercentText(net, cost);
+  return { earn: earned < 0 && amount > 0 ? `loses ${formatPln(amount)}` : `earns ${formatPln(amount)}`, margin: margin ? `margin ${margin}` : '', losing: earned < 0 && amount > 0 };
 }
 
 /** "−15 %", "−12,5 %" (the column headers). */
@@ -60,10 +73,10 @@ export function priceRows(
     const cost = costs[grams];
     return {
       size: formatBagSize(grams),
-      retail: { main: formatWholePln(gross), other: `${money(netOf(gross, vatTenths))} net`, ...earnText(cost === undefined ? null : earningsAt(gross, cost, vatTenths)) },
+      retail: { main: formatWholePln(gross), other: `${money(netOf(gross, vatTenths))} net`, ...earnText(netOf(gross, vatTenths), cost) },
       wholesale: discountTenths.map((d) => {
         const price = wholesalePrice(gross, d, vatTenths);
-        return { main: formatWholePln(price.net), other: `${money(price.gross)} gross`, ...earnText(cost === undefined ? null : price.net - cost) };
+        return { main: formatWholePln(price.net), other: `${money(price.gross)} gross`, ...earnText(price.net, cost) };
       }),
     };
   });
@@ -99,10 +112,12 @@ export interface CostingRow {
   readonly cost: string;
   /** The parts, for the tooltip/small print: "coffee 22,65 zł + packaging 1,50 zł". */
   readonly parts: string;
-  /** Suggested prices to click: "59 zł" at "2×", earning "23,82 zł" per bag. */
-  readonly suggestions: readonly { readonly grosze: number; readonly text: string; readonly markup: string; readonly earnings: string }[];
+  /** Suggested prices to click: "59 zł" at "2×", earning "23,82 zł" per bag, at a gross margin of "50 %". */
+  readonly suggestions: readonly { readonly grosze: number; readonly text: string; readonly markup: string; readonly earnings: string; readonly margin: string }[];
   /** What the price set for this size earns per bag; '' without a price or a cost. */
   readonly earnings: string;
+  /** The gross margin at that price: "56 %"; '' without a price or a cost. */
+  readonly margin: string;
   /** True when that price does not even cover the cost. */
   readonly losing: boolean;
   /** How it is worked out, step by step in plain sentences with the numbers ("How is this worked out?"). */
@@ -185,7 +200,7 @@ export function costing(
   const rows = BAG_SIZES_G.map((grams): CostingRow => {
     const pack = packaging.get(grams) ?? null;
     const size = formatBagSize(grams);
-    const empty = { grams, costGrosze: null, size, cost: '', parts: '', suggestions: [], earnings: '', losing: false, steps: [] };
+    const empty = { grams, costGrosze: null, size, cost: '', parts: '', suggestions: [], earnings: '', margin: '', losing: false, steps: [] };
     if (perKg === null) return empty;
     const bag = bagCost(perKg, grams, pack);
     const coffeeStep = `Coffee: ${size} of roasted coffee at ${money(perKg)} per kg costs ${money(bag.coffee)}.`;
@@ -206,11 +221,11 @@ export function costing(
     const suggestionSteps = base
       ? baseSuggestions.map((sug) => {
           const net = (cost * sug.markupHundredths) / 100;
-          return `${MARKUP_WORDS[sug.markupHundredths] ?? `${sug.markupHundredths / 100} times`} the cost is ${money(net)}; with VAT ${money(grossOf(net, vatTenths))}, rounded to ${formatWholePln(sug.gross)}. At that price you earn ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} per bag.`;
+          return `${MARKUP_WORDS[sug.markupHundredths] ?? `${sug.markupHundredths / 100} times`} the cost is ${money(net)}; with VAT ${money(grossOf(net, vatTenths))}, rounded to ${formatWholePln(sug.gross)}. At that price you earn ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} per bag, a gross margin of ${marginPercentText(netOf(sug.gross, vatTenths), cost)}.`;
         })
       : scaled && basePrice !== undefined && basePack !== null
         ? [
-            `Suggested price, from your ${formatBagSize(BASE_GRAMS)} price: ${bagsText.toLowerCase()} ${formatBagSize(BASE_GRAMS)} bags at ${formatWholePln(basePrice)} are ${money(bags * basePrice)}. Take away the packaging of those ${bagsText.toLowerCase()} small bags (${money(bags * grossOf(basePack, vatTenths))} with VAT) and add the packaging of one ${size} bag (${money(grossOf(pack ?? 0, vatTenths))} with VAT): ${money(scaled.exact)}, rounded to ${formatWholePln(scaled.gross)}. At that price you earn ${signedMoney(earningsAt(scaled.gross, cost, vatTenths))} per bag.`,
+            `Suggested price, from your ${formatBagSize(BASE_GRAMS)} price: ${bagsText.toLowerCase()} ${formatBagSize(BASE_GRAMS)} bags at ${formatWholePln(basePrice)} are ${money(bags * basePrice)}. Take away the packaging of those ${bagsText.toLowerCase()} small bags (${money(bags * grossOf(basePack, vatTenths))} with VAT) and add the packaging of one ${size} bag (${money(grossOf(pack ?? 0, vatTenths))} with VAT): ${money(scaled.exact)}, rounded to ${formatWholePln(scaled.gross)}. At that price you earn ${signedMoney(earningsAt(scaled.gross, cost, vatTenths))} per bag, a gross margin of ${marginPercentText(netOf(scaled.gross, vatTenths), cost)}.`,
           ]
         : basePrice === undefined
           ? [`Set the ${formatBagSize(BASE_GRAMS)} price first: the suggested ${size} price is worked out from it.`]
@@ -222,6 +237,9 @@ export function costing(
       ...(price !== undefined && earned !== null
         ? [
             `Your price ${formatWholePln(price)} includes ${vatText} VAT; without VAT it is ${money(netOf(price, vatTenths))}. Take away the ${money(cost)} the bag costs: you ${earned < 0 ? 'lose' : 'earn'} ${formatPln(roundGrosze(Math.abs(earned)))} per bag.`,
+            earned < 0
+              ? `Gross margin ${marginPercentText(netOf(price, vatTenths), cost)}: the price without VAT does not cover what the bag costs.`
+              : `Gross margin ${marginPercentText(netOf(price, vatTenths), cost)}: that is the part of the ${money(netOf(price, vatTenths))} without VAT that stays with you (${formatPln(roundGrosze(earned))}).`,
           ]
         : []),
       ...suggestionSteps,
@@ -234,11 +252,12 @@ export function costing(
       parts: `coffee ${money(bag.coffee)} and packaging ${formatPln(bag.packaging ?? 0)}`,
       steps,
       suggestions: base
-        ? baseSuggestions.map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings) }))
+        ? baseSuggestions.map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings), margin: marginPercentText(netOf(s.gross, vatTenths), cost) }))
         : scaled
-          ? [{ grosze: scaled.gross, text: formatWholePln(scaled.gross), markup: `like ${bags} × ${formatBagSize(BASE_GRAMS)}`, earnings: signedMoney(earningsAt(scaled.gross, cost, vatTenths)) }]
+          ? [{ grosze: scaled.gross, text: formatWholePln(scaled.gross), markup: `like ${bags} × ${formatBagSize(BASE_GRAMS)}`, earnings: signedMoney(earningsAt(scaled.gross, cost, vatTenths)), margin: marginPercentText(netOf(scaled.gross, vatTenths), cost) }]
           : [],
       earnings: earned === null ? '' : signedMoney(earned),
+      margin: price === undefined ? '' : marginPercentText(netOf(price, vatTenths), cost),
       losing: earned !== null && roundGrosze(earned) < 0, // as shown: never "You lose 0,00 zł"
     };
   });
@@ -259,12 +278,14 @@ export interface CompareRow {
   readonly price: string;
   /** What one bag earns at the retail price ("earns …" / "loses …"); '' when unknown. */
   readonly earn: string;
+  /** The gross margin at the retail price: "margin 56 %"; '' when unknown. */
+  readonly margin: string;
   readonly losing: boolean;
   /**
    * At each wholesale discount, in the order given (from Packaging & discounts): the price after the discount (net,
    * whole złoty: "41 zł"; '' without a retail price) and what one bag earns at it ('' when the cost is unknown).
    */
-  readonly atDiscounts: readonly { readonly price: string; readonly earn: string; readonly losing: boolean }[];
+  readonly atDiscounts: readonly { readonly price: string; readonly earn: string; readonly margin: string; readonly losing: boolean }[];
   /** Why something is missing, in a few words ("no beans chosen"). */
   readonly note: string;
 }
@@ -315,10 +336,10 @@ export function compareRow(
   const cost = row?.costGrosze ?? null;
   const price = entry.prices[grams];
   const earned = cost === null || price === undefined ? null : earningsAt(price, cost, vatTenths);
-  const retail = earnText(earned);
+  const retail = earnText(price === undefined ? null : netOf(price, vatTenths), cost);
   const atDiscounts = discounts.map((d) => {
     const net = price === undefined ? null : wholesalePrice(price, d, vatTenths).net;
-    return { price: net === null ? '' : formatWholePln(net), ...earnText(net === null || cost === null ? null : net - cost) };
+    return { price: net === null ? '' : formatWholePln(net), ...earnText(net, cost) };
   });
   const noPrice = price === undefined ? `no ${formatBagSize(grams)} price` : '';
   const note = entry.beans.length === 0 ? 'no beans chosen' : cost === null ? ['cost not known yet', noPrice].filter((t) => t).join(', ') : noPrice;
@@ -329,6 +350,7 @@ export function compareRow(
     cost: cost === null ? '' : money(cost),
     price: price === undefined ? '' : formatWholePln(price),
     earn: retail.earn,
+    margin: retail.margin,
     losing: retail.losing,
     atDiscounts,
     note,
