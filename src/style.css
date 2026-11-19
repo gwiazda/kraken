@@ -1654,3 +1654,33 @@ details summary {
 .earn.losing {
   color: #ff6b6b;
 }
+
+/* "How is this worked out?": the steps of a calculation in plain sentences. */
+.how {
+  font-size: 0.85rem;
+}
+
+.how > summary {
+  color: var(--lime);
+  margin: 0.15rem 0;
+}
+
+.how-steps {
+  margin: 0.3rem 0 0.4rem;
+  padding-left: 1.3rem;
+  color: #d8d8d8;
+  line-height: 1.45;
+}
+
+.how-steps li + li {
+  margin-top: 0.2rem;
+}
+
+.costing-prices .how {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.costing-prices .price-row .field-error {
+  grid-row: 4;
+}

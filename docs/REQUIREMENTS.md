@@ -365,6 +365,10 @@ need to know what price to put on my product".
 - Rule: roasted price per kg of a bean = green price per kg ÷ (1 − roast loss); the blend's = each bean's, weighted
   by its share of the coffee in the bag.
 - The product page shows **Cost and earnings** (made of …, cost of one bag, what the retail price earns).
+- **Every number is explained** (owner, 2026-11-19): "Why … per kg?" (each bean's green price, how roasting makes
+  it lighter, how the beans are mixed) and, per size, "How is this worked out?" (coffee, packaging, cost of one bag,
+  what your price earns after VAT, how each suggested price is reached), in plain sentences with the real numbers.
+  Folded by default; they stay open while the shares or prices change.
 
 **[R] Blend calculator (owner, 2026-11-17, later):** an easy way to see what a blend costs: pick coffees from the
 lots, set each one's share with a slider, and see the cost of one bag of the blend (250 g, 500 g, 1 kg) and the

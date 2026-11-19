@@ -293,6 +293,15 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             el('p', { class: 'made-of' }, made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])),
             ...made.notes.map((n) => el('p', { class: 'muted small' }, n)),
             earningsTable(made),
+            el(
+              'details',
+              { class: 'how' },
+              el('summary', {}, 'How is this worked out?'),
+              ...(made.perKgSteps.length > 0 ? [el('ol', { class: 'how-steps' }, ...made.perKgSteps.map((step) => el('li', {}, step)))] : []),
+              ...made.rows
+                .filter((r) => r.steps.length > 0)
+                .map((r) => el('div', {}, el('strong', {}, r.size), el('ol', { class: 'how-steps' }, ...r.steps.map((step) => el('li', {}, step))))),
+            ),
           ]
         : [el('p', { class: 'muted' }, 'Choose the beans this product is made of (Edit) to see what a bag costs and earns.')]),
     );
@@ -580,7 +589,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     // ---- Prices: one row per size, the price in zł, suggested prices to click and what the price earns ----
     const chipHolders = new Map<BagSize, HTMLElement>();
     const earnHolders = new Map<BagSize, HTMLElement>();
-    const summary = el('div', { class: 'costing-summary' });
+    /** "How is this worked out?" of each size: created once, so it stays open while the shares or prices change. */
+    const howHolders = new Map<BagSize, { box: HTMLDetailsElement; list: HTMLOListElement }>();
+    const madeOfLine = el('p', { class: 'made-of' });
+    const notesHolder = el('div', {});
+    const perKgList = el('ol', { class: 'how-steps' });
+    const perKgTitle = el('summary', {});
+    const perKgBox = el('details', { class: 'how' }, perKgTitle, perKgList);
+    const summary = el('div', { class: 'costing-summary' }, madeOfLine, perKgBox, notesHolder);
     /** The prices as typed so far (grosze), for "you earn"; a price that cannot be read yet is left out. */
     const typedPrices = (): Partial<Record<number, number>> => {
       const out: Partial<Record<number, number>> = {};
@@ -592,10 +608,12 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     };
     const update = () => {
       const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, typedPrices());
-      summary.replaceChildren(
-        ...(made.madeOf ? [el('p', { class: 'made-of' }, made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : []))] : []),
-        ...made.notes.map((n) => el('p', { class: 'muted small' }, n)),
-      );
+      madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
+      madeOfLine.hidden = !made.madeOf;
+      perKgTitle.textContent = `Why ${made.perKg.replace(' of roasted coffee', '')}?`;
+      perKgList.replaceChildren(...made.perKgSteps.map((step) => el('li', {}, step)));
+      perKgBox.hidden = made.perKgSteps.length === 0;
+      notesHolder.replaceChildren(...made.notes.map((n) => el('p', { class: 'muted small' }, n)));
       for (const r of made.rows) {
         const grams = r.grams as BagSize;
         const input = inputs[PRICE_KEYS[grams]];
@@ -618,6 +636,11 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
           ...(r.cost ? [el('span', { class: 'muted small' }, ` (a bag costs you ${r.cost})`)] : []),
         );
+        const how = howHolders.get(grams);
+        if (how) {
+          how.list.replaceChildren(...r.steps.map((step) => el('li', {}, step)));
+          how.box.hidden = r.steps.length === 0;
+        }
       }
     };
     const priceRow = (grams: BagSize) => {
@@ -627,6 +650,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       chipHolders.set(grams, chips);
       const earn = el('div', { class: 'price-earn' });
       earnHolders.set(grams, earn);
+      const list = el('ol', { class: 'how-steps' });
+      const box = el('details', { class: 'how' }, el('summary', {}, 'How is this worked out?'), list);
+      howHolders.set(grams, { box, list });
       return el(
         'div',
         { class: 'price-row' },
@@ -634,6 +660,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         el('span', { class: 'price-input' }, input, el('span', { class: 'price-unit' }, 'zł')),
         chips,
         earn,
+        box,
         errorLines[PRICE_KEYS[grams]],
       );
     };
