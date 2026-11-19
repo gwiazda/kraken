@@ -145,7 +145,7 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       tab('Products', 'products', () => {
         if (!saving) showProducts(info, true, menuMove('products'));
       }),
-      tab('Planner', 'planner', () => {
+      tab('Product planner', 'planner', () => {
         if (!saving) showPlanner(info, undefined, true, menuMove('planner'));
       }),
       tab('Offer', 'offer', () => {
@@ -430,7 +430,7 @@ function showPackaging(info: SpreadsheetInfo, fromClick = false, move: HistoryMo
   showPackagingPage(showApp(info, 'packaging'), { ...googleDeps(), repo: sheetCostsRepository(client, info.id) }, undefined, fromClick);
 }
 
-/** `create`: open "Add product" with these beans and prices (from the Planner). */
+/** `create`: open "Add product" with these beans and prices (from the Product planner). */
 function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push', create?: PlannerStart): void {
   record('products', move);
   showProductsPage(
@@ -455,7 +455,7 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
   );
 }
 
-/** The plan in the Planner after its last change: Back/Forward bring it back (kept only in this browser tab). */
+/** The plan in the Product planner after its last change: Back/Forward bring it back (kept only in this browser tab). */
 let lastPlan: PlannerStart | undefined;
 
 /** The Planner (owner, 2026-11-19): try beans and prices, nothing saved. `start`: e.g. a product's beans and prices. */
@@ -465,6 +465,7 @@ function showPlanner(info: SpreadsheetInfo, start?: PlannerStart, fromClick = fa
     showApp(info, 'planner'),
     {
       ...googleDeps(),
+      products: sheetProductsRepository(client, info.id),
       costs: sheetCostsRepository(client, info.id),
       lots: sheetLotsRepository(client, info.id),
       roasts: sheetRoastsRepository(client, info.id),

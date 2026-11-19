@@ -17,10 +17,9 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Planner tab** (branch `claude/planner`): the product form's beans-and-prices part moved into one shared piece
-  (`planner.ts`), used by the product form and the new Planner tab (nothing saved; "Try in Planner" /
-  "Create product from this"). No sheet change. Owner to test locally.
-- Done before: a product's beans (PR #28, data version 8).
+- **Product planner extras** (branch `claude/planner-compare`): renamed to Product planner; wholesale prices with
+  earnings and "Compare with your products" (shared prices table with the product page). No sheet change.
+- Done before: the Planner (PR #29).
 
 ## Next steps
 1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.

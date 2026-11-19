@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from './model';
-import { costing, discountHeader, priceRows, productDetails } from './present';
+import { compareRows, costing, discountHeader, priceRows, productDetails } from './present';
 import type { BeanForm } from './modelBeans';
 
 const kenia = productFromFields(
@@ -10,15 +10,15 @@ const kenia = productFromFields(
 
 describe('priceRows', () => {
   it('shows the main gross price with its net, and the wholesale net (whole złoty) with its gross, per size', () => {
-    const rows = priceRows(kenia, [150, 250, 300], 230);
+    const rows = priceRows(kenia.prices, [150, 250, 300], 230);
     expect(rows.map((r) => r.size)).toEqual(['250 g', '500 g', '1 kg']);
     expect(rows[0]).toEqual({
       size: '250 g',
-      retail: { main: '59 zł', other: '47,97 zł net' },
+      retail: { main: '59 zł', other: '47,97 zł net', earn: '', losing: false },
       wholesale: [
-        { main: '41 zł', other: '50,43 zł gross' },
-        { main: '36 zł', other: '44,28 zł gross' },
-        { main: '34 zł', other: '41,82 zł gross' },
+        { main: '41 zł', other: '50,43 zł gross', earn: '', losing: false },
+        { main: '36 zł', other: '44,28 zł gross', earn: '', losing: false },
+        { main: '34 zł', other: '41,82 zł gross', earn: '', losing: false },
       ],
     });
     // The same numbers as the owner's offer template (Kenia 1 kg: 153 / 135 / 126 zł).
@@ -26,7 +26,16 @@ describe('priceRows', () => {
   });
 
   it('shows a dash where the product has no price for a size', () => {
-    expect(priceRows(kenia, [150], 230)[1]).toEqual({ size: '500 g', retail: { main: '—', other: '' }, wholesale: [{ main: '—', other: '' }] });
+    expect(priceRows(kenia.prices, [150], 230)[1]).toEqual({ size: '500 g', retail: { main: '—', other: '', earn: '', losing: false }, wholesale: [{ main: '—', other: '', earn: '', losing: false }] });
+  });
+
+  it('says what each price earns when the cost of a bag is known (wholesale prices are already without VAT)', () => {
+    // A 250 g bag costs 24,15 zł: retail 59 zł is 47,97 zł without VAT, earns 23,82 zł; at −30 % 34 zł earns 9,85 zł.
+    const [small] = priceRows(kenia.prices, [150, 300], 230, { 250: 2415 });
+    expect([small?.retail.earn, ...(small?.wholesale.map((c) => c.earn) ?? [])]).toEqual(['earns 23,82\u00a0zł', 'earns 16,85\u00a0zł', 'earns 9,85\u00a0zł']);
+    const [cheap] = priceRows({ 250: 3000 }, [300], 230, { 250: 2415 });
+    // 30 zł − 30 % = 17,07 zł → 17 zł without VAT, less than the 24,15 zł the bag costs
+    expect(cheap?.wholesale[0]).toMatchObject({ main: '17\u00a0zł', earn: 'loses 7,15\u00a0zł', losing: true });
   });
 
   it('writes the discount headers the Polish way', () => {
@@ -143,6 +152,62 @@ describe('costing (what a bag costs and earns)', () => {
     // The bag costs 24,147059 zł; 29,70 zł with VAT is 24,146341 zł without: 0,07 grosz short, shown as 0,00 zł.
     const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 2970 });
     expect(result.rows[0]).toMatchObject({ earnings: '0,00\u00a0zł', losing: false });
+  });
+});
+
+describe('compareRows (the plan next to the products)', () => {
+  const lots = [{ lotId: 'KEN', label: 'KENYA-26-09 · Kegwa', greenPerKg: 7700, lossTenths: 150, lossSource: '' }];
+  const packaging = new Map([
+    [250, 150],
+    [500, null],
+    [1000, 250],
+  ]);
+  const kenBean = (share: number): BeanForm => ({ kind: 'lot', lotId: 'KEN', plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: share });
+  const planned: BeanForm = { kind: 'planned', lotId: '', plannedName: 'Cheap offer', plannedPrice: '30', plannedLoss: '', sharePercent: 100 };
+
+  it('puts the plan among the products, sorted by what they earn, with what they earn at the biggest discount', () => {
+    const rows = compareRows(
+      [
+        { name: 'Kenia', isPlan: false, beans: [kenBean(100)], prices: { 250: 5900 } },
+        { name: 'This plan', isPlan: true, beans: [planned], prices: { 250: 5900 } },
+        { name: 'Burundi', isPlan: false, beans: [], prices: { 250: 6500 } },
+      ],
+      250,
+      lots,
+      packaging,
+      230,
+      150,
+      300,
+    );
+    expect(rows.map((r) => [r.name, r.isPlan, r.cost, r.price, r.earn, r.earnAtTop, r.note])).toEqual([
+      // 30 zł per kg green ÷ 0,85 = 35,29 zł per kg roasted; 250 g = 8,82 zł + 1,50 zł packaging = 10,32 zł;
+      // 59 zł is 47,97 zł without VAT → earns 37,64 zł; at −30 % it is 34 zł → earns 23,68 zł
+      ['This plan', true, '10,32\u00a0zł', '59\u00a0zł', 'earns 37,64\u00a0zł', 'earns 23,68\u00a0zł', ''],
+      ['Kenia', false, '24,15\u00a0zł', '59\u00a0zł', 'earns 23,82\u00a0zł', 'earns 9,85\u00a0zł', ''],
+      ['Burundi', false, '', '65\u00a0zł', '', '', 'no beans chosen'],
+    ]);
+  });
+
+  it('says why a row cannot be worked out, and shows a loss in red', () => {
+    const rows = compareRows(
+      [
+        { name: 'No price', isPlan: true, beans: [kenBean(100)], prices: {} },
+        { name: 'Too cheap', isPlan: false, beans: [kenBean(100)], prices: { 250: 3000 } },
+        { name: 'No packaging', isPlan: false, beans: [kenBean(100)], prices: { 500: 9000 } },
+      ],
+      250,
+      lots,
+      new Map([[250, 150]]),
+      230,
+      150,
+      300,
+    );
+    expect(rows.map((r) => [r.name, r.earnAtTop, r.losingAtTop, r.note])).toEqual([
+      ['Too cheap', 'loses 7,15\u00a0zł', true, ''],
+      ['No price', '', false, 'no 250 g price'],
+      ['No packaging', '', false, 'no 250 g price'],
+    ]);
+    expect(compareRows([{ name: 'X', isPlan: false, beans: [kenBean(100)], prices: { 500: 9000 } }], 500, lots, new Map([[500, null]]), 230, 150, null)[0]?.note).toBe('cost not known yet');
   });
 });
 

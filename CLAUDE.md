@@ -87,7 +87,8 @@ test that reads every import line), so CI fails if a rule is broken.
   suggested prices to click with what each earns (250 g: 2×, 2,5×, 3× its cost with VAT, whole złoty; 500 g and 1 kg
   follow the 250 g price with one big bag's packaging), what the typed price earns, and every step explained.
   The blend rules are in `domain/blend.ts`. Only the current price is kept. The beans-and-prices part is **one
-  piece, `planner.ts`**, used by both the product form and the **Planner** tab (`plannerPage.ts`: a scratchpad,
+  piece, `planner.ts`**, used by both the product form and the **Product planner** tab (`plannerPage.ts`, with the wholesale prices and
+  a comparison with the products as extras; the prices table is shared in `priceTable.ts`: a scratchpad,
   nothing saved; "Try in Planner" on a product copies it there, "Create product from this" opens Add product filled
   in), so a change to the planner changes both (owner, 2026-11-19);
   `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of
@@ -96,10 +97,10 @@ test that reads every import line), so CI fails if a rule is broken.
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner, `googleErrors.ts` explains Google errors
-  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Planner, Offer and Settings (owner's
+  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Offer and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Roasts, Products, Planner, Offer, Packaging & discounts, Settings; Settings is technical: Sync with RoasTime, sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Lots page with a menu (Lots, Roasts, Products, Product planner, Offer, Packaging & discounts, Settings; Settings is technical: Sync with RoasTime, sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

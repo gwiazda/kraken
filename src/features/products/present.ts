@@ -15,6 +15,10 @@ export interface PriceCell {
   readonly main: string;
   /** The small line under it: "47,97 zł net" / "50,43 zł gross"; '' when there is no price. */
   readonly other: string;
+  /** What one bag earns at this price: "earns 26,70 zł" / "loses 2,10 zł"; '' when the cost is not known. */
+  readonly earn: string;
+  /** True when this price does not cover what the bag costs. */
+  readonly losing: boolean;
 }
 
 export interface PriceRow {
@@ -26,22 +30,39 @@ export interface PriceRow {
 }
 
 const money = (grosze: number) => formatPln(roundGrosze(grosze));
-const NONE: PriceCell = { main: '—', other: '' };
+const NONE: PriceCell = { main: '—', other: '', earn: '', losing: false };
+
+/** "earns 26,70 zł" or "loses 2,10 zł" (rounded to the grosz, as shown); '' without a cost. */
+function earnText(earned: number | null): { earn: string; losing: boolean } {
+  if (earned === null) return { earn: '', losing: false };
+  const rounded = roundGrosze(earned);
+  return rounded < 0 ? { earn: `loses ${formatPln(-rounded)}`, losing: true } : { earn: `earns ${formatPln(rounded)}`, losing: false };
+}
 
 /** "−15 %", "−12,5 %" (the column headers). */
 export const discountHeader = (tenths: number) => `−${String(tenths / 10).replace('.', ',')} %`;
 
-/** One row per bag size: the main price and the wholesale price at each discount (tenths of a percent). */
-export function priceRows(product: Product, discountTenths: readonly number[], vatTenths: number): PriceRow[] {
+/**
+ * One row per bag size: the main (retail) gross price and the wholesale price at each discount (tenths of a
+ * percent), from the main prices per size (grosze). With what one bag costs (`costs`, grosze), each price also says
+ * what it earns. Used by a product's page and the Product planner, so both always show the same.
+ */
+export function priceRows(
+  prices: Readonly<Partial<Record<number, number>>>,
+  discountTenths: readonly number[],
+  vatTenths: number,
+  costs: Readonly<Partial<Record<number, number>>> = {},
+): PriceRow[] {
   return BAG_SIZES_G.map((grams) => {
-    const gross = product.prices[grams];
+    const gross = prices[grams];
     if (gross === undefined) return { size: formatBagSize(grams), retail: NONE, wholesale: discountTenths.map(() => NONE) };
+    const cost = costs[grams];
     return {
       size: formatBagSize(grams),
-      retail: { main: formatWholePln(gross), other: `${money(netOf(gross, vatTenths))} net` },
+      retail: { main: formatWholePln(gross), other: `${money(netOf(gross, vatTenths))} net`, ...earnText(cost === undefined ? null : earningsAt(gross, cost, vatTenths)) },
       wholesale: discountTenths.map((d) => {
         const price = wholesalePrice(gross, d, vatTenths);
-        return { main: formatWholePln(price.net), other: `${money(price.gross)} gross` };
+        return { main: formatWholePln(price.net), other: `${money(price.gross)} gross`, ...earnText(cost === undefined ? null : price.net - cost) };
       }),
     };
   });
@@ -70,6 +91,8 @@ const signedMoney = (grosze: number) => {
 
 export interface CostingRow {
   readonly grams: number;
+  /** Cost of one bag in grosze (not rounded); null when it cannot be worked out. */
+  readonly costGrosze: number | null;
   readonly size: string;
   /** Cost of one bag (coffee + packaging): "24,15 zł"; '' when it cannot be worked out. */
   readonly cost: string;
@@ -161,7 +184,7 @@ export function costing(
   const rows = BAG_SIZES_G.map((grams): CostingRow => {
     const pack = packaging.get(grams) ?? null;
     const size = formatBagSize(grams);
-    const empty = { grams, size, cost: '', parts: '', suggestions: [], earnings: '', losing: false, steps: [] };
+    const empty = { grams, costGrosze: null, size, cost: '', parts: '', suggestions: [], earnings: '', losing: false, steps: [] };
     if (perKg === null) return empty;
     const bag = bagCost(perKg, grams, pack);
     const coffeeStep = `Coffee: ${size} of roasted coffee at ${money(perKg)} per kg costs ${money(bag.coffee)}.`;
@@ -204,6 +227,7 @@ export function costing(
     ];
     return {
       grams,
+      costGrosze: cost,
       size,
       cost: formatPln(roundGrosze(cost)),
       parts: `coffee ${money(bag.coffee)} and packaging ${formatPln(bag.packaging ?? 0)}`,
@@ -220,5 +244,64 @@ export function costing(
   const missingPackaging = perKg !== null && BAG_SIZES_G.filter((g) => (packaging.get(g) ?? null) === null);
   if (missingPackaging && missingPackaging.length > 0) notes.push(`No packaging entered for ${missingPackaging.map(formatBagSize).join(', ')}: add it under Packaging & discounts.`);
   return { madeOf, perKg: perKg === null ? '' : `${formatPln(roundGrosze(perKg))} per kg of roasted coffee`, rows, notes: [...new Set(notes)], perKgSteps };
+}
+
+// ---- Comparing a plan with the products ----
+
+export interface CompareRow {
+  readonly name: string;
+  /** The plan being tried (shown highlighted). */
+  readonly isPlan: boolean;
+  /** Cost of one bag: "21,26 zł"; '' when it cannot be worked out (no beans, no price, no packaging). */
+  readonly cost: string;
+  /** The retail price: "59 zł"; '' without one. */
+  readonly price: string;
+  /** What one bag earns at the retail price, and at the biggest discount ("earns …" / "loses …"); '' when unknown. */
+  readonly earn: string;
+  readonly losing: boolean;
+  readonly earnAtTop: string;
+  readonly losingAtTop: boolean;
+  /** Why something is missing, in a few words ("no beans chosen"). */
+  readonly note: string;
+}
+
+/**
+ * The plan next to every product, for one bag size: what a bag costs, its retail price, what it earns, and what it
+ * earns at the biggest discount (`topDiscount`, tenths; null: no discounts). Sorted by what they earn, the most
+ * first; rows that cannot be worked out last.
+ */
+export function compareRows(
+  entries: readonly { name: string; isPlan: boolean; beans: readonly BeanForm[]; prices: Readonly<Partial<Record<number, number>>> }[],
+  grams: number,
+  lots: readonly BeanLot[],
+  packaging: ReadonlyMap<number, number | null>,
+  vatTenths: number,
+  defaultLossTenths: number,
+  topDiscount: number | null,
+): CompareRow[] {
+  const rows = entries.map((entry) => {
+    const row = costing(entry.beans, lots, packaging, vatTenths, defaultLossTenths, entry.prices).rows.find((r) => r.grams === grams);
+    const cost = row?.costGrosze ?? null;
+    const price = entry.prices[grams];
+    const earned = cost === null || price === undefined ? null : earningsAt(price, cost, vatTenths);
+    const atTop = cost === null || price === undefined || topDiscount === null ? null : wholesalePrice(price, topDiscount, vatTenths).net - cost;
+    const retail = earnText(earned);
+    const top = earnText(atTop);
+    const note =
+      entry.beans.length === 0 ? 'no beans chosen' : cost === null ? 'cost not known yet' : price === undefined ? `no ${formatBagSize(grams)} price` : '';
+    return {
+      sortBy: earned === null ? Number.NEGATIVE_INFINITY : earned,
+      name: entry.name,
+      isPlan: entry.isPlan,
+      cost: cost === null ? '' : money(cost),
+      price: price === undefined ? '' : formatWholePln(price),
+      earn: retail.earn,
+      losing: retail.losing,
+      earnAtTop: top.earn,
+      losingAtTop: top.losing,
+      note,
+    };
+  });
+  return rows.sort((a, b) => b.sortBy - a.sortBy).map(({ sortBy: _sortBy, ...row }) => row);
 }
 
