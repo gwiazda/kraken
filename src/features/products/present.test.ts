@@ -177,14 +177,14 @@ describe('compareRows (the plan next to the products)', () => {
       packaging,
       230,
       150,
-      300,
+      [150, 300],
     );
-    expect(rows.map((r) => [r.name, r.isPlan, r.cost, r.price, r.earn, r.earnAtTop, r.note])).toEqual([
+    expect(rows.map((r) => [r.name, r.isPlan, r.cost, r.price, r.earn, r.atDiscounts.map((a) => a.earn).join(' / '), r.note])).toEqual([
       // 30 zł per kg green ÷ 0,85 = 35,29 zł per kg roasted; 250 g = 8,82 zł + 1,50 zł packaging = 10,32 zł;
       // 59 zł is 47,97 zł without VAT → earns 37,64 zł; at −30 % it is 34 zł → earns 23,68 zł
-      ['This plan', true, '10,32\u00a0zł', '59\u00a0zł', 'earns 37,64\u00a0zł', 'earns 23,68\u00a0zł', ''],
-      ['Kenia', false, '24,15\u00a0zł', '59\u00a0zł', 'earns 23,82\u00a0zł', 'earns 9,85\u00a0zł', ''],
-      ['Burundi', false, '', '65\u00a0zł', '', '', 'no beans chosen'],
+      ['This plan', true, '10,32\u00a0zł', '59\u00a0zł', 'earns 37,64\u00a0zł', 'earns 30,68\u00a0zł / earns 23,68\u00a0zł', ''],
+      ['Kenia', false, '24,15\u00a0zł', '59\u00a0zł', 'earns 23,82\u00a0zł', 'earns 16,85\u00a0zł / earns 9,85\u00a0zł', ''],
+      ['Burundi', false, '', '65\u00a0zł', '', ' / ', 'no beans chosen'],
     ]);
   });
 
@@ -200,14 +200,14 @@ describe('compareRows (the plan next to the products)', () => {
       new Map([[250, 150]]),
       230,
       150,
-      300,
+      [300],
     );
-    expect(rows.map((r) => [r.name, r.earnAtTop, r.losingAtTop, r.note])).toEqual([
+    expect(rows.map((r) => [r.name, r.atDiscounts[0]?.earn, r.atDiscounts[0]?.losing, r.note])).toEqual([
       ['Too cheap', 'loses 7,15\u00a0zł', true, ''],
       ['No price', '', false, 'no 250 g price'],
       ['No packaging', '', false, 'no 250 g price'],
     ]);
-    expect(compareRows([{ name: 'X', isPlan: false, beans: [kenBean(100)], prices: { 500: 9000 } }], 500, lots, new Map([[500, null]]), 230, 150, null)[0]?.note).toBe('cost not known yet');
+    expect(compareRows([{ name: 'X', isPlan: false, beans: [kenBean(100)], prices: { 500: 9000 } }], 500, lots, new Map([[500, null]]), 230, 150, [])[0]?.note).toBe('cost not known yet');
   });
 });
 

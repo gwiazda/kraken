@@ -301,7 +301,8 @@ export function createPlanner(
     }, 'link');
     return { grams, b };
   });
-  const topDiscount = extra && extra.discounts.length > 0 ? extra.discounts.reduce((a, d) => (d.tenths > a.tenths ? d : a)) : null;
+  /** The wholesale discounts as set under Packaging & discounts, lowest first: one column each. */
+  const discounts = extra ? [...extra.discounts].sort((a, b) => a.tenths - b.tenths) : [];
   const showExtra = (rows: readonly { grams: number; costGrosze: number | null }[]) => {
     if (!extra) return;
     const prices = typedPrices();
@@ -321,7 +322,7 @@ export function createPlanner(
       packaging,
       settings.vatTenths,
       settings.defaultLossTenths,
-      topDiscount?.tenths ?? null,
+      discounts.map((d) => d.tenths),
     );
     const earnCell = (text: string, losing: boolean) => el('td', { class: `num nowrap${losing ? ' losing' : ''}` }, text || el('span', { class: 'muted' }, '—'));
     compareHolder.replaceChildren(
@@ -341,16 +342,9 @@ export function createPlanner(
               el('th', { scope: 'col', class: 'num' }, 'Cost of a bag ', infoTip('What one bag costs you: the coffee from its beans plus the packaging, without VAT.')),
               el('th', { scope: 'col', class: 'num' }, 'Retail price'),
               el('th', { scope: 'col', class: 'num' }, 'You earn ', infoTip('What is left for you from one bag at the retail price: the price without VAT, minus what the bag costs.')),
-              ...(topDiscount
-                ? [
-                    el(
-                      'th',
-                      { scope: 'col', class: 'num' },
-                      `At −${String(topDiscount.tenths / 10).replace('.', ',')} % `,
-                      infoTip(`What is left for you from one bag at your biggest wholesale discount${topDiscount.name ? ` (${topDiscount.name})` : ''}.`),
-                    ),
-                  ]
-                : []),
+              ...discounts.map((d) =>
+                el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), `−${String(d.tenths / 10).replace('.', ',')} %`),
+              ),
             ),
           ),
           el(
@@ -364,7 +358,7 @@ export function createPlanner(
                 el('td', { class: 'num nowrap' }, r.cost || el('span', { class: 'muted small' }, r.note || '—')),
                 el('td', { class: 'num nowrap' }, r.price || el('span', { class: 'muted' }, '—')),
                 earnCell(r.earn, r.losing),
-                ...(topDiscount ? [earnCell(r.earnAtTop, r.losingAtTop)] : []),
+                ...r.atDiscounts.map((a) => earnCell(a.earn, a.losing)),
               ),
             ),
           ),
@@ -385,7 +379,12 @@ export function createPlanner(
         el(
           'section',
           { class: 'product-card' },
-          el('h3', {}, 'Compare with your products ', infoTip('Your plan next to the products you have, for one bag size, sorted by what they earn.')),
+          el(
+            'h3',
+            {},
+            'Compare with your products ',
+            infoTip('Your plan next to the products you have, for one bag size, sorted by what they earn. Each wholesale column shows what one bag earns at that discount; the discounts are the ones set under Packaging & discounts.'),
+          ),
           el('p', { class: 'compare-sizes small' }, 'Bag size: ', ...sizeButtons.flatMap(({ b }) => [b, ' '])),
           compareHolder,
         ),

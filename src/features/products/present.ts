@@ -256,19 +256,19 @@ export interface CompareRow {
   readonly cost: string;
   /** The retail price: "59 zł"; '' without one. */
   readonly price: string;
-  /** What one bag earns at the retail price, and at the biggest discount ("earns …" / "loses …"); '' when unknown. */
+  /** What one bag earns at the retail price ("earns …" / "loses …"); '' when unknown. */
   readonly earn: string;
   readonly losing: boolean;
-  readonly earnAtTop: string;
-  readonly losingAtTop: boolean;
+  /** What one bag earns at each wholesale discount, in the order given (from Packaging & discounts). */
+  readonly atDiscounts: readonly { readonly earn: string; readonly losing: boolean }[];
   /** Why something is missing, in a few words ("no beans chosen"). */
   readonly note: string;
 }
 
 /**
  * The plan next to every product, for one bag size: what a bag costs, its retail price, what it earns, and what it
- * earns at the biggest discount (`topDiscount`, tenths; null: no discounts). Sorted by what they earn, the most
- * first; rows that cannot be worked out last.
+ * earns at each wholesale discount (`discounts`, tenths, as set under Packaging & discounts). Sorted by what they
+ * earn, the most first; rows that cannot be worked out last.
  */
 export function compareRows(
   entries: readonly { name: string; isPlan: boolean; beans: readonly BeanForm[]; prices: Readonly<Partial<Record<number, number>>> }[],
@@ -277,16 +277,15 @@ export function compareRows(
   packaging: ReadonlyMap<number, number | null>,
   vatTenths: number,
   defaultLossTenths: number,
-  topDiscount: number | null,
+  discounts: readonly number[],
 ): CompareRow[] {
   const rows = entries.map((entry) => {
     const row = costing(entry.beans, lots, packaging, vatTenths, defaultLossTenths, entry.prices).rows.find((r) => r.grams === grams);
     const cost = row?.costGrosze ?? null;
     const price = entry.prices[grams];
     const earned = cost === null || price === undefined ? null : earningsAt(price, cost, vatTenths);
-    const atTop = cost === null || price === undefined || topDiscount === null ? null : wholesalePrice(price, topDiscount, vatTenths).net - cost;
     const retail = earnText(earned);
-    const top = earnText(atTop);
+    const atDiscounts = discounts.map((d) => earnText(cost === null || price === undefined ? null : wholesalePrice(price, d, vatTenths).net - cost));
     const note =
       entry.beans.length === 0 ? 'no beans chosen' : cost === null ? 'cost not known yet' : price === undefined ? `no ${formatBagSize(grams)} price` : '';
     return {
@@ -297,8 +296,7 @@ export function compareRows(
       price: price === undefined ? '' : formatWholePln(price),
       earn: retail.earn,
       losing: retail.losing,
-      earnAtTop: top.earn,
-      losingAtTop: top.losing,
+      atDiscounts,
       note,
     };
   });
