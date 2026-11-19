@@ -226,14 +226,14 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
 - **Sales** tab (built, data version 10: "Sales" and "Sale lines" tabs): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
   number of bags; a line can be free),
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag, with a reason).
-  Invoice status for sales: **To be issued → Issued (date) → Paid (date)**; both owners can change
+  Invoice status for sales: **To be issued → Issued (date) → Paid**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
   The list opens on **Invoice to be issued** (filters: issued, paid, samples, own use, all, with counts). The status
   is changed with **one dropdown** in the Invoice column, any status to any other (owner, 2026-11-19: simpler than
-  separate buttons); choosing Issued or Paid opens a small date box (today, or the date it already has), paid keeps
-  the issue date already known,
-  and the list then switches to **All** so the entry stays in view. No invoice number (owner, 2026-11-19): the
-  `invoice_number` column stays in the sheet, unused.
+  separate buttons). **Two dates** (owner, 2026-11-19): the entry's date and the date the invoice was issued
+  ("Issued on" column). Choosing Issued opens a small date box (today, or the date it already has); Paid has no date
+  of its own and keeps the issue date (it asks for it only when there is none yet). The list then switches to **All** so the entry stays in view. No invoice number (owner, 2026-11-19): the
+  `invoice_number` and `paid_date` columns stay in the sheet, unused.
 - **No prices in Sales** (owner, 2026-11-19): it records only how much went out (bags, and which are free). The owner
   takes the prices from the client's offer when issuing the invoice; the partner does not need to know them. The
   `unit_price_net_pln` column of the Sale lines tab stays (migration 10) but is left empty.

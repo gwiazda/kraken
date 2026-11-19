@@ -21,7 +21,8 @@ import {
   linesOf,
   startingInvoice,
   statusChange,
-  suggestedStatusDate,
+  needsInvoiceDate,
+  suggestedInvoiceDate,
   typedBags,
   validateSale,
   type Sale,
@@ -141,7 +142,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const extra = el('tr', { class: 'confirm-row', hidden: '' });
       const sale = r.sale;
       const inline = (...children: (Node | string)[]) => {
-        extra.replaceChildren(el('td', { colspan: '7' }, ...children));
+        extra.replaceChildren(el('td', { colspan: '8' }, ...children));
         extra.hidden = false;
       };
       const normal = () => {
@@ -173,11 +174,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         };
         select.addEventListener('change', () => {
           const to = select.value as InvoiceStatus;
-          if (to === 'to_issue') return save(to, '');
-          // Issued or paid: a small date box under the row, with the date the sale already has or today.
-          const label = to === 'issued' ? 'Invoice issued on' : 'Paid on';
+          if (!needsInvoiceDate(sale, to)) return save(to, '');
+          // A small date box under the row: when the invoice was issued (the date it already has, or today).
+          const label = 'Invoice issued on';
           const date = el('input', { type: 'date', class: 'input-short', 'aria-label': label });
-          date.value = suggestedStatusDate(sale, to, today());
+          date.value = suggestedInvoiceDate(sale, today());
           const errorLine = el('span', { class: 'field-error', role: 'alert' });
           const form = el(
             'form',
@@ -195,7 +196,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           inline(form);
           date.focus();
         });
-        statusCell.append(select, ...(r.statusDate ? [' ', el('span', { class: 'muted small' }, r.statusDate)] : []));
+        statusCell.append(select);
       }
       const ask = () => {
         const no = button('No', normal, 'secondary');
@@ -218,6 +219,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el('td', {}, r.items),
           el('td', { class: 'num nowrap' }, r.bags || el('span', { class: 'muted' }, '—')),
           statusCell,
+          el('td', { class: 'nowrap' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
           actions,
         ),
         extra,
@@ -231,7 +233,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
       ),
-      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid", then give the date (today unless you change it). A mistake can be undone the same way. Samples and own use have no invoice.')),
+      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid". Choosing "Invoice issued" asks for the date it was issued (today unless you change it); it shows under "Issued on". A mistake can be undone the same way. Samples and own use have no invoice.')),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
@@ -244,7 +246,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             el(
               'table',
               { class: 'data-table sales-table' },
-              el('thead', {}, el('tr', {}, ...['Date', 'What', 'Client / place', 'Products', 'Bags', 'Invoice', ''].map((h) => el('th', { scope: 'col' }, h)))),
+              el('thead', {}, el('tr', {}, ...['Date', 'What', 'Client / place', 'Products', 'Bags', 'Invoice', 'Issued on', ''].map((h) => el('th', { scope: 'col' }, h)))),
               el('tbody', {}, ...rows.flatMap(row)),
             ),
           ),

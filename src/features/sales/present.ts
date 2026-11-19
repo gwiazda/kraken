@@ -29,8 +29,8 @@ export interface SaleRow {
   readonly items: string;
   /** How many bags: "4 bags (1 free)", "1 bag". */
   readonly bags: string;
-  /** The date of the status shown next to it: when the invoice was issued, or when it was paid; '' otherwise. */
-  readonly statusDate: string;
+  /** When the invoice was issued (issued or paid); '' otherwise. */
+  readonly invoiceDate: string;
   readonly createdBy: string;
 }
 
@@ -62,7 +62,7 @@ export function saleRows(
             : sale.place
               ? `${sale.place} (not a client)`
               : '';
-      const statusDate = sale.kind !== 'sale' ? '' : sale.status === 'issued' ? sale.invoiceDate : sale.status === 'paid' ? sale.paidDate : '';
+      const invoiceDate = sale.kind === 'sale' && (sale.status === 'issued' || sale.status === 'paid') ? sale.invoiceDate : '';
       return {
         sale,
         date: sale.date,
@@ -71,7 +71,7 @@ export function saleRows(
         who,
         items: items || '—',
         bags: bagsText(own),
-        statusDate,
+        invoiceDate,
         createdBy: sale.createdBy,
       };
     });

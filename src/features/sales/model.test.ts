@@ -12,7 +12,8 @@ import {
   sortSales,
   startingInvoice,
   statusChange,
-  suggestedStatusDate,
+  needsInvoiceDate,
+  suggestedInvoiceDate,
   validateSale,
   type SaleForm,
 } from './model';
@@ -116,35 +117,40 @@ describe('the invoice status', () => {
   const paid = sale(3, { invoice_status: 'paid', invoice_date: '2026-11-12', paid_date: '2026-11-15' });
   const toIssue = sale(4);
 
-  it('offers the date the sale already has, else today', () => {
-    expect(suggestedStatusDate(toIssue, 'issued', '2026-11-19')).toBe('2026-11-19');
-    expect(suggestedStatusDate(toIssue, 'paid', '2026-11-19')).toBe('2026-11-19');
-    expect(suggestedStatusDate(paid, 'issued', '2026-11-19')).toBe('2026-11-12');
-    expect(suggestedStatusDate(issued, 'paid', '2026-11-19')).toBe('2026-11-19');
-    expect(suggestedStatusDate(paid, 'paid', '2026-11-19')).toBe('2026-11-15');
+  it('offers the issue date the sale already has, else today', () => {
+    expect(suggestedInvoiceDate(toIssue, '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedInvoiceDate(issued, '2026-11-19')).toBe('2026-11-12');
+    expect(suggestedInvoiceDate(paid, '2026-11-19')).toBe('2026-11-12');
     // a stale date in a "to be issued" sale, or one that cannot be read, is not offered
-    expect(suggestedStatusDate(sale(5, { invoice_date: '2026-10-01' }), 'issued', '2026-11-19')).toBe('2026-11-19');
-    expect(suggestedStatusDate(sale(6, { invoice_status: 'paid', paid_date: 'soon' }), 'paid', '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedInvoiceDate(sale(5, { invoice_date: '2026-10-01' }), '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedInvoiceDate(sale(6, { invoice_status: 'issued', invoice_date: 'soon' }), '2026-11-19')).toBe('2026-11-19');
   });
 
-  it('saves the date typed for the chosen status', () => {
-    expect(statusChange(toIssue, 'issued', '2026-11-18')).toEqual({ ok: true, fields: { invoice_status: 'issued', invoice_date: '2026-11-18', paid_date: '' } });
-    expect(statusChange(paid, 'issued', '2026-11-13')).toEqual({ ok: true, fields: { invoice_status: 'issued', invoice_date: '2026-11-13', paid_date: '' } });
+  it('asks for the issue date for Issued, and for Paid only when none is known; never for "to be issued"', () => {
+    expect(needsInvoiceDate(toIssue, 'issued')).toBe(true);
+    expect(needsInvoiceDate(paid, 'issued')).toBe(true);
+    expect(needsInvoiceDate(toIssue, 'paid')).toBe(true);
+    expect(needsInvoiceDate(issued, 'paid')).toBe(false);
+    expect(needsInvoiceDate(issued, 'to_issue')).toBe(false);
   });
 
-  it('paid keeps the issue date already known; with none (straight from "to be issued") it takes the same date', () => {
-    expect(statusChange(issued, 'paid', '2026-11-19')).toEqual({ ok: true, fields: { invoice_status: 'paid', invoice_date: '2026-11-12', paid_date: '2026-11-19' } });
-    expect(statusChange(toIssue, 'paid', '2026-11-19')).toEqual({ ok: true, fields: { invoice_status: 'paid', invoice_date: '2026-11-19', paid_date: '2026-11-19' } });
-    expect(statusChange(sale(5, { invoice_date: '2026-10-01' }), 'paid', '2026-11-19')).toMatchObject({ fields: { invoice_date: '2026-11-19' } });
+  it('saves the issue date typed', () => {
+    expect(statusChange(toIssue, 'issued', '2026-11-18')).toEqual({ ok: true, fields: { invoice_status: 'issued', invoice_date: '2026-11-18' } });
+    expect(statusChange(paid, 'issued', '2026-11-13')).toEqual({ ok: true, fields: { invoice_status: 'issued', invoice_date: '2026-11-13' } });
+    expect(statusChange(toIssue, 'paid', '2026-11-18')).toEqual({ ok: true, fields: { invoice_status: 'paid', invoice_date: '2026-11-18' } });
   });
 
-  it('refuses an empty or wrong date', () => {
+  it('paid keeps the issue date already known, and has no date of its own', () => {
+    expect(statusChange(issued, 'paid', '')).toEqual({ ok: true, fields: { invoice_status: 'paid', invoice_date: '2026-11-12' } });
+  });
+
+  it('refuses an empty or wrong issue date', () => {
     expect(statusChange(toIssue, 'issued', '')).toEqual({ ok: false, error: 'Enter the date the invoice was issued.' });
-    expect(statusChange(issued, 'paid', '2026-02-30')).toEqual({ ok: false, error: 'Enter the date it was paid.' });
+    expect(statusChange(toIssue, 'paid', '2026-02-30')).toEqual({ ok: false, error: 'Enter the date the invoice was issued.' });
   });
 
-  it('going back to "to be issued" clears the dates (a mistake can be undone)', () => {
-    expect(statusChange(paid, 'to_issue', '')).toEqual({ ok: true, fields: { invoice_status: 'to_issue', invoice_date: '', paid_date: '' } });
+  it('going back to "to be issued" clears the issue date (a mistake can be undone)', () => {
+    expect(statusChange(paid, 'to_issue', '')).toEqual({ ok: true, fields: { invoice_status: 'to_issue', invoice_date: '' } });
   });
 });
 
