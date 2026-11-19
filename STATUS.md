@@ -18,7 +18,7 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 
 ## In progress
 - **Product order** (branch `claude/product-order`, data version **11**: `position` column on Products, first
-  `add-columns` migration step): ↑ ↓ on the Products page; the Offer starts in that order. Owner to test locally.
+  `add-columns` migration step): drag and drop on the Products page; the Offer starts in that order. Owner to test locally.
 - Done before: Clients (#31), Sales (#32), gross margin (#33).
 
 ## Next steps

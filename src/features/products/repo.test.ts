@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createKrakenSpreadsheet } from '../../schema';
 import { fakeGoogleDrive } from '../../testing/fakeGoogleDrive';
-import { moveProduct, sortProducts } from './model';
+import { reorderProducts, sortProducts } from './model';
 import { beansOf } from './modelBeans';
 import { sheetProductsRepository } from './repo';
 
@@ -70,13 +70,13 @@ describe('sheetProductsRepository (in-memory Google)', () => {
       ['Peru', null],
     ]);
 
-    await repo.savePositions(moveProduct(await active(), (await active())[2]?.id ?? '', -1), later); // Peru up
+    await repo.savePositions(reorderProducts(await active(), (await active())[2]?.id ?? '', 1), later); // Peru up one
     expect(await names()).toEqual([
       ['Burundi', 1],
       ['Peru', 2],
       ['Kenia', 3],
     ]);
-    const second = moveProduct(await active(), (await active())[0]?.id ?? '', 1); // Burundi down: two positions change
+    const second = reorderProducts(await active(), (await active())[0]?.id ?? '', 1); // Burundi down one: two positions change
     expect(second.map((c) => [c.product.name, c.position])).toEqual([
       ['Peru', 1],
       ['Burundi', 2],

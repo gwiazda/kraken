@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BAG_SIZES_G } from '../../domain/bagSizes';
-import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, moveProduct, productFromFields, sortProducts, validateProductForm } from './model';
+import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, productFromFields, reorderProducts, sortProducts, validateProductForm } from './model';
 
 const product = (row: number, o: Record<string, string> = {}) =>
   productFromFields(
@@ -59,18 +59,25 @@ describe('reading a product', () => {
     expect(list.map((p) => p.position)).toEqual([2, null, 1, null, 1]);
   });
 
-  it('moves a product up or down: positions 1 to n in the new order, only those that change', () => {
+  it('moves a product to another place: positions 1 to n in the new order, only those that change', () => {
     const active = sortProducts([product(2, { name: 'A', position: '1' }), product(3, { name: 'B', position: '2' }), product(4, { name: 'C', position: '3' })]);
-    expect(moveProduct(active, 'P4', -1).map((c) => [c.product.name, c.position])).toEqual([
+    expect(reorderProducts(active, 'P4', 1).map((c) => [c.product.name, c.position])).toEqual([
       ['C', 2],
       ['B', 3],
     ]);
-    expect(moveProduct(active, 'P2', -1)).toEqual([]); // already first
-    expect(moveProduct(active, 'P4', 1)).toEqual([]); // already last
-    expect(moveProduct(active, 'P9', 1)).toEqual([]);
+    // dragged from last to first: everyone moves
+    expect(reorderProducts(active, 'P4', 0).map((c) => [c.product.name, c.position])).toEqual([
+      ['C', 1],
+      ['A', 2],
+      ['B', 3],
+    ]);
+    expect(reorderProducts(active, 'P2', 0)).toEqual([]); // stays where it is
+    expect(reorderProducts(active, 'P2', -1)).toEqual([]); // above the first
+    expect(reorderProducts(active, 'P4', 3)).toEqual([]); // below the last
+    expect(reorderProducts(active, 'P9', 1)).toEqual([]);
     // before the first move nobody has a position: every product gets one
     const fresh = sortProducts([product(2, { name: 'A' }), product(3, { name: 'B' })]);
-    expect(moveProduct(fresh, 'P2', 1).map((c) => [c.product.name, c.position])).toEqual([
+    expect(reorderProducts(fresh, 'P2', 1).map((c) => [c.product.name, c.position])).toEqual([
       ['B', 1],
       ['A', 2],
     ]);

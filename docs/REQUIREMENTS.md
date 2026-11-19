@@ -430,7 +430,8 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   Prices on the offer: wholesale **net**, rounded to whole złoty (as on the product page), one block per size;
   "Sugerowana cena detaliczna brutto" (the main gross price) under **250 g only**.
 - The owner sets the **order** of the products on the offer (↑ ↓). Empty product details are left out.
-- **Product order** (owner, 2026-11-19): ↑ ↓ on the Products page saves the order in the sheet (`position` column of
+- **Product order** (owner, 2026-11-19): drag and drop on the Products page (a ⠿ grip on each row; mouse or finger;
+  the arrow keys on a focused grip; owner found ↑ ↓ buttons clumsy) saves the order in the sheet (`position` column of
   the Products tab, data version 11). The Offer page starts in that order, and ↑ ↓ there still changes it for that
   one offer only (not saved). Other lists of products (Product planner, Sales) use the same order. Products without
   a position (new ones) come last, by name.

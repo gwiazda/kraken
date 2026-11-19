@@ -24,7 +24,7 @@ export const PRODUCT_COLUMNS = [
   'price_250_gross_pln',
   'price_500_gross_pln',
   'price_1000_gross_pln',
-  // Migration 011: the order set with ↑ ↓ on the Products page (owner, 2026-11-19); empty until the first move.
+  // Migration 011: the order set by dragging on the Products page (owner, 2026-11-19); empty until the first move.
   'position',
 ] as const;
 
@@ -93,7 +93,7 @@ function positionOf(cell: string): number | null {
 export const isDeleted = (product: Product) => product.deletedAt !== '';
 
 /**
- * The owner's order (owner, 2026-11-19: ↑ ↓ on the Products page, used by the Offer and everywhere products are
+ * The owner's order (owner, 2026-11-19: dragged on the Products page, used by the Offer and everywhere products are
  * listed): active products by position, then those without one (new products) by name, Polish alphabetical order;
  * deleted ones last.
  */
@@ -105,14 +105,14 @@ export function sortProducts(products: readonly Product[]): Product[] {
 }
 
 /**
- * Moving one product up (-1) or down (+1) in the order of the active products (`active`, as sortProducts gives
- * them): the positions to write, 1 to n in the new order, only where the stored one differs (the first move also
- * numbers every product). Nothing when it cannot move further.
+ * Moving one product to another place (`to`, 0 = first) in the order of the active products (`active`, as
+ * sortProducts gives them; dragged on the Products page, or moved with the arrow keys): the positions to write,
+ * 1 to n in the new order, only where the stored one differs (the first move also numbers every product). Nothing
+ * when it stays where it is.
  */
-export function moveProduct(active: readonly Product[], id: string, by: -1 | 1): { product: Product; position: number }[] {
+export function reorderProducts(active: readonly Product[], id: string, to: number): { product: Product; position: number }[] {
   const from = active.findIndex((p) => p.id === id);
-  const to = from + by;
-  if (from < 0 || to < 0 || to >= active.length) return [];
+  if (from < 0 || to < 0 || to >= active.length || to === from) return [];
   const order = [...active];
   const [moved] = order.splice(from, 1);
   if (!moved) return [];

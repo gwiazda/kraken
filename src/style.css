@@ -1324,10 +1324,42 @@ details summary {
   gap: 0.4rem;
 }
 
-.offer-order-moves .btn,
-.order-moves .btn {
+.offer-order-moves .btn {
   padding: 0.1rem 0.5rem;
   margin-right: 0.2rem;
+}
+
+/* Products page: drag a row by its grip to change the order. */
+.order-grip {
+  width: 1.5rem;
+  padding-right: 0;
+}
+
+.drag-handle {
+  display: inline-block;
+  padding: 0.2rem 0.35rem;
+  color: var(--grey);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none; /* a finger drags the row instead of scrolling the page */
+  user-select: none;
+  border-radius: 4px;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  color: var(--lime);
+}
+
+tr.dragging {
+  background: #1d1f0a;
+  outline: 1px solid var(--lime);
+}
+
+tr.dragging .drag-handle {
+  cursor: grabbing;
+  color: var(--lime);
 }
 
 .offer-order input[type='checkbox'],

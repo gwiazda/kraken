@@ -79,7 +79,7 @@ test that reads every import line), so CI fails if a rule is broken.
   the tab is empty the template's 15 / 25 / 30 % are used and the first change writes them), VAT and the usual roast
   loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
   rounded), `pricingFor` (Products: settings, discounts, every lot as a bean with its green price per kg and roast loss, packaging per size) and `lotLosses` (Lots page);
-  `products`: Products page (products in the owner's order, ↑ ↓, `position` column, migration 11; the Offer and other lists use the same order), **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
+  `products`: Products page (products in the owner's order, dragged by a ⠿ grip, `position` column, migration 11; the Offer and other lists use the same order), **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
   list → click a product → its main gross prices and wholesale at each discount (one column per discount from Packaging & discounts), and its
   offer details, and **Cost and earnings** (cost of one bag and what the retail price earns). A product is **made of
   up to 3 beans** ("Product beans" tab, `modelBeans.ts`): a lot, or a planned bean (name, price per kg, optional

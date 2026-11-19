@@ -18,7 +18,7 @@ import {
   emptyProductForm,
   formFromProduct,
   isDeleted,
-  moveProduct,
+  reorderProducts,
   sortProducts,
   validateProductForm,
   type Product,
@@ -180,22 +180,25 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       });
   }
 
-  /** ↑ / ↓ on the list: saves the new order (inside the click), then reloads; Back and the menu wait meanwhile. */
-  function move(active: readonly Product[], product: Product, by: -1 | 1): void {
-    const changes = moveProduct(active, product.id, by);
-    if (changes.length === 0) return;
+  /**
+   * A product dragged (or moved with the arrow keys) to place `to` on the list: saves the new order inside the
+   * drop (so a sign-in renewal can open Google's window), then reloads; Back and the menu wait meanwhile.
+   */
+  function move(active: readonly Product[], product: Product, to: number): void {
+    const changes = reorderProducts(active, product.id, to);
+    if (changes.length === 0) return showList();
     lockPage();
     deps.busy(true);
     deps
       .withGoogle(() => deps.repo.savePositions(changes, deps.now()))
       .finally(() => deps.busy(false))
       .then(() => {
-        if (root.isConnected) load(`Moved ${product.name} ${by < 0 ? 'up' : 'down'}.`);
+        if (root.isConnected) load(`Order saved: ${product.name} is now number ${to + 1}.`);
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
-        const show = (e: unknown) => showList(undefined, errorNodes(e, () => move(active, product, by), `Sign in and move ${product.name}`, show, true));
+        const show = (e: unknown) => showList(undefined, errorNodes(e, () => move(active, product, to), `Sign in and move ${product.name}`, show, true));
         show(error);
       });
   }
@@ -215,14 +218,49 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
     const row = (p: Product, restorable: boolean, index: number) => {
       const actions = el('td', { class: 'row-actions nowrap' });
-      const moves = () => {
-        const up = button('↑', () => move(active, p, -1), 'secondary');
-        const down = button('↓', () => move(active, p, 1), 'secondary');
-        up.disabled = index === 0;
-        down.disabled = index === active.length - 1;
-        up.setAttribute('aria-label', `Move ${p.name} up`);
-        down.setAttribute('aria-label', `Move ${p.name} down`);
-        return el('td', { class: 'order-moves nowrap' }, up, down);
+      /** The grip: drag it (mouse or finger) to another row, or focus it and press ↑ / ↓. */
+      const grip = () => {
+        const handle = el('span', { class: 'drag-handle', tabindex: '0', role: 'button', 'aria-label': `Move ${p.name}: drag, or press the up and down arrow keys`, title: 'Drag to change the order' }, '⠿');
+        handle.addEventListener('keydown', (event) => {
+          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+          event.preventDefault();
+          move(active, p, index + (event.key === 'ArrowUp' ? -1 : 1));
+        });
+        handle.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          const tr = handle.closest('tr');
+          const body = tr?.parentElement;
+          if (!tr || !body) return;
+          handle.setPointerCapture(event.pointerId);
+          tr.classList.add('dragging');
+          const follow = (e: PointerEvent) => {
+            // The dragged row goes before the first other row whose middle is below the pointer.
+            const others = [...body.children].filter((r) => r !== tr);
+            const before = others.find((r) => {
+              const box = r.getBoundingClientRect();
+              return e.clientY < box.top + box.height / 2;
+            });
+            body.insertBefore(tr, before ?? null);
+          };
+          const drop = () => {
+            handle.removeEventListener('pointermove', follow);
+            handle.removeEventListener('pointerup', drop);
+            handle.removeEventListener('pointercancel', cancel);
+            tr.classList.remove('dragging');
+            move(active, p, [...body.children].indexOf(tr));
+          };
+          const cancel = () => {
+            handle.removeEventListener('pointermove', follow);
+            handle.removeEventListener('pointerup', drop);
+            handle.removeEventListener('pointercancel', cancel);
+            showList(); // put the rows back
+          };
+          handle.addEventListener('pointermove', follow);
+          handle.addEventListener('pointerup', drop);
+          handle.addEventListener('pointercancel', cancel);
+        });
+        return el('td', { class: 'order-grip' }, handle);
       };
       if (restorable) {
         const restore = () =>
@@ -235,7 +273,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       return el(
         'tr',
         restorable ? { class: 'row-deleted' } : {},
-        ...(restorable ? [] : [moves()]),
+        ...(restorable ? [] : [grip()]),
         el(
           'td',
           {},
@@ -279,7 +317,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         'p',
         { class: 'muted small' },
         'Main prices, gross (retail). Click a product to see its wholesale prices. ',
-        infoTip('Use ↑ ↓ to set the order of your products. The Offer uses the same order (you can still change it there for one offer), and so do the lists on other pages. New products go to the end.'),
+        infoTip('Drag a product by its ⠿ to set the order of your products. The Offer uses the same order (you can still change it there for one offer), and so do the lists on other pages. New products go to the end.'),
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
