@@ -18,7 +18,8 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 
 ## In progress
 - **Sales** (branch `claude/sales`, data version **10**: "Sales" and "Sale lines" tabs): sales with lines and
-  invoice status, samples (client or a place), own use. Owner to test locally.
+  no prices, samples (client or a place), own use; invoice status from one dropdown, two dates (entry, invoice
+  issued). Owner tested locally; PR open, then the owner clicks "Update now" (version 10) on their sheet.
 - Done before: Clients (PR #31); the owner's 7 clients were added straight into the sheet.
 
 ## Next steps
