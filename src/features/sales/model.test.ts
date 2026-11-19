@@ -12,6 +12,7 @@ import {
   sortSales,
   startingInvoice,
   statusChange,
+  suggestedStatusDate,
   validateSale,
   type SaleForm,
 } from './model';
@@ -115,24 +116,35 @@ describe('the invoice status', () => {
   const paid = sale(3, { invoice_status: 'paid', invoice_date: '2026-11-12', paid_date: '2026-11-15' });
   const toIssue = sale(4);
 
-  it('issued or paid from "to be issued" takes today as the date', () => {
-    expect(statusChange(toIssue, 'issued', '2026-11-19')).toEqual({ invoice_status: 'issued', invoice_date: '2026-11-19', paid_date: '' });
-    expect(statusChange(toIssue, 'paid', '2026-11-19')).toEqual({ invoice_status: 'paid', invoice_date: '2026-11-19', paid_date: '2026-11-19' });
+  it('offers the date the sale already has, else today', () => {
+    expect(suggestedStatusDate(toIssue, 'issued', '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedStatusDate(toIssue, 'paid', '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedStatusDate(paid, 'issued', '2026-11-19')).toBe('2026-11-12');
+    expect(suggestedStatusDate(issued, 'paid', '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedStatusDate(paid, 'paid', '2026-11-19')).toBe('2026-11-15');
+    // a stale date in a "to be issued" sale, or one that cannot be read, is not offered
+    expect(suggestedStatusDate(sale(5, { invoice_date: '2026-10-01' }), 'issued', '2026-11-19')).toBe('2026-11-19');
+    expect(suggestedStatusDate(sale(6, { invoice_status: 'paid', paid_date: 'soon' }), 'paid', '2026-11-19')).toBe('2026-11-19');
   });
 
-  it('keeps a date already known: paid keeps the issue date, back to issued keeps it too', () => {
-    expect(statusChange(issued, 'paid', '2026-11-19')).toEqual({ invoice_status: 'paid', invoice_date: '2026-11-12', paid_date: '2026-11-19' });
-    expect(statusChange(paid, 'issued', '2026-11-19')).toEqual({ invoice_status: 'issued', invoice_date: '2026-11-12', paid_date: '' });
-    expect(statusChange(paid, 'paid', '2026-11-19')).toEqual({ invoice_status: 'paid', invoice_date: '2026-11-12', paid_date: '2026-11-15' });
+  it('saves the date typed for the chosen status', () => {
+    expect(statusChange(toIssue, 'issued', '2026-11-18')).toEqual({ ok: true, fields: { invoice_status: 'issued', invoice_date: '2026-11-18', paid_date: '' } });
+    expect(statusChange(paid, 'issued', '2026-11-13')).toEqual({ ok: true, fields: { invoice_status: 'issued', invoice_date: '2026-11-13', paid_date: '' } });
   });
 
-  it('a stale date left in a "to be issued" sale, or a date that cannot be read, is replaced by today', () => {
-    expect(statusChange(sale(5, { invoice_date: '2026-10-01' }), 'issued', '2026-11-19')).toMatchObject({ invoice_date: '2026-11-19' });
-    expect(statusChange(sale(6, { invoice_status: 'issued', invoice_date: 'soon' }), 'paid', '2026-11-19')).toMatchObject({ invoice_date: '2026-11-19' });
+  it('paid keeps the issue date already known; with none (straight from "to be issued") it takes the same date', () => {
+    expect(statusChange(issued, 'paid', '2026-11-19')).toEqual({ ok: true, fields: { invoice_status: 'paid', invoice_date: '2026-11-12', paid_date: '2026-11-19' } });
+    expect(statusChange(toIssue, 'paid', '2026-11-19')).toEqual({ ok: true, fields: { invoice_status: 'paid', invoice_date: '2026-11-19', paid_date: '2026-11-19' } });
+    expect(statusChange(sale(5, { invoice_date: '2026-10-01' }), 'paid', '2026-11-19')).toMatchObject({ fields: { invoice_date: '2026-11-19' } });
+  });
+
+  it('refuses an empty or wrong date', () => {
+    expect(statusChange(toIssue, 'issued', '')).toEqual({ ok: false, error: 'Enter the date the invoice was issued.' });
+    expect(statusChange(issued, 'paid', '2026-02-30')).toEqual({ ok: false, error: 'Enter the date it was paid.' });
   });
 
   it('going back to "to be issued" clears the dates (a mistake can be undone)', () => {
-    expect(statusChange(paid, 'to_issue', '2026-11-19')).toEqual({ invoice_status: 'to_issue', invoice_date: '', paid_date: '' });
+    expect(statusChange(paid, 'to_issue', '')).toEqual({ ok: true, fields: { invoice_status: 'to_issue', invoice_date: '', paid_date: '' } });
   });
 });
 

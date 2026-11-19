@@ -30,7 +30,9 @@ describe('sheetSalesRepository (in-memory Google)', () => {
 
     let [sale] = data.sales;
     if (!sale) throw new Error('setup');
-    await repo.update(sale, statusChange(sale, 'issued', '2026-11-20'), later);
+    const issued = statusChange(sale, 'issued', '2026-11-20');
+    if (!issued.ok) throw new Error('setup');
+    await repo.update(sale, issued.fields, later);
     data = await repo.load();
     [sale] = data.sales;
     if (!sale) throw new Error('setup');

@@ -230,7 +230,8 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
   The list opens on **Invoice to be issued** (filters: issued, paid, samples, own use, all, with counts). The status
   is changed with **one dropdown** in the Invoice column, any status to any other (owner, 2026-11-19: simpler than
-  separate buttons); today's date is saved (a date already known is kept, e.g. the issue date when it becomes paid),
+  separate buttons); choosing Issued or Paid opens a small date box (today, or the date it already has), paid keeps
+  the issue date already known,
   and the list then switches to **All** so the entry stays in view. No invoice number (owner, 2026-11-19): the
   `invoice_number` column stays in the sheet, unused.
 - **No prices in Sales** (owner, 2026-11-19): it records only how much went out (bags, and which are free). The owner

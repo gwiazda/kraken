@@ -21,6 +21,7 @@ import {
   linesOf,
   startingInvoice,
   statusChange,
+  suggestedStatusDate,
   typedBags,
   validateSale,
   type Sale,
@@ -158,9 +159,41 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           option.selected = value === sale.status;
           select.append(option);
         }
+        const save = (to: InvoiceStatus, date: string, errorLine?: HTMLElement) => {
+          const change = statusChange(sale, to, date);
+          if (!change.ok) {
+            if (errorLine) errorLine.textContent = change.error;
+            return;
+          }
+          act(statusCell, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: ${STATUS_LABELS[to].toLowerCase()}.`, () => (filter = 'all'));
+        };
+        const cancel = () => {
+          select.value = sale.status ?? '';
+          normal();
+        };
         select.addEventListener('change', () => {
           const to = select.value as InvoiceStatus;
-          act(statusCell, 'Saving…', () => deps.repo.update(sale, statusChange(sale, to, today()), deps.now()), `${r.who}: ${STATUS_LABELS[to].toLowerCase()}.`, () => (filter = 'all'));
+          if (to === 'to_issue') return save(to, '');
+          // Issued or paid: a small date box under the row, with the date the sale already has or today.
+          const label = to === 'issued' ? 'Invoice issued on' : 'Paid on';
+          const date = el('input', { type: 'date', class: 'input-short', 'aria-label': label });
+          date.value = suggestedStatusDate(sale, to, today());
+          const errorLine = el('span', { class: 'field-error', role: 'alert' });
+          const form = el(
+            'form',
+            { class: 'inline-form', novalidate: '' },
+            el('span', {}, label),
+            date,
+            el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
+            button('Cancel', cancel, 'secondary'),
+            errorLine,
+          );
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            save(to, date.value, errorLine);
+          });
+          inline(form);
+          date.focus();
         });
         statusCell.append(select, ...(r.statusDate ? [' ', el('span', { class: 'muted small' }, r.statusDate)] : []));
       }
@@ -198,7 +231,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
       ),
-      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid". Today’s date is saved with it. A mistake can be undone the same way. Samples and own use have no invoice.')),
+      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid", then give the date (today unless you change it). A mistake can be undone the same way. Samples and own use have no invoice.')),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
