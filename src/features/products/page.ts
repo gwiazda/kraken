@@ -203,6 +203,116 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       });
   }
 
+  /**
+   * Drags a table row (owner, 2026-11-20: "make it striking that I am dragging"): the row lifts off as a floating
+   * copy with a shadow that follows the pointer (mouse or finger), a dashed gap shows where it will land, and the
+   * other rows slide out of the way. Near the top or bottom of the window the page scrolls. On release the copy
+   * settles into the gap and `drop` gets the new place (0 = first); Escape or a cancelled touch puts it back.
+   * Listened to on the whole window: moving the row in the page ends the browser's pointer capture.
+   */
+  function dragRow(tr: HTMLTableRowElement, body: HTMLElement, start: PointerEvent, drop: (to: number) => void): void {
+    const pointer = start.pointerId;
+    const box = tr.getBoundingClientRect();
+    const grabY = start.clientY - box.top;
+
+    // The floating copy: the same cells at the same widths, in a table of its own.
+    const copy = tr.cloneNode(true) as HTMLTableRowElement;
+    [...tr.cells].forEach((cell, i) => {
+      const twin = copy.cells[i];
+      if (twin) twin.style.width = `${cell.getBoundingClientRect().width}px`;
+    });
+    const ghost = el('table', { class: 'data-table product-table drag-ghost', 'aria-hidden': 'true' }, el('tbody', {}, copy));
+    ghost.style.left = `${box.left}px`;
+    ghost.style.top = `${box.top}px`;
+    ghost.style.width = `${box.width}px`;
+    document.body.append(ghost);
+    tr.classList.add('drag-gap');
+    document.body.classList.add('is-dragging');
+
+    let lastY = start.clientY;
+    let scrolling = 0;
+    const place = () => {
+      ghost.style.top = `${lastY - grabY}px`;
+      // The gap goes before the first other row whose middle is below the middle of the floating copy.
+      const middle = lastY - grabY + box.height / 2;
+      const others = [...body.children].filter((r) => r !== tr);
+      const before = others.find((r) => {
+        const b = r.getBoundingClientRect();
+        return middle < b.top + b.height / 2;
+      }) ?? null;
+      if (tr.nextElementSibling === before) return;
+      // Slide: remember where each row was, move the gap, then let each row glide from its old place to the new one.
+      const rows = [...body.children] as HTMLElement[];
+      const was = new Map(rows.map((r) => [r, r.getBoundingClientRect().top]));
+      body.insertBefore(tr, before);
+      for (const r of rows) {
+        if (r === tr) continue;
+        const shift = (was.get(r) ?? 0) - r.getBoundingClientRect().top;
+        if (shift === 0) continue;
+        r.style.transition = 'none';
+        r.style.transform = `translateY(${shift}px)`;
+        requestAnimationFrame(() => {
+          r.style.transition = 'transform 150ms ease';
+          r.style.transform = '';
+        });
+      }
+    };
+    const autoScroll = () => {
+      const edge = 60;
+      const speed = lastY < edge ? -12 : lastY > window.innerHeight - edge ? 12 : 0;
+      if (speed !== 0) {
+        window.scrollBy(0, speed);
+        place();
+      }
+      scrolling = requestAnimationFrame(autoScroll);
+    };
+    scrolling = requestAnimationFrame(autoScroll);
+
+    const follow = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      lastY = e.clientY;
+      place();
+    };
+    const end = () => {
+      cancelAnimationFrame(scrolling);
+      window.removeEventListener('pointermove', follow);
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', escape);
+      document.body.classList.remove('is-dragging');
+      for (const r of body.children) (r as HTMLElement).style.transform = '';
+    };
+    const release = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      end();
+      // Settle the copy into the gap, then save (inside the release, so a sign-in window may open).
+      const target = tr.getBoundingClientRect();
+      ghost.classList.add('drag-ghost-settle');
+      ghost.style.top = `${target.top}px`;
+      const to = [...body.children].indexOf(tr);
+      setTimeout(() => {
+        ghost.remove();
+        tr.classList.remove('drag-gap');
+      }, 160);
+      drop(to);
+    };
+    const putBack = () => {
+      end();
+      ghost.remove();
+      showList();
+    };
+    const cancel = (e: PointerEvent) => {
+      if (e.pointerId === pointer) putBack();
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') putBack();
+    };
+    window.addEventListener('pointermove', follow);
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', escape);
+  }
+
   // ---- The list ----
 
   function showList(note?: string, error?: Node[]): void {
@@ -231,41 +341,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           event.preventDefault();
           const tr = handle.closest('tr');
           const body = tr?.parentElement;
-          if (!tr || !body) return;
-          // Listened to on the whole window: moving the row in the page ends the browser's pointer capture, so
-          // the handle alone would stop hearing the pointer after the first step.
-          tr.classList.add('dragging');
-          const pointer = event.pointerId;
-          const follow = (e: PointerEvent) => {
-            if (e.pointerId !== pointer) return;
-            // The dragged row goes before the first other row whose middle is below the pointer.
-            const others = [...body.children].filter((r) => r !== tr);
-            const before =
-              others.find((r) => {
-                const box = r.getBoundingClientRect();
-                return e.clientY < box.top + box.height / 2;
-              }) ?? null;
-            if (tr.nextElementSibling !== before) body.insertBefore(tr, before);
-          };
-          const stop = () => {
-            window.removeEventListener('pointermove', follow);
-            window.removeEventListener('pointerup', drop);
-            window.removeEventListener('pointercancel', cancel);
-            tr.classList.remove('dragging');
-          };
-          const drop = (e: PointerEvent) => {
-            if (e.pointerId !== pointer) return;
-            stop();
-            move(active, p, [...body.children].indexOf(tr));
-          };
-          const cancel = (e: PointerEvent) => {
-            if (e.pointerId !== pointer) return;
-            stop();
-            showList(); // put the rows back
-          };
-          window.addEventListener('pointermove', follow);
-          window.addEventListener('pointerup', drop);
-          window.addEventListener('pointercancel', cancel);
+          if (tr && body) dragRow(tr, body, event, (to) => move(active, p, to));
         });
         return el('td', { class: 'order-grip' }, handle);
       };
