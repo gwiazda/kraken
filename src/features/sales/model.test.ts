@@ -6,10 +6,9 @@ import {
   formFromSale,
   lineChanges,
   lineFromFields,
-  lineTotal,
   linesOf,
   saleFromFields,
-  saleTotal,
+  bagCount,
   sortSales,
   startingInvoice,
   statusChange,
@@ -25,15 +24,15 @@ const line = (row: number, o: Record<string, string> = {}) =>
 const form = (o: Partial<SaleForm> = {}): SaleForm => ({
   ...emptySaleForm('2026-11-19'),
   clientId: 'C1',
-  lines: [{ productId: 'P1', grams: '1000', bags: '3', price: '97,02', free: false }],
+  lines: [{ productId: 'P1', grams: '1000', bags: '3', free: false }],
   ...o,
 });
 
 describe('reading sales and lines', () => {
   it('reads a sale and its lines', () => {
     expect(sale(2)).toMatchObject({ kind: 'sale', clientId: 'C1', status: 'to_issue', problems: [] });
-    expect(line(3)).toMatchObject({ grams: 1000, bags: 3, priceGrosze: 9702, free: false });
-    expect(line(4, { free: 'yes', unit_price_net_pln: '' })).toMatchObject({ free: true, priceGrosze: null });
+    expect(line(3)).toMatchObject({ grams: 1000, bags: 3, free: false });
+    expect(line(4, { free: 'yes' })).toMatchObject({ free: true });
   });
 
   it('has no invoice status for a sample or own use', () => {
@@ -56,11 +55,9 @@ describe('reading sales and lines', () => {
   });
 });
 
-describe('totals', () => {
-  it('adds up bags × net price, a free line counting nothing (the owner example: 3 kg + 1 kg free at 97,02 zł)', () => {
-    const lines = [line(3), line(4, { bags: '1', free: 'yes' })];
-    expect(lines.map(lineTotal)).toEqual([29106, 0]);
-    expect(saleTotal(lines)).toBe(29106); // 291,06 zł net
+describe('bag counts', () => {
+  it('counts the bags and the free ones (the owner example: 3 kg + 1 kg free)', () => {
+    expect(bagCount([line(3), line(4, { bags: '1', free: 'yes' })])).toEqual({ bags: 4, free: 1 });
   });
 });
 
@@ -69,12 +66,12 @@ describe('validateSale', () => {
     expect(validateSale(form(), ['C1'], ['P1'])).toEqual({
       ok: true,
       fields: { date: '2026-11-19', kind: 'sale', client_id: 'C1', place: '', reason: '', notes: '' },
-      lines: [{ position: '1', product_id: 'P1', bag_size_g: '1000', bags: '3', unit_price_net_pln: '97.02', free: '' }],
+      lines: [{ position: '1', product_id: 'P1', bag_size_g: '1000', bags: '3', unit_price_net_pln: '', free: '' }],
     });
   });
 
-  it('stores a free line without needing a price', () => {
-    const result = validateSale(form({ lines: [{ productId: 'P1', grams: '1000', bags: '1', price: '', free: true }] }), ['C1'], ['P1']);
+  it('stores free bags (no prices in Sales: the owner takes them from the offer)', () => {
+    const result = validateSale(form({ lines: [{ productId: 'P1', grams: '1000', bags: '1', free: true }] }), ['C1'], ['P1']);
     expect(result).toMatchObject({ ok: true, lines: [{ free: 'yes', unit_price_net_pln: '' }] });
   });
 
@@ -87,7 +84,7 @@ describe('validateSale', () => {
 
   it('explains what is missing', () => {
     const result = validateSale(
-      form({ date: '', clientId: '', lines: [{ productId: '', grams: '300', bags: '0', price: '', free: false }, emptyLine()] }),
+      form({ date: '', clientId: '', lines: [{ productId: '', grams: '300', bags: '0', free: false }, emptyLine()] }),
       ['C1'],
       ['P1'],
     );
@@ -97,8 +94,8 @@ describe('validateSale', () => {
         date: 'Enter the date, e.g. 2026-11-19.',
         client: 'Choose the client (add new ones on the Clients page).',
         line: [
-          'Line 1: choose the product, choose the bag size, enter the number of bags (1 to 999), enter the net price per bag, e.g. 41,50.',
-          'Line 2: choose the product, enter the net price per bag, e.g. 41,50.',
+          'Line 1: choose the product, choose the bag size, enter the number of bags (1 to 999).',
+          'Line 2: choose the product.',
         ],
       },
     });
@@ -131,7 +128,7 @@ describe('the invoice status', () => {
 
 describe('editing', () => {
   it('fills the form from a sale and its lines', () => {
-    expect(formFromSale(sale(2), [line(3)])).toMatchObject({ kind: 'sale', clientId: 'C1', lines: [{ productId: 'P1', grams: '1000', bags: '3', price: '97,02', free: false }] });
+    expect(formFromSale(sale(2), [line(3)])).toMatchObject({ kind: 'sale', clientId: 'C1', lines: [{ productId: 'P1', grams: '1000', bags: '3', free: false }] });
   });
 
   it('writes only what changed: sale cells, lines by position, new lines added, the rest soft-deleted', () => {
@@ -139,7 +136,7 @@ describe('editing', () => {
     expect(changedSaleFields(s, { date: '2026-11-19', kind: 'sale', client_id: 'C2', place: '', reason: '', notes: '' })).toEqual({ client_id: 'C2' });
     const first = line(3);
     const second = line(4, { position: '2' });
-    const wanted = [{ position: '1', product_id: 'P1', bag_size_g: '1000', bags: '4', unit_price_net_pln: '97.02', free: '' }];
+    const wanted = [{ position: '1', product_id: 'P1', bag_size_g: '1000', bags: '4', unit_price_net_pln: '97.02', free: '' }]; // an old price is left as it is
     expect(lineChanges([first, second], wanted)).toEqual({ updates: [{ line: first, changes: { bags: '4' } }], adds: [], removes: [second] });
   });
 });

@@ -1,17 +1,14 @@
 // The Sales screen (owner, 2026-11-19): what went out and the invoices to issue. Either owner adds entries: a sale
 // to a client (the invoice starts "to be issued"), a sample left somewhere, or own use. The list has filters
-// ("Invoice to be issued" first) and buttons to mark an invoice issued or paid. Prices start from the product's
-// main price and the client's discount (the same rule as on the product page and the offer) and can be changed.
+// ("Invoice to be issued" first) and buttons to mark an invoice issued or paid. No prices (owner, 2026-11-19): it
+// records how much went out; the owner takes the prices from the client's offer when issuing the invoice.
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
 import { localDate } from '../../core/dates';
-import { formatPln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
-import { grossOf } from '../../domain/prices';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
-import { DEFAULT_SETTINGS, readSettings, type CostsRepository } from '../costs';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
   KIND_LABELS,
@@ -21,27 +18,22 @@ import {
   formFromSale,
   isDeleted,
   linesOf,
-  saleTotal,
   startingInvoice,
   statusChange,
   typedBags,
-  typedPrice,
   validateSale,
-  type LineForm,
   type Sale,
   type SaleForm,
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, lineTotalText, saleRows, suggestedPrice, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, saleRows, type SaleRow, type SalesFilter } from './present';
 import type { SalesRepository } from './repo';
 
 export interface SalesPageDeps {
   repo: SalesRepository;
   clients: ClientsRepository;
   products: ProductsRepository;
-  /** For VAT (Packaging & discounts). */
-  costs: CostsRepository;
   whoAmI: () => Promise<string>;
   /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
@@ -62,7 +54,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let lines: SaleLine[] = [];
   let clients: Client[] = [];
   let products: Product[] = [];
-  let vatTenths = DEFAULT_SETTINGS.vatTenths;
   let problems: string[] = [];
   /** The filter shown; null until the first load (then "to be issued" if there is any, else all). */
   let filter: SalesFilter | null = null;
@@ -82,25 +73,15 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function load(note?: string, fromClick = false): void {
     render(el('p', {}, busy('Loading sales…')));
-    // VAT is only for the gross total in the form: if it cannot be read, the usual 23 % is used, with a note.
-    const vat = () =>
-      deps.costs.load().then(
-        (costs) => readSettings(costs.settings),
-        (error: unknown) => {
-          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          return { settings: DEFAULT_SETTINGS, problems: [`VAT could not be read (${deps.describeError(error)}); 23 % is used.`] };
-        },
-      );
-    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), vat()]);
+    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load()]);
     (fromClick ? deps.withGoogle(all) : all())
-      .then(([s, c, p, v]) => {
+      .then(([s, c, p]) => {
         if (!root.isConnected) return;
         sales = s.sales;
         lines = s.lines;
         clients = c.clients;
         products = p.products;
-        vatTenths = v.settings.vatTenths;
-        problems = [...s.problems, ...c.problems, ...v.problems, ...s.sales.filter((x) => !isDeleted(x)).flatMap((x) => x.problems)];
+        problems = [...s.problems, ...c.problems, ...s.sales.filter((x) => !isDeleted(x)).flatMap((x) => x.problems)];
         showList(note);
       })
       .catch((error: unknown) => {
@@ -235,7 +216,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el('td', { class: 'nowrap' }, el('span', { class: `badge kind-${r.kind ?? 'unknown'}` }, r.kindLabel)),
           el('td', {}, r.who || el('span', { class: 'muted' }, '—')),
           el('td', {}, r.items),
-          el('td', { class: 'num nowrap' }, r.total || el('span', { class: 'muted' }, '—')),
+          el('td', { class: 'num nowrap' }, r.bags || el('span', { class: 'muted' }, '—')),
           el('td', { class: 'nowrap' }, r.status ? el('span', { class: `status status-${sale.status ?? ''}` }, r.status) : el('span', { class: 'muted' }, '—')),
           actions,
         ),
@@ -263,7 +244,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             el(
               'table',
               { class: 'data-table sales-table' },
-              el('thead', {}, el('tr', {}, ...['Date', 'What', 'Client / place', 'Products', 'Total net', 'Invoice', ''].map((h) => el('th', { scope: 'col' }, h)))),
+              el('thead', {}, el('tr', {}, ...['Date', 'What', 'Client / place', 'Products', 'Bags', 'Invoice', ''].map((h) => el('th', { scope: 'col' }, h)))),
               el('tbody', {}, ...rows.flatMap(row)),
             ),
           ),
@@ -297,16 +278,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     if (form.lines.length === 0) form.lines.push(emptyLine());
     const activeClients = sortClients(clients).filter((c) => !isClientDeleted(c));
     const activeProducts = sortProducts(products).filter((p) => !isProductDeleted(p));
-    /** Lines whose price the owner typed: a later change of product, size or client does not overwrite them. */
-    const typed = new Set<LineForm>(sale ? form.lines : []);
-
-    const discountOf = (clientId: string) => clients.find((c) => c.id === clientId)?.discountTenths ?? null;
-    const suggest = (line: LineForm) => {
-      if (typed.has(line) || form.kind !== 'sale') return;
-      const product = products.find((p) => p.id === line.productId);
-      const price = suggestedPrice(product?.prices[Number(line.grams) as 250 | 500 | 1000], discountOf(form.clientId), vatTenths);
-      line.price = price === null ? '' : `${Math.floor(price / 100)},${String(price % 100).padStart(2, '0')}`;
-    };
 
     const errorBox = el('div', {});
     const banner = el('div', { class: 'form-banner' });
@@ -329,7 +300,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         ...(['sale', 'sample', 'own_use'] as SaleKind[]).map((k) => {
           const b = button(KIND_LABELS[k], () => {
             form.kind = k;
-            for (const line of form.lines) suggest(line);
             renderKind();
             renderWho();
             renderLines();
@@ -352,18 +322,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         select.value = form.clientId;
         select.addEventListener('change', () => {
           form.clientId = select.value;
-          for (const line of form.lines) suggest(line);
           renderWho();
-          renderLines();
         });
-        const discount = discountOf(form.clientId);
         fields.push(
           el(
             'div',
             { class: 'field' },
             el('div', { class: 'label-row' }, el('label', { for: select.id }, form.kind === 'sale' ? 'Client *' : 'Client')),
             select,
-            ...(form.kind === 'sale' && form.clientId ? [el('p', { class: 'field-hint' }, discount === null ? 'No discount: prices without VAT.' : `Discount ${String(discount / 10).replace('.', ',')} %: prices start from the wholesale price.`)] : []),
           ),
         );
       }
@@ -383,16 +349,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     };
 
     const showTotal = () => {
-      if (form.kind !== 'sale') {
-        totalLine.replaceChildren();
-        return;
-      }
-      const net = saleTotal(form.lines.map((l) => ({ bags: typedBags(l.bags), priceGrosze: typedPrice(l.price), free: l.free })));
-      totalLine.replaceChildren('Total ', el('strong', {}, `${formatPln(net)} net`), el('span', { class: 'muted' }, ` · ${formatPln(Math.round(grossOf(net, vatTenths)))} with VAT`));
+      const text = bagsText(form.lines.map((l) => ({ bags: typedBags(l.bags), free: form.kind === 'sale' && l.free })));
+      totalLine.replaceChildren(...(text ? ['Together: ', el('strong', {}, text)] : []));
     };
 
     const renderLines = () => {
-      const priced = form.kind === 'sale';
+      const sale_ = form.kind === 'sale'; // free bags only matter for a sale (not invoiced)
       const rows = form.lines.map((line, i) => {
         const product = el('select', { 'aria-label': `Line ${i + 1}: product` });
         product.append(el('option', { value: '' }, 'Choose a product…'));
@@ -404,45 +366,22 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         size.value = line.grams;
         const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Line ${i + 1}: number of bags`, autocomplete: 'off' });
         bags.value = line.bags;
-        const price = el('input', { type: 'text', inputmode: 'decimal', class: 'input-money', 'aria-label': `Line ${i + 1}: net price per bag (zł)`, autocomplete: 'off', placeholder: 'zł net' });
-        price.value = line.price;
         const free = el('input', { type: 'checkbox', 'aria-label': `Line ${i + 1}: free` });
         free.checked = line.free;
-        const lineTotalCell = el('td', { class: 'num nowrap muted' });
-        const showLineTotal = () => (lineTotalCell.textContent = lineTotalText({ bags: typedBags(line.bags), priceGrosze: typedPrice(line.price), free: line.free }));
         product.addEventListener('change', () => {
           line.productId = product.value;
-          suggest(line);
-          price.value = line.price;
-          showLineTotal();
-          showTotal();
         });
         size.addEventListener('change', () => {
           line.grams = size.value;
-          suggest(line);
-          price.value = line.price;
-          showLineTotal();
-          showTotal();
         });
         bags.addEventListener('input', () => {
           line.bags = bags.value;
-          showLineTotal();
-          showTotal();
-        });
-        price.addEventListener('input', () => {
-          line.price = price.value;
-          typed.add(line);
-          showLineTotal();
           showTotal();
         });
         free.addEventListener('change', () => {
           line.free = free.checked;
-          price.disabled = line.free;
-          showLineTotal();
           showTotal();
         });
-        price.disabled = line.free;
-        showLineTotal();
         const remove = button(
           'Remove',
           () => {
@@ -457,7 +396,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el('td', {}, product),
           el('td', {}, size),
           el('td', {}, bags),
-          ...(priced ? [el('td', {}, price), el('td', { class: 'nowrap' }, el('label', { class: 'free-label' }, free, ' free')), lineTotalCell] : []),
+          ...(sale_ ? [el('td', { class: 'nowrap' }, el('label', { class: 'free-label' }, free, ' free'))] : []),
           el('td', {}, form.lines.length > 1 ? remove : ''),
         );
       });
@@ -477,12 +416,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                 el('th', { scope: 'col' }, 'Product'),
                 el('th', { scope: 'col' }, 'Size'),
                 el('th', { scope: 'col' }, 'Bags'),
-                ...(priced
-                  ? [
-                      el('th', { scope: 'col' }, 'Price per bag, net ', infoTip("Starts from the product's main price and the client's discount (the same as on the product page). Change it if you agreed another price.")),
-                      el('th', { scope: 'col' }, ''),
-                      el('th', { scope: 'col', class: 'num' }, 'Line total'),
-                    ]
+                ...(sale_
+                  ? [el('th', { scope: 'col' }, 'Free ', infoTip('Tick it for bags given for free (gratis): they are not invoiced.'))]
                   : []),
                 el('th', { scope: 'col' }, ''),
               ),
@@ -493,9 +428,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         button(
           'Add another product',
           () => {
-            const line = emptyLine();
-            form.lines.push(line);
-            suggest(line);
+            form.lines.push(emptyLine());
             renderLines();
           },
           'secondary',
@@ -587,7 +520,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       if (!saveButton.disabled) save();
     });
 
-    if (!sale) for (const line of form.lines) suggest(line);
     renderKind();
     renderWho();
     renderLines();

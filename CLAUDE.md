@@ -94,7 +94,7 @@ test that reads every import line), so CI fails if a rule is broken.
   are shared in `priceTable.ts` (also used by a product's page);
   `clients`: Clients page (owner, 2026-11-19): short name, NIP (check digit validated), email, registered name
   (CEIDG), discount chosen from Packaging & discounts; a name or NIP only once;
-  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, net price, free),
+  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19),
   invoice status to be issued → issued (date, number) → paid (date), filters; no stock change;
   `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file

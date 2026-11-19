@@ -481,7 +481,6 @@ function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
       repo: sheetSalesRepository(client, info.id),
       clients: sheetClientsRepository(client, info.id),
       products: sheetProductsRepository(client, info.id),
-      costs: sheetCostsRepository(client, info.id),
       formOpened: () => record('sale-form', currentScreen === 'sale-form' ? 'replace' : 'push'),
       formClosed: () => {
         currentScreen = 'sales';

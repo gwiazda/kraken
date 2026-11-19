@@ -1,20 +1,8 @@
-// What the Sales page shows, as plain text, so it is tested without a browser: the suggested net price of a line
-// (the product's main price and the client's discount, the same rule as everywhere), a short summary of each entry,
-// and the filters with their counts.
+// What the Sales page shows, as plain text, so it is tested without a browser: a short summary of each entry (who,
+// what, how many bags) and the filters with their counts. No prices (owner, 2026-11-19).
 
-import { formatPln } from '../../core/numbers';
 import { formatBagSize } from '../../domain/bagSizes';
-import { netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
-import { KIND_LABELS, STATUS_LABELS, isDeleted, lineTotal, linesOf, saleTotal, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
-
-/**
- * The net price per bag a line starts with: with a discount, the wholesale price (the main price without VAT, minus
- * the discount, whole złoty, as on the product page and the offer); without one, the main price without VAT.
- */
-export function suggestedPrice(mainGross: number | undefined, discountTenths: number | null, vatTenths: number): number | null {
-  if (mainGross === undefined) return null;
-  return discountTenths === null ? roundGrosze(netOf(mainGross, vatTenths)) : wholesalePrice(mainGross, discountTenths, vatTenths).net;
-}
+import { KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
 
 export type SalesFilter = 'all' | InvoiceStatus | 'sample' | 'own_use';
 
@@ -39,8 +27,8 @@ export interface SaleRow {
   readonly who: string;
   /** "GWATEMALA 1 kg × 3, KENIA 250 g × 1 (free)" */
   readonly items: string;
-  /** Net total of a sale: "291,06 zł"; '' for samples and own use. */
-  readonly total: string;
+  /** How many bags: "4 bags (1 free)", "1 bag". */
+  readonly bags: string;
   /** "Invoice to be issued", "Invoice issued 2026-11-20 (FV 1/11)", "Paid 2026-11-25"; '' when there is no invoice. */
   readonly status: string;
   readonly createdBy: string;
@@ -89,7 +77,7 @@ export function saleRows(
         kindLabel: sale.kind ? KIND_LABELS[sale.kind] : '?',
         who,
         items: items || '—',
-        total: sale.kind === 'sale' ? formatPln(saleTotal(own)) : '',
+        bags: bagsText(own),
         status,
         createdBy: sale.createdBy,
       };
@@ -97,5 +85,9 @@ export function saleRows(
   return { rows, counts };
 }
 
-/** A line's total for the form ("291,06 zł"), '' without one. */
-export const lineTotalText = (line: { bags: number | null; priceGrosze: number | null; free: boolean }) => (line.free ? 'free' : line.bags && line.priceGrosze ? formatPln(lineTotal(line)) : '');
+/** "4 bags (1 free)", "1 bag", '' without lines. */
+export function bagsText(lines: readonly { bags: number | null; free: boolean }[]): string {
+  if (lines.length === 0) return '';
+  const { bags, free } = bagCount(lines);
+  return `${bags} ${bags === 1 ? 'bag' : 'bags'}${free > 0 ? ` (${free} free)` : ''}`;
+}

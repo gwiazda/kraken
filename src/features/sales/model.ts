@@ -1,13 +1,15 @@
 // Sales (owner, 2026-11-19): what went out, added by either owner. One record per entry:
-// - a **sale** to a client: lines (product, bag size, number of bags, net price per bag, free or not) and an invoice
-//   status: to be issued → issued (date, optional number) → paid (date). The invoice itself is made in Fakturownia;
+// - a **sale** to a client: lines (product, bag size, number of bags, free or not) and an invoice status: to be
+//   issued → issued (date, optional number) → paid (date). The invoice itself is made in Fakturownia;
 // - a **sample** left somewhere: a client, or just a place typed in (a café not yet a client);
 // - **own use**: one of the owners took a bag, with a reason.
-// Samples and own use have lines without prices and no invoice. Sales do not change stock (owner, 2026-11-19).
+// Samples and own use have no invoice. Sales do not change stock (owner, 2026-11-19).
+// No prices here (owner, 2026-11-19): Sales records how much went out; the owner takes the prices from the client's
+// offer when issuing the invoice, and the partner does not need to know them. The "unit_price_net_pln" column of the
+// Sale lines tab stays in the sheet (added by migration 10) but is left empty.
 // Pure: no Google, no screen.
 
 import { isValidDate } from '../../core/dates';
-import { moneyText, parseMoney } from '../../core/numbers';
 import { BAG_SIZES_G, isBagSize } from '../../domain/bagSizes';
 
 type Fields = Readonly<Record<string, string>>;
@@ -59,9 +61,6 @@ export interface SaleLine {
   readonly grams: number | null;
   /** Whole bags; null when the cell cannot be read. */
   readonly bags: number | null;
-  /** Net price per bag (grosze); null when empty (samples, own use) or not readable. */
-  readonly priceGrosze: number | null;
-  readonly priceText: string;
   readonly free: boolean;
   readonly deletedAt: string;
   readonly source: Fields;
@@ -102,7 +101,6 @@ export function saleFromFields(fields: Fields, row: number): Sale {
 export function lineFromFields(fields: Fields, row: number): SaleLine {
   const grams = Number(text(fields, 'bag_size_g'));
   const bags = Number(text(fields, 'bags'));
-  const price = parseMoney(text(fields, 'unit_price_net_pln'));
   return {
     id: text(fields, 'id'),
     row,
@@ -111,8 +109,6 @@ export function lineFromFields(fields: Fields, row: number): SaleLine {
     productId: text(fields, 'product_id'),
     grams: isBagSize(grams) ? grams : null,
     bags: Number.isInteger(bags) && bags > 0 ? bags : null,
-    priceGrosze: typeof price === 'number' ? price : null,
-    priceText: text(fields, 'unit_price_net_pln'),
     free: text(fields, 'free') === 'yes',
     deletedAt: text(fields, 'deleted_at'),
     source: fields,
@@ -130,12 +126,11 @@ export function sortSales(sales: readonly Sale[]): Sale[] {
   return [...sales].sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row);
 }
 
-/** What a line costs the client, net (grosze): bags × price, nothing when free or without a price. */
-export const lineTotal = (line: { bags: number | null; priceGrosze: number | null; free: boolean }) =>
-  line.free || line.bags === null || line.priceGrosze === null ? 0 : line.bags * line.priceGrosze;
-
-/** A sale's total, net (grosze). */
-export const saleTotal = (lines: readonly { bags: number | null; priceGrosze: number | null; free: boolean }[]) => lines.reduce((sum, l) => sum + lineTotal(l), 0);
+/** How many bags went out, and how many of them free (for the list). */
+export const bagCount = (lines: readonly { bags: number | null; free: boolean }[]) => ({
+  bags: lines.reduce((sum, l) => sum + (l.bags ?? 0), 0),
+  free: lines.reduce((sum, l) => sum + (l.free ? (l.bags ?? 0) : 0), 0),
+});
 
 // ---- The form ----
 
@@ -144,8 +139,7 @@ export interface LineForm {
   /** Bag size in grams, as text ("250"). */
   grams: string;
   bags: string;
-  /** Net price per bag, as typed ("41" or "41,50"); filled in from the product and the client's discount. */
-  price: string;
+  /** Free bags (gratis): not to be invoiced. */
   free: boolean;
 }
 
@@ -170,12 +164,9 @@ export interface SaleErrors {
   line: (string | undefined)[];
 }
 
-export const emptyLine = (): LineForm => ({ productId: '', grams: String(BAG_SIZES_G[0]), bags: '1', price: '', free: false });
+export const emptyLine = (): LineForm => ({ productId: '', grams: String(BAG_SIZES_G[0]), bags: '1', free: false });
 
 export const emptySaleForm = (today: string): SaleForm => ({ date: today, kind: 'sale', clientId: '', place: '', reason: '', notes: '', lines: [emptyLine()] });
-
-/** "41,50" for the form. */
-const moneyForm = (grosze: number) => `${Math.floor(grosze / 100)},${String(grosze % 100).padStart(2, '0')}`;
 
 export function formFromSale(sale: Sale, lines: readonly SaleLine[]): SaleForm {
   return {
@@ -189,16 +180,9 @@ export function formFromSale(sale: Sale, lines: readonly SaleLine[]): SaleForm {
       productId: l.productId,
       grams: l.grams === null ? text(l.source, 'bag_size_g') : String(l.grams),
       bags: l.bags === null ? text(l.source, 'bags') : String(l.bags),
-      price: l.priceGrosze === null ? l.priceText : moneyForm(l.priceGrosze),
       free: l.free,
     })),
   };
-}
-
-/** A line's net price per bag while typing (grosze); null when empty or not readable. */
-export function typedPrice(value: string): number | null {
-  const grosze = parseMoney(value);
-  return typeof grosze === 'number' ? grosze : null;
 }
 
 /** Whole bags while typing; null when not a whole number from 1 to 999. */
@@ -228,24 +212,21 @@ export function validateSale(
   if (reason.length > 200) errors.reason = 'At most 200 characters.';
   if (form.notes.length > 2000) errors.notes = 'At most 2000 characters.';
   if (form.lines.length === 0) errors.lines = 'Add at least one product.';
-  const priced = form.kind === 'sale';
   const lines = form.lines.map((line, i) => {
     const bags = typedBags(line.bags);
-    const price = typedPrice(line.price);
     const grams = Number(line.grams);
     const problems: string[] = [];
     if (!productIds.includes(line.productId)) problems.push('choose the product');
     if (!isBagSize(grams)) problems.push('choose the bag size');
     if (bags === null) problems.push('enter the number of bags (1 to 999)');
-    if (priced && !line.free && (price === null || price <= 0)) problems.push('enter the net price per bag, e.g. 41,50');
     if (problems.length > 0) errors.line[i] = `Line ${i + 1}: ${problems.join(', ')}.`;
     return {
       position: String(i + 1),
       product_id: line.productId,
       bag_size_g: String(grams),
       bags: String(bags ?? ''),
-      unit_price_net_pln: priced && price !== null ? moneyText(price) : '',
-      free: priced && line.free ? 'yes' : '',
+      unit_price_net_pln: '',
+      free: form.kind === 'sale' && line.free ? 'yes' : '',
     };
   });
   const failed = [errors.date, errors.client, errors.place, errors.reason, errors.notes, errors.lines, ...errors.line].some((e) => e);
