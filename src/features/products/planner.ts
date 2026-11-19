@@ -26,18 +26,21 @@ export interface PlannerData {
  * Loads the planner's data (Packaging & discounts, Lots, Roasts). If it cannot be read, the defaults are used with a
  * note, so a page still opens; a signed-out or superseded sign-in is passed on.
  */
-export async function loadPlannerData(
-  sources: { costs: CostsRepository; lots: LotsRepository; roasts: RoastsRepository },
-  isPassedOn: (error: unknown) => boolean,
-  describeError: (error: unknown) => string,
-): Promise<PlannerData> {
+export async function loadPlannerData(sources: {
+  costs: CostsRepository;
+  lots: LotsRepository;
+  roasts: RoastsRepository;
+  isSignedOut: (error: unknown) => boolean;
+  isIgnorable: (error: unknown) => boolean;
+  describeError: (error: unknown) => string;
+}): Promise<PlannerData> {
   try {
     const [costs, lots, roasts] = await Promise.all([sources.costs.load(), sources.lots.load(), sources.roasts.load()]);
     const found = pricingFor(costs, lots.lots, roasts.roasts);
     return { settings: found.settings, discounts: found.discounts, beanLots: found.lots, packaging: found.packaging, problems: [...costs.problems, ...found.problems] };
   } catch (error) {
-    if (isPassedOn(error)) throw error;
-    const problem = `The packaging, discounts and lots could not be read (${describeError(error)}); the default VAT and discounts are used.`;
+    if (sources.isSignedOut(error) || sources.isIgnorable(error)) throw error;
+    const problem = `The packaging, discounts and lots could not be read (${sources.describeError(error)}); the default VAT and discounts are used.`;
     return { settings: DEFAULT_SETTINGS, discounts: activeDiscounts([]).discounts, beanLots: [], packaging: new Map(), problems: [problem] };
   }
 }
@@ -61,7 +64,16 @@ export interface Planner {
   showPriceErrors(errors: Partial<Record<BagSize, string>>, focus?: boolean): void;
 }
 
-export function createPlanner(data: PlannerData, start: PlannerStart, options: { pricesTitle: string; pricesIntro: string }): Planner {
+/** A bean's name for the screen: its lot, or the planned bean's name, else "Bean 2". */
+export function beanName(form: BeanForm, i: number, beanLots: readonly BeanLot[]): string {
+  return form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
+}
+
+export function createPlanner(
+  data: Pick<PlannerData, 'settings' | 'beanLots' | 'packaging'>,
+  start: PlannerStart,
+  options: { pricesTitle: string; pricesIntro: string; onChange?: (plan: PlannerStart) => void },
+): Planner {
   const { settings, beanLots, packaging } = data;
   const priceInputs = {} as Record<BagSize, HTMLInputElement>;
   const priceErrors = {} as Record<BagSize, HTMLParagraphElement>;
@@ -85,8 +97,6 @@ export function createPlanner(data: PlannerData, start: PlannerStart, options: {
   let shareInputs: HTMLInputElement[] = [];
   let legendNames: HTMLElement[] = [];
 
-  const beanName = (form: BeanForm, i: number) =>
-    form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
   const shares = () => beanForms.map((f) => f.sharePercent);
   const applyShares = (next: readonly number[]) =>
     next.forEach((share, k) => {
@@ -105,7 +115,7 @@ export function createPlanner(data: PlannerData, start: PlannerStart, options: {
       const input = shareInputs[i];
       if (input && document.activeElement !== input) input.value = String(form.sharePercent);
       const name = legendNames[i];
-      if (name) name.textContent = beanName(form, i);
+      if (name) name.textContent = beanName(form, i, beanLots);
     });
     dividers.forEach((d, k) => (d.value = String(at[k] ?? 0)));
   };
@@ -267,6 +277,7 @@ export function createPlanner(data: PlannerData, start: PlannerStart, options: {
     return out;
   };
   const update = () => {
+    options.onChange?.({ beans: beanForms.map((f) => ({ ...f })), prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) });
     const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, typedPrices());
     madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
     madeOfLine.hidden = !made.madeOf;

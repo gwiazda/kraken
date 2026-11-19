@@ -23,10 +23,11 @@ import {
   type Product,
   type ProductForm,
   type ProductFormErrors,
+  PRICE_FIELDS,
 } from './model';
-import { beansOf, formFromBean, validateBeans, type BeanForm, type ProductBean } from './modelBeans';
+import { beansOf, formFromBean, validateBeans, type ProductBean } from './modelBeans';
 import { costing, discountHeader, priceRows, productDetails, type Costing, type PriceCell } from './present';
-import { createPlanner, loadPlannerData, type PlannerData, type PlannerStart } from './planner';
+import { beanName, createPlanner, loadPlannerData, type PlannerStart } from './planner';
 import type { ProductsRepository } from './repo';
 
 export interface ProductsPageDeps {
@@ -52,8 +53,11 @@ export interface ProductsPageDeps {
   openPlanner: (start: PlannerStart) => void;
 }
 
+/** The text fields of the form; the prices are in the planner. */
+type TextKey = Exclude<keyof ProductForm, (typeof PRICE_FIELDS)[BagSize]>;
+
 interface FieldSpec {
-  key: (typeof TEXT_KEYS)[number];
+  key: TextKey;
   label: string;
   hint?: string;
   required?: boolean;
@@ -82,8 +86,7 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   },
 ];
 
-/** The text fields of the form; the prices are in the planner. */
-const TEXT_KEYS = ['name', 'brewMethod', 'country', 'region', 'altitude', 'processing', 'variety', 'flavourProfile'] as const satisfies readonly (keyof ProductForm)[];
+const TEXT_KEYS: readonly TextKey[] = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
 
 /** `create`: open "Add product" straight away with these beans and prices (from the Planner). */
 export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false, create?: PlannerStart): void {
@@ -97,7 +100,16 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   let beans: ProductBean[] = [];
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
-  const plannerData = (): PlannerData => ({ settings, discounts, beanLots, packaging, problems: [] });
+  /** A product's beans and prices, as the planner starts with them. */
+  const plannerStartOf = (product: Product | null): PlannerStart => {
+    const form = product ? formFromProduct(product) : emptyProductForm();
+    return {
+      beans: product ? beansOf(beans, product.id).map(formFromBean) : [],
+      prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, form[PRICE_FIELDS[g]]])),
+    };
+  };
+  /** "Create product from this" opens the form once; a later reload (e.g. after a failed save) shows the list. */
+  let pendingCreate = create;
 
   function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload products'): Node[] {
     return googleErrorNodes(error, deps, {
@@ -114,7 +126,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     render(el('p', {}, busy('Loading products…')));
     // The products come first; the planner's data (packaging, discounts, lots) is extra: if it cannot be read, the
     // products are still shown, with the default VAT and discounts and a note.
-    const pricing = () => loadPlannerData(deps, (e) => deps.isSignedOut(e) || deps.isIgnorable(e), deps.describeError);
+    const pricing = () => loadPlannerData(deps);
     const all = () => Promise.all([deps.repo.load(), pricing()]);
     (fromClick ? deps.withGoogle(all) : all())
       .then(([result, found]) => {
@@ -128,7 +140,11 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         problems = [...result.problems, ...found.problems];
         const open = openId ? products.find((p) => p.id === openId && !isDeleted(p)) : undefined;
         if (open) showProduct(open, note);
-        else if (create && !note) showForm(null, create);
+        else if (pendingCreate) {
+          const plan = pendingCreate;
+          pendingCreate = undefined;
+          showForm(null, plan);
+        }
         else showList(note);
       })
       .catch((error: unknown) => {
@@ -305,11 +321,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const confirm = el('div', {});
     const normal = () => {
       confirm.replaceChildren();
-      const tryIt = () => {
-        const initialForm = formFromProduct(product);
-        deps.openPlanner({ beans: beansOf(beans, product.id).map(formFromBean), prices: { 250: initialForm.price250, 500: initialForm.price500, 1000: initialForm.price1000 } });
-      };
-      actions.replaceChildren(button('Try in Planner', tryIt, 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
+      actions.replaceChildren(button('Try in Planner', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
     };
     const ask = () => {
       const no = button('No', normal, 'secondary');
@@ -386,10 +398,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   function showForm(product: Product | null, startFrom?: PlannerStart): void {
     deps.formOpened();
     const initial = product ? formFromProduct(product) : emptyProductForm();
-    const inputs = {} as Record<(typeof TEXT_KEYS)[number], HTMLInputElement>;
-    const errorLines = {} as Record<(typeof TEXT_KEYS)[number], HTMLParagraphElement>;
+    const inputs = {} as Record<TextKey, HTMLInputElement>;
+    const errorLines = {} as Record<TextKey, HTMLParagraphElement>;
 
-    const inputFor = (key: (typeof TEXT_KEYS)[number], attrs: Record<string, string> = {}) => {
+    const inputFor = (key: TextKey, attrs: Record<string, string> = {}) => {
       const id = `product-${key}`;
       const input = el('input', { id, type: 'text', autocomplete: 'off', 'aria-describedby': `${id}-error`, ...attrs });
       input.value = initial[key];
@@ -413,16 +425,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
     // The beans and the prices: the planner, the same piece as the Planner tab (one place for both, owner 2026-11-19).
     const existingBeans = product ? beansOf(beans, product.id) : [];
-    const startWith: PlannerStart = startFrom ?? {
-      beans: existingBeans.map(formFromBean),
-      prices: { 250: initial.price250, 500: initial.price500, 1000: initial.price1000 },
-    };
-    const planner = createPlanner(plannerData(), startWith, {
+    const planner = createPlanner({ settings, beanLots, packaging }, startFrom ?? plannerStartOf(product), {
       pricesTitle: 'Main prices, with VAT',
       pricesIntro: 'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
     });
-    const beanName = (form: BeanForm, i: number) =>
-      form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
 
     const banner = el('div', { class: 'form-banner' });
     const label = product ? 'Save changes' : 'Save product';
@@ -431,8 +437,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const cancelButton = button('Cancel', back, 'secondary');
     const readForm = (): ProductForm => {
       const prices = planner.prices();
-      const text = Object.fromEntries(TEXT_KEYS.map((key) => [key, inputs[key].value])) as Pick<ProductForm, (typeof TEXT_KEYS)[number]>;
-      return { ...text, price250: prices[250], price500: prices[500], price1000: prices[1000] };
+      const text = Object.fromEntries(TEXT_KEYS.map((key) => [key, inputs[key].value])) as Pick<ProductForm, TextKey>;
+      return { ...text, ...Object.fromEntries(BAG_SIZES_G.map((g) => [PRICE_FIELDS[g], prices[g]])) } as ProductForm;
     };
 
     const showErrors = (errors: ProductFormErrors) => {
@@ -442,7 +448,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       }
       const first = TEXT_KEYS.find((key) => errors[key]);
       if (first) inputs[first].focus();
-      planner.showPriceErrors({ 250: errors.price250, 500: errors.price500, 1000: errors.price1000 }, !first);
+      planner.showPriceErrors(Object.fromEntries(BAG_SIZES_G.map((g) => [g, errors[PRICE_FIELDS[g]]])), !first);
     };
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
@@ -458,7 +464,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       const beanForms = planner.beans();
       const beanCheck = validateBeans(beanForms);
       planner.showBeanErrors(
-        beanCheck.ok ? '' : [beanCheck.shares, ...beanCheck.errors.flatMap((e, i) => Object.values(e).map((text) => `${beanName(beanForms[i] ?? beanForms[0]!, i)}: ${text}`))].filter((t) => t).join(' '),
+        beanCheck.ok ? '' : [beanCheck.shares, ...beanCheck.errors.flatMap((e, i) => Object.values(e).map((text) => `${beanName(beanForms[i] ?? beanForms[0]!, i, beanLots)}: ${text}`))].filter((t) => t).join(' '),
       );
       if (!result.ok || !beanCheck.ok) {
         showErrors(result.ok ? {} : result.errors);

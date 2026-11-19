@@ -21,6 +21,8 @@ export interface PlannerPageDeps {
   describeError: (error: unknown) => string;
   /** Opens "Add product" with these beans and prices filled in. */
   createProduct: (start: PlannerStart) => void;
+  /** The plan after each change, so Back/Forward can bring it back (it is kept only in this browser tab). */
+  remember: (plan: PlannerStart) => void;
 }
 
 /** A fresh planner: one bean to choose, no prices. */
@@ -35,7 +37,7 @@ export function showPlannerPage(root: HTMLElement, deps: PlannerPageDeps, start:
 
   function load(fromClick = false): void {
     render(el('p', {}, busy('Loading lots and packaging…')));
-    const data = () => loadPlannerData(deps, (e) => deps.isSignedOut(e) || deps.isIgnorable(e), deps.describeError);
+    const data = () => loadPlannerData(deps);
     (fromClick ? deps.withGoogle(data) : data())
       .then((found) => {
         if (!root.isConnected) return;
@@ -43,6 +45,7 @@ export function showPlannerPage(root: HTMLElement, deps: PlannerPageDeps, start:
           const planner = createPlanner(found, plan, {
             pricesTitle: 'Prices to try, with VAT',
             pricesIntro: 'Type a price to see what it earns, or click a suggestion. ',
+            onChange: deps.remember,
           });
           render(
             el('div', { class: 'page-head' }, el('h2', {}, 'Planner')),

@@ -104,7 +104,7 @@ window.addEventListener('popstate', (event) => {
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'packaging') showPackaging(info, false, 'none');
   else if (screen === 'offer') showOffer(info, false, 'none');
-  else if (screen === 'planner') showPlanner(info, undefined, false, 'none');
+  else if (screen === 'planner') showPlanner(info, lastPlan, false, 'none');
   else if (screen === 'products' || screen === 'product-form') {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
     showProducts(info, false, 'none');
@@ -455,6 +455,9 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
   );
 }
 
+/** The plan in the Planner after its last change: Back/Forward bring it back (kept only in this browser tab). */
+let lastPlan: PlannerStart | undefined;
+
 /** The Planner (owner, 2026-11-19): try beans and prices, nothing saved. `start`: e.g. a product's beans and prices. */
 function showPlanner(info: SpreadsheetInfo, start?: PlannerStart, fromClick = false, move: HistoryMove = 'push'): void {
   record('planner', move);
@@ -466,6 +469,7 @@ function showPlanner(info: SpreadsheetInfo, start?: PlannerStart, fromClick = fa
       lots: sheetLotsRepository(client, info.id),
       roasts: sheetRoastsRepository(client, info.id),
       createProduct: (plan) => showProducts(info, true, 'push', plan),
+      remember: (plan) => (lastPlan = plan),
     },
     start,
     fromClick,
