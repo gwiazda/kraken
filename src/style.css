@@ -1329,6 +1329,73 @@ details summary {
   margin-right: 0.2rem;
 }
 
+/* Products page: drag a row by its grip to change the order. */
+.order-grip {
+  width: 1.5rem;
+  padding-right: 0;
+}
+
+.drag-handle {
+  display: inline-block;
+  padding: 0.2rem 0.35rem;
+  color: var(--grey);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none; /* a finger drags the row instead of scrolling the page */
+  user-select: none;
+  border-radius: 4px;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  color: var(--lime);
+}
+
+/* While dragging: the row floats as a lifted copy; its place in the table is a dashed gap. */
+.drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  pointer-events: none;
+  background: #1d1f0a;
+  outline: 2px solid var(--lime);
+  border-radius: 6px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.75), 0 0 0 6px rgba(202, 212, 1, 0.12);
+  transform: scale(1.03) rotate(-0.6deg);
+  opacity: 0.97;
+}
+
+.drag-ghost td {
+  border-bottom: none;
+}
+
+.drag-ghost .drag-handle {
+  color: var(--lime);
+}
+
+.drag-ghost-settle {
+  transition: top 150ms ease, transform 150ms ease;
+  transform: none;
+}
+
+tr.drag-gap > td {
+  color: transparent; /* plain text in a cell (origin, prices) */
+  background: rgba(202, 212, 1, 0.06);
+  border-top: 2px dashed var(--lime);
+  border-bottom: 2px dashed var(--lime);
+}
+
+tr.drag-gap > td > * {
+  visibility: hidden;
+}
+
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
 .offer-order input[type='checkbox'],
 .offer-choices input[type='checkbox'] {
   accent-color: var(--lime);

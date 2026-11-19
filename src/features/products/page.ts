@@ -18,6 +18,8 @@ import {
   emptyProductForm,
   formFromProduct,
   isDeleted,
+  withOrder,
+  movedOrder,
   sortProducts,
   validateProductForm,
   type Product,
@@ -27,6 +29,7 @@ import {
 } from './model';
 import { beansOf, formFromBean, validateBeans, type ProductBean } from './modelBeans';
 import { costing, priceRows, productDetails, type Costing } from './present';
+import { orderSaves } from './orderSaves';
 import { MARGIN_TIP, costsBySize, pricesTable } from './priceTable';
 import { beanName, createPlanner, loadPlannerData, type PlannerStart } from './planner';
 import type { ProductsRepository } from './repo';
@@ -92,6 +95,35 @@ const TEXT_KEYS: readonly TextKey[] = SECTIONS.flatMap((s) => s.fields.map((f) =
 /** `create`: open "Add product" straight away with these beans and prices (from the Product planner). */
 export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false, create?: PlannerStart): void {
   let products: Product[] = [];
+  /** The products as last read from or saved to the sheet (the order shown may be ahead of it while saving). */
+  let stored: Product[] = [];
+  /** The small "Saving the order…" / "Order saved." line on the list (not in the page when the list is not shown). */
+  let orderNote: HTMLElement | null = null;
+  /** A failed order save that happened while the list was not shown: told the next time it is. */
+  let orderProblem = '';
+  /** The order saves in the background, one after another (orderSaves.ts). */
+  const saves = orderSaves({
+    stored: () => stored,
+    write: (changes) => deps.repo.savePositions(changes, deps.now()),
+    saved: (fresh) => {
+      const byId = new Map(fresh.map((p) => [p.id, p]));
+      stored = stored.map((p) => byId.get(p.id) ?? p);
+      // The fresh copies, keeping the order shown (a later move may already be on screen).
+      products = products.map((p) => {
+        const f = byId.get(p.id);
+        return f ? { ...f, position: p.position } : p;
+      });
+    },
+  });
+  /**
+   * Back and the menu wait while anything is being saved. Counted, so one save finishing never unlocks them while
+   * another (e.g. the order in the background) is still running.
+   */
+  let busyCount = 0;
+  const setBusy = (on: boolean) => {
+    busyCount += on ? 1 : -1;
+    if (busyCount === (on ? 1 : 0)) deps.busy(on);
+  };
   let problems: string[] = [];
   let settings: CostSettings = DEFAULT_SETTINGS;
   let discounts: Discount[] = activeDiscounts([]).discounts;
@@ -125,6 +157,13 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Loads everything, then shows the list, or the product `openId` (after saving it). */
   function load(note?: string, fromClick = false, openId?: string): void {
     render(el('p', {}, busy('Loading products…')));
+    // Never read the sheet while the order is being saved: the read could miss it and show the old order.
+    if (saves.running > 0) {
+      void saves.idle().then(() => {
+        if (root.isConnected) load(note, false, openId);
+      });
+      return;
+    }
     // The products come first; the planner's data (packaging, discounts, lots) is extra: if it cannot be read, the
     // products are still shown, with the default VAT and discounts and a note.
     const pricing = () => loadPlannerData(deps);
@@ -133,6 +172,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       .then(([result, found]) => {
         if (!root.isConnected) return;
         products = result.products;
+        stored = result.products;
         settings = found.settings;
         discounts = found.discounts;
         beanLots = found.beanLots;
@@ -162,10 +202,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Delete or Restore, inside the click (so a sign-in renewal can open Google's window). `progress` shows the spinner. */
   function change(product: Product, kind: 'remove' | 'restore', progress: () => void): void {
     progress();
-    deps.busy(true);
+    setBusy(true);
     deps
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(product, deps.now()) : deps.repo.restore(product, deps.now())))
-      .finally(() => deps.busy(false))
+      .finally(() => setBusy(false))
       .then(() => {
         if (root.isConnected) load(kind === 'remove' ? `Deleted ${product.name}. It can be restored under "Deleted products".` : `Restored ${product.name}.`);
       })
@@ -179,10 +219,173 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       });
   }
 
+  /**
+   * A product dragged (or moved with the arrow keys) to place `to` on the list (owner, 2026-11-20: no reload, no
+   * locked page): the new order shows at once and is saved in the background (orderSaves.ts), with a small note.
+   * Started inside the drop or key press, so a sign-in renewal can open Google's window. If a save fails, the list
+   * goes back to the order last saved and says why. `focus`: put the keyboard focus back on the moved product's grip.
+   */
+  function move(productId: string, to: number, focus = false): void {
+    const before = sortProducts(products).filter((p) => !isDeleted(p)).map((p) => p.id);
+    const order = movedOrder(before, productId, to);
+    if (order.every((id, i) => id === before[i])) return showList();
+    products = withOrder(products, order);
+    showList();
+    if (focus) root.querySelector<HTMLElement>(`[data-grip="${CSS.escape(productId)}"]`)?.focus();
+    setBusy(true);
+    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
+    void saves.save(order, deps.withGoogle).then((result) => {
+      setBusy(false);
+      if (result.kind === 'saved') {
+        if (orderNote?.isConnected && saves.running === 0) orderNote.textContent = 'Order saved.';
+        return;
+      }
+      if (result.kind === 'skipped') return; // the failed save before it already went back and said why
+      products = stored; // back to the order last saved
+      const error = result.error;
+      if (!orderNote?.isConnected) {
+        orderProblem = deps.isIgnorable(error) ? 'The order was not saved.' : `The order was not saved: ${deps.describeError(error)}`;
+        return;
+      }
+      if (deps.isIgnorable(error)) return showList('The order was not saved.');
+      const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Sign in and reload products', show, true, 'Reload products'));
+      show(error);
+    });
+  }
+
+  /** Opens a product from the list; while the order is being saved, first waits for it (a second or so). */
+  function openFromList(product: Product): void {
+    if (saves.running === 0) return showProduct(product);
+    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
+    void saves.idle().then((ok) => {
+      // Only if it worked and the list is still shown: a failed save shows its message instead.
+      if (ok && orderNote?.isConnected) showProduct(products.find((p) => p.id === product.id) ?? product);
+    });
+  }
+
+  /**
+   * Drags a table row (owner, 2026-11-20: "make it striking that I am dragging"): the row lifts off as a floating
+   * copy with a shadow that follows the pointer (mouse or finger), a dashed gap shows where it will land, and the
+   * other rows slide out of the way. Near the top or bottom of the window the page scrolls. On release the copy
+   * settles into the gap and `drop` gets the new place (0 = first); Escape or a cancelled touch puts it back.
+   * Listened to on the whole window: moving the row in the page ends the browser's pointer capture.
+   */
+  function dragRow(tr: HTMLTableRowElement, body: HTMLElement, start: PointerEvent, drop: (to: number) => void): void {
+    const pointer = start.pointerId;
+    const box = tr.getBoundingClientRect();
+    const grabY = start.clientY - box.top;
+
+    // The floating copy: the same cells at the same widths, in a table of its own.
+    const copy = tr.cloneNode(true) as HTMLTableRowElement;
+    [...tr.cells].forEach((cell, i) => {
+      const twin = copy.cells[i];
+      if (twin) twin.style.width = `${cell.getBoundingClientRect().width}px`;
+    });
+    const ghost = el('table', { class: 'data-table product-table drag-ghost', 'aria-hidden': 'true' }, el('tbody', {}, copy));
+    ghost.style.left = `${box.left}px`;
+    ghost.style.top = `${box.top}px`;
+    ghost.style.width = `${box.width}px`;
+    document.body.append(ghost);
+    tr.classList.add('drag-gap');
+    document.body.classList.add('is-dragging');
+
+    let lastY = start.clientY;
+    let scrolling = 0;
+    const place = () => {
+      ghost.style.top = `${lastY - grabY}px`;
+      // The gap goes before the first other row whose middle is below the middle of the floating copy.
+      const middle = lastY - grabY + box.height / 2;
+      const others = [...body.children].filter((r) => r !== tr);
+      const before = others.find((r) => {
+        const b = r.getBoundingClientRect();
+        return middle < b.top + b.height / 2;
+      }) ?? null;
+      if (tr.nextElementSibling === before) return;
+      // Slide: remember where each row was, move the gap, then let each row glide from its old place to the new one.
+      const rows = [...body.children] as HTMLElement[];
+      const was = new Map(rows.map((r) => [r, r.getBoundingClientRect().top]));
+      body.insertBefore(tr, before);
+      for (const r of rows) {
+        if (r === tr) continue;
+        const shift = (was.get(r) ?? 0) - r.getBoundingClientRect().top;
+        if (shift === 0) continue;
+        r.style.transition = 'none';
+        r.style.transform = `translateY(${shift}px)`;
+        requestAnimationFrame(() => {
+          r.style.transition = 'transform 150ms ease';
+          r.style.transform = '';
+        });
+      }
+    };
+    const autoScroll = () => {
+      const edge = 60;
+      const speed = lastY < edge ? -12 : lastY > window.innerHeight - edge ? 12 : 0;
+      if (speed !== 0) {
+        window.scrollBy(0, speed);
+        place();
+      }
+      scrolling = requestAnimationFrame(autoScroll);
+    };
+    scrolling = requestAnimationFrame(autoScroll);
+
+    const follow = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      lastY = e.clientY;
+      place();
+    };
+    const end = () => {
+      cancelAnimationFrame(scrolling);
+      window.removeEventListener('pointermove', follow);
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', escape);
+      document.body.classList.remove('is-dragging');
+      for (const r of body.children) (r as HTMLElement).style.transform = '';
+    };
+    const release = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      if (!tr.isConnected) {
+        // The list was redrawn during the drag (e.g. an earlier save failed and went back): drop nothing.
+        end();
+        ghost.remove();
+        return;
+      }
+      end();
+      // Settle the copy into the gap, then save (inside the release, so a sign-in window may open).
+      const target = tr.getBoundingClientRect();
+      ghost.classList.add('drag-ghost-settle');
+      ghost.style.top = `${target.top}px`;
+      const to = [...body.children].indexOf(tr);
+      setTimeout(() => {
+        ghost.remove();
+        tr.classList.remove('drag-gap');
+      }, 160);
+      drop(to);
+    };
+    const putBack = () => {
+      end();
+      ghost.remove();
+      showList();
+    };
+    const cancel = (e: PointerEvent) => {
+      if (e.pointerId === pointer) putBack();
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') putBack();
+    };
+    window.addEventListener('pointermove', follow);
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', escape);
+  }
+
   // ---- The list ----
 
   function showList(note?: string, error?: Node[]): void {
     deps.formClosed();
+    orderNote = el('span', { class: 'muted small order-note', role: 'status' }, saves.running > 0 ? busy('Saving the order…') : '');
+    const shownProblem = orderProblem;
+    orderProblem = '';
     const sorted = sortProducts(products);
     const active = sorted.filter((p) => !isDeleted(p));
     const deleted = sorted.filter(isDeleted);
@@ -192,8 +395,25 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     };
     const origin = (p: Product) => [p.country, p.region].filter((t) => t).join(', ');
 
-    const row = (p: Product, restorable: boolean) => {
+    const row = (p: Product, restorable: boolean, index: number) => {
       const actions = el('td', { class: 'row-actions nowrap' });
+      /** The grip: drag it (mouse or finger) to another row, or focus it and press ↑ / ↓. */
+      const grip = () => {
+        const handle = el('span', { class: 'drag-handle', 'data-grip': p.id, tabindex: '0', role: 'button', 'aria-label': `Move ${p.name}: drag, or press the up and down arrow keys`, title: 'Drag to change the order' }, '⠿');
+        handle.addEventListener('keydown', (event) => {
+          if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+          event.preventDefault();
+          move(p.id, index + (event.key === 'ArrowUp' ? -1 : 1), true);
+        });
+        handle.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          const tr = handle.closest('tr');
+          const body = tr?.parentElement;
+          if (tr && body) dragRow(tr, body, event, (to) => move(p.id, to));
+        });
+        return el('td', { class: 'order-grip' }, handle);
+      };
       if (restorable) {
         const restore = () =>
           change(p, 'restore', () => {
@@ -205,10 +425,11 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       return el(
         'tr',
         restorable ? { class: 'row-deleted' } : {},
+        ...(restorable ? [] : [grip()]),
         el(
           'td',
           {},
-          restorable ? el('span', {}, p.name) : button(p.name, () => showProduct(p), 'link'),
+          restorable ? el('span', {}, p.name) : button(p.name, () => openFromList(p), 'link'),
           ...(p.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, p.brewMethod)] : []),
           ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : []),
         ),
@@ -231,21 +452,30 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             el(
               'tr',
               {},
+              ...(restorable ? [] : [el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Order'))]),
               el('th', { scope: 'col' }, 'Product'),
               el('th', { scope: 'col' }, 'Origin'),
               ...BAG_SIZES_G.map((g) => el('th', { scope: 'col', class: 'num' }, formatBagSize(g))),
               ...(restorable ? [el('th', { scope: 'col' }, '')] : []),
             ),
           ),
-          el('tbody', {}, ...list.map((p) => row(p, restorable))),
+          el('tbody', {}, ...list.map((p, i) => row(p, restorable, i))),
         ),
       );
 
     render(
       el('div', { class: 'page-head' }, el('h2', {}, 'Products'), el('div', { class: 'head-actions' }, button('Add product', () => showForm(null)))),
-      el('p', { class: 'muted small' }, 'Main prices, gross (retail). Click a product to see its wholesale prices.'),
+      el(
+        'p',
+        { class: 'muted small' },
+        'Main prices, gross (retail). Click a product to see its wholesale prices. ',
+        infoTip('Drag a product by its ⠿ to set the order of your products. The Offer uses the same order (you can still change it there for one offer), and so do the lists on other pages. New products go to the end.'),
+        ' ',
+        orderNote,
+      ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
+      ...(shownProblem ? [message(shownProblem, 'error')] : []),
       ...problems.map((text) => message(text, 'error')),
       ...active.filter((p) => p.problems.length > 0).map((p) => message(p.problems.join(' '), 'error')),
       active.length === 0 ? el('p', { class: 'muted' }, 'No products yet. Click "Add product".') : table(active, false),
@@ -462,7 +692,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       showErrors({});
       banner.replaceChildren();
       setBusy(true);
-      deps.busy(true);
+      setBusy(true);
       deps
         .withGoogle(async () => {
           // Who is signed in is asked once per save (a new product and new beans both need it).
@@ -485,7 +715,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           await deps.repo.saveBeans(savedId, beanCheck.fields, beansOf(fresh.beans, savedId), by, deps.now());
           return savedId;
         })
-        .finally(() => deps.busy(false))
+        .finally(() => setBusy(false))
         .then((id) => {
           if (root.isConnected) load(`Saved ${result.fields['name'] ?? ''}.`, false, id);
         })

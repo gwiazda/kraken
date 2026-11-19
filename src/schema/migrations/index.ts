@@ -10,5 +10,6 @@ import { addDiscounts } from './007-add-discounts';
 import { addProductBeans } from './008-add-product-beans';
 import { addClients } from './009-add-clients';
 import { addSales } from './010-add-sales';
+import { addProductPosition } from './011-add-product-position';
 
-export const MIGRATIONS: readonly Migration[] = [addLots, addRoasts, addCosts, addPriceList, addProducts, addDiscounts, addProductBeans, addClients, addSales];
+export const MIGRATIONS: readonly Migration[] = [addLots, addRoasts, addCosts, addPriceList, addProducts, addDiscounts, addProductBeans, addClients, addSales, addProductPosition];

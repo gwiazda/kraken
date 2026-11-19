@@ -46,7 +46,7 @@ describe('the real migration list', () => {
   });
 
   it('never adds the same tab twice, and every tab has the data-safety columns', () => {
-    const steps = MIGRATIONS.flatMap((m) => m.steps);
+    const steps = MIGRATIONS.flatMap((m) => m.steps).flatMap((s) => (s.kind === 'add-tab' ? [s] : []));
     const tabs = steps.map((s) => s.tab);
     expect(new Set(tabs).size).toBe(tabs.length);
     expect(tabs).not.toContain(META_TAB);
@@ -214,10 +214,48 @@ describe('version 10', () => {
 
   it('updates a version 9 sheet with the two tabs, keeping the data', async () => {
     const google = sheetAt(9, [{ title: 'Clients', sheetId: 3, rows: [['id', 'name'], ['C1', 'Café Nowa']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 9), appVersion: 10 });
     expect(result.toVersion).toBe(10);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Clients', 'Sales', 'Sale lines']);
     expect(tab(google, 'Clients')?.rows).toEqual([['id', 'name'], ['C1', 'Café Nowa']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '10']);
+  });
+});
+
+describe('version 11', () => {
+  const productsHeader = ['id', 'name', 'country', 'region', 'altitude', 'processing', 'variety', 'flavour_profile', 'brew_method', 'price_250_gross_pln', 'price_500_gross_pln', 'price_1000_gross_pln', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
+  const product = ['P1', 'GWATEMALA', 'Gwatemala', '', '', '', '', '', '', '59', '', '', '2026-11-17T10:00:00.000Z', '2026-11-17T10:00:00.000Z', 'owner@example.com', ''];
+
+  it('adds the position column to the Products tab, agreed on 2026-11-19', () => {
+    expect(MIGRATIONS[9]?.steps).toEqual([{ kind: 'add-columns', tab: 'Products', columns: ['position'] }]);
+    expect(initialTabs(created).find((t) => t.title === 'Products')?.rows[0]).toEqual([...productsHeader, 'position']);
+  });
+
+  it('writes only the new header cell after the last column; every product row stays as it was', async () => {
+    const google = sheetAt(10, [{ title: 'Products', sheetId: 3, rows: [[...productsHeader], [...product]] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: 11 });
+    expect(result).toMatchObject({ fromVersion: 10, toVersion: 11 });
+    expect(tab(google, 'Products')?.rows).toEqual([[...productsHeader, 'position'], product]);
+    expect(writes(google).filter((r) => r.url.includes('Products'))).toHaveLength(1); // only the header cell Q1
+    expect(writes(google).some((r) => decodeURIComponent(r.url).includes("'Products'!Q1:Q1"))).toBe(true);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '11']);
+  });
+
+  it('never overwrites a column added by hand, and skips a column already there (safe to run again)', async () => {
+    const byHand = [...productsHeader, 'my notes'];
+    const google = sheetAt(10, [{ title: 'Products', sheetId: 3, rows: [[...byHand], [...product, 'roast lighter']] }]);
+    await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: 11 });
+    expect(tab(google, 'Products')?.rows).toEqual([[...byHand, 'position'], [...product, 'roast lighter']]);
+
+    const again = sheetAt(10, [{ title: 'Products', sheetId: 3, rows: [[...productsHeader, 'position'], [...product]] }]);
+    await migrateSpreadsheet(googleSheetOps(again), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: 11 });
+    expect(tab(again, 'Products')?.rows).toEqual([[...productsHeader, 'position'], product]);
+    expect(writes(again).filter((r) => r.url.includes('Products'))).toHaveLength(0);
+  });
+
+  it('stops without raising the version when the Products tab is missing', async () => {
+    const google = sheetAt(10);
+    await expect(migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: 11 })).rejects.toThrow('has no "Products" tab');
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '10']);
   });
 });

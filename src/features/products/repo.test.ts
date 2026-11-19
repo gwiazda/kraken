@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createKrakenSpreadsheet } from '../../schema';
 import { fakeGoogleDrive } from '../../testing/fakeGoogleDrive';
+import { movedOrder, positionChanges, sortProducts, type Product } from './model';
 import { beansOf } from './modelBeans';
 import { sheetProductsRepository } from './repo';
 
@@ -54,5 +55,66 @@ describe('sheetProductsRepository (in-memory Google)', () => {
     beans = beansOf(all, 'P1');
     expect(beans.map((b) => [b.position, b.lotId, b.sharePercent])).toEqual([[1, 'L1', 100]]);
     expect(all.filter((b) => b.deletedAt !== '').map((b) => b.lotId)).toEqual(['L2']); // kept, soft-deleted
+  });
+
+  it('saves the order: the first move numbers every product, later moves write only what changed', async () => {
+    const google = fakeGoogleDrive();
+    const info = await createKrakenSpreadsheet(google, now);
+    const repo = sheetProductsRepository(google, info.id);
+    for (const name of ['Burundi', 'Kenia', 'Peru']) await repo.add({ name }, 'owner@example.com', now);
+    const active = async () => sortProducts((await repo.load()).products);
+    const names = async () => (await active()).map((p) => [p.name, p.position]);
+    const ids = (list: readonly Product[]) => list.map((p) => p.id);
+    expect(await names()).toEqual([
+      ['Burundi', null],
+      ['Kenia', null],
+      ['Peru', null],
+    ]);
+
+    let list = await active();
+    const saved = await repo.savePositions(positionChanges(list, movedOrder(ids(list), list[2]?.id ?? '', 1)), later); // Peru up one
+    expect(saved.map((p) => [p.name, p.position, p.source['updated_at']])).toEqual([
+      ['Burundi', 1, later.toISOString()],
+      ['Peru', 2, later.toISOString()],
+      ['Kenia', 3, later.toISOString()],
+    ]);
+    expect(await names()).toEqual([
+      ['Burundi', 1],
+      ['Peru', 2],
+      ['Kenia', 3],
+    ]);
+    // The saved copies are the stored ones: the next move, built on them, is not refused as "changed meanwhile".
+    const second = positionChanges(saved, ['P', 'B', 'K'].map((l) => saved.find((p) => p.name.startsWith(l))?.id ?? ''));
+    expect(second.map((c) => [c.product.name, c.position])).toEqual([
+      ['Peru', 1],
+      ['Burundi', 2],
+    ]);
+    await repo.savePositions(second, later);
+    expect(await names()).toEqual([
+      ['Peru', 1],
+      ['Burundi', 2],
+      ['Kenia', 3],
+    ]);
+
+    // a new product goes to the end
+    await repo.add({ name: 'Etiopia' }, 'owner@example.com', later);
+    list = await active();
+    expect(list.map((p) => p.name)).toEqual(['Peru', 'Burundi', 'Kenia', 'Etiopia']);
+
+    // a deleted product, restored, goes to the end too (its old place 2 now belongs to Burundi)
+    const peru = list[0];
+    if (!peru) throw new Error('setup');
+    await repo.remove(peru, later);
+    list = await active();
+    await repo.savePositions(positionChanges(list, list.filter((p) => p.deletedAt === '').map((p) => p.id)), later);
+    const deleted = (await repo.load()).products.find((p) => p.name === 'Peru');
+    if (!deleted) throw new Error('setup');
+    await repo.restore(deleted, later);
+    expect(await names()).toEqual([
+      ['Burundi', 1],
+      ['Kenia', 2],
+      ['Etiopia', 3],
+      ['Peru', null],
+    ]);
   });
 });
