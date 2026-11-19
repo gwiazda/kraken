@@ -1,21 +1,19 @@
 // The Products screen (owner, 2026-11-17/18), the one place for prices:
 // - the list: name, brew method, origin and main prices; click a name to open the product;
 // - a product's page: main (retail) gross prices and the wholesale prices at each discount, its offer details;
-// - the form: details and main gross prices, with suggested prices from a lot to click, or typed.
-// A product is named however the owner likes and is not linked to lots (a lot only gives suggestions).
+// - the form: details, and the planner (planner.ts, shared with the Planner tab): the beans it is made of and its
+//   main prices with suggestions and earnings.
 // Everything from outside comes through ProductsPageDeps (main.ts provides it).
 
-import { formatPln, formatWholePln, parseMoney } from '../../core/numbers';
+import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
-import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
+import { DEFAULT_SETTINGS, activeDiscounts, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import {
   BREW_METHODS,
-  PRICE_FIELDS as PRICE_KEYS,
   changedProductFields,
   emptyProductForm,
   formFromProduct,
@@ -25,9 +23,11 @@ import {
   type Product,
   type ProductForm,
   type ProductFormErrors,
+  PRICE_FIELDS,
 } from './model';
-import { beansOf, formFromBean, validateBeans, type BeanForm, type ProductBean } from './modelBeans';
+import { beansOf, formFromBean, validateBeans, type ProductBean } from './modelBeans';
 import { costing, discountHeader, priceRows, productDetails, type Costing, type PriceCell } from './present';
+import { beanName, createPlanner, loadPlannerData, type PlannerStart } from './planner';
 import type { ProductsRepository } from './repo';
 
 export interface ProductsPageDeps {
@@ -49,10 +49,15 @@ export interface ProductsPageDeps {
   formClosed: () => void;
   /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
   busy: (on: boolean) => void;
+  /** Opens the Planner with these beans and prices (a copy: the product is not changed). */
+  openPlanner: (start: PlannerStart) => void;
 }
 
+/** The text fields of the form; the prices are in the planner. */
+type TextKey = Exclude<keyof ProductForm, (typeof PRICE_FIELDS)[BagSize]>;
+
 interface FieldSpec {
-  key: keyof ProductForm;
+  key: TextKey;
   label: string;
   hint?: string;
   required?: boolean;
@@ -81,9 +86,10 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   },
 ];
 
-const FIELD_KEYS: readonly (keyof ProductForm)[] = [...SECTIONS.flatMap((s) => s.fields.map((f) => f.key)), ...BAG_SIZES_G.map((g) => PRICE_KEYS[g])];
+const TEXT_KEYS: readonly TextKey[] = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
 
-export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false): void {
+/** `create`: open "Add product" straight away with these beans and prices (from the Planner). */
+export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false, create?: PlannerStart): void {
   let products: Product[] = [];
   let problems: string[] = [];
   let settings: CostSettings = DEFAULT_SETTINGS;
@@ -94,6 +100,16 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   let beans: ProductBean[] = [];
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
+  /** A product's beans and prices, as the planner starts with them. */
+  const plannerStartOf = (product: Product | null): PlannerStart => {
+    const form = product ? formFromProduct(product) : emptyProductForm();
+    return {
+      beans: product ? beansOf(beans, product.id).map(formFromBean) : [],
+      prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, form[PRICE_FIELDS[g]]])),
+    };
+  };
+  /** "Create product from this" opens the form once; a later reload (e.g. after a failed save) shows the list. */
+  let pendingCreate = create;
 
   function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload products'): Node[] {
     return googleErrorNodes(error, deps, {
@@ -108,20 +124,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Loads everything, then shows the list, or the product `openId` (after saving it). */
   function load(note?: string, fromClick = false, openId?: string): void {
     render(el('p', {}, busy('Loading products…')));
-    // The products come first; the settings and suggestions (cost tabs, lots, roasts) are extras: if they cannot be
-    // read, the products are still shown, with the default VAT and discounts and a note.
-    const pricing = () =>
-      Promise.all([deps.costs.load(), deps.lots.load(), deps.roasts.load()]).then(
-        ([costs, lots, roasts]) => {
-          const found = pricingFor(costs, lots.lots, roasts.roasts);
-          return { ...found, problems: [...costs.problems, ...found.problems] };
-        },
-        (error: unknown) => {
-          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          const problem = `The packaging, discounts and lots could not be read (${deps.describeError(error)}); the default VAT and discounts are used.`;
-          return { settings: DEFAULT_SETTINGS, discounts: activeDiscounts([]).discounts, lots: [] as BeanLot[], packaging: new Map<number, number | null>(), problems: [problem] };
-        },
-      );
+    // The products come first; the planner's data (packaging, discounts, lots) is extra: if it cannot be read, the
+    // products are still shown, with the default VAT and discounts and a note.
+    const pricing = () => loadPlannerData(deps);
     const all = () => Promise.all([deps.repo.load(), pricing()]);
     (fromClick ? deps.withGoogle(all) : all())
       .then(([result, found]) => {
@@ -129,12 +134,17 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         products = result.products;
         settings = found.settings;
         discounts = found.discounts;
-        beanLots = found.lots;
+        beanLots = found.beanLots;
         packaging = found.packaging;
         beans = result.beans;
         problems = [...result.problems, ...found.problems];
         const open = openId ? products.find((p) => p.id === openId && !isDeleted(p)) : undefined;
         if (open) showProduct(open, note);
+        else if (pendingCreate) {
+          const plan = pendingCreate;
+          pendingCreate = undefined;
+          showForm(null, plan);
+        }
         else showList(note);
       })
       .catch((error: unknown) => {
@@ -311,7 +321,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const confirm = el('div', {});
     const normal = () => {
       confirm.replaceChildren();
-      actions.replaceChildren(button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
+      actions.replaceChildren(button('Try in Planner', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
     };
     const ask = () => {
       const no = button('No', normal, 'secondary');
@@ -384,13 +394,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   // ---- The form ----
 
-  function showForm(product: Product | null): void {
+  /** Adds (`product` null) or edits a product. `startFrom`: beans and prices brought from the Planner. */
+  function showForm(product: Product | null, startFrom?: PlannerStart): void {
     deps.formOpened();
     const initial = product ? formFromProduct(product) : emptyProductForm();
-    const inputs = {} as Record<keyof ProductForm, HTMLInputElement>;
-    const errorLines = {} as Record<keyof ProductForm, HTMLParagraphElement>;
+    const inputs = {} as Record<TextKey, HTMLInputElement>;
+    const errorLines = {} as Record<TextKey, HTMLParagraphElement>;
 
-    const inputFor = (key: keyof ProductForm, attrs: Record<string, string> = {}) => {
+    const inputFor = (key: TextKey, attrs: Record<string, string> = {}) => {
       const id = `product-${key}`;
       const input = el('input', { id, type: 'text', autocomplete: 'off', 'aria-describedby': `${id}-error`, ...attrs });
       input.value = initial[key];
@@ -412,290 +423,32 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
     };
 
-    // ---- The beans: up to 3, each a lot or a planned bean. Their shares are set on one bar: drag the divider between
-    // two colours, or type a percentage (owner, 2026-11-19: easier than one slider per bean). ----
+    // The beans and the prices: the planner, the same piece as the Planner tab (one place for both, owner 2026-11-19).
     const existingBeans = product ? beansOf(beans, product.id) : [];
-    // A bean whose lot is no longer on the Lots page starts empty, so the form asks to choose another (never saves it).
-    let beanForms: BeanForm[] = existingBeans.map(formFromBean).map((f) => (f.kind === 'lot' && f.lotId !== '' && !beanLots.some((l) => l.lotId === f.lotId) ? { ...f, lotId: '' } : f));
-    const beansHolder = el('div', { class: 'beans' });
-    const beansError = el('p', { class: 'field-error', role: 'alert' });
-    const splitHolder = el('div', { class: 'split-holder' });
-    /** The parts of the bar, its dividers and the typed percentages, updated in place while dragging (keeps focus). */
-    let parts: HTMLElement[] = [];
-    let dividers: HTMLInputElement[] = [];
-    let shareInputs: HTMLInputElement[] = [];
-    let legendNames: HTMLElement[] = [];
-
-    const beanName = (form: BeanForm, i: number) =>
-      form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
-    const shares = () => beanForms.map((f) => f.sharePercent);
-    const applyShares = (next: readonly number[]) =>
-      next.forEach((share, k) => {
-        const f = beanForms[k];
-        if (f) f.sharePercent = share;
-      });
-
-    const showSplit = () => {
-      const at = dividersOf(shares());
-      beanForms.forEach((form, i) => {
-        const part = parts[i];
-        if (part) {
-          part.style.flex = String(form.sharePercent);
-          part.textContent = form.sharePercent >= 8 ? `${form.sharePercent} %` : '';
-        }
-        const input = shareInputs[i];
-        if (input && document.activeElement !== input) input.value = String(form.sharePercent);
-        const name = legendNames[i];
-        if (name) name.textContent = beanName(form, i);
-      });
-      dividers.forEach((d, k) => (d.value = String(at[k] ?? 0)));
-    };
-
-    const renderSplit = () => {
-      parts = [];
-      dividers = [];
-      shareInputs = [];
-      legendNames = [];
-      if (beanForms.length < 2) {
-        splitHolder.replaceChildren(...(beanForms.length === 1 ? [el('p', { class: 'muted small' }, 'One bean: it is 100 % of the bag. Add another to make a blend.')] : []));
-        return;
-      }
-      const bar = el('div', { class: 'split-bar', 'aria-hidden': 'true' });
-      parts = beanForms.map((_, i) => el('span', { class: `split-part bean-colour-${i + 1}` }));
-      bar.append(...parts);
-      dividers = dividersOf(shares()).map((_, k) => {
-        const range = el('input', { type: 'range', min: '0', max: '100', step: '1', class: 'split-divider', 'aria-label': `Divider between bean ${k + 1} and bean ${k + 2}` });
-        range.addEventListener('input', () => {
-          applyShares(moveDivider(shares(), k, Number(range.value)));
-          showSplit();
-          update();
-        });
-        return range;
-      });
-      const legend = el(
-        'div',
-        { class: 'split-legend' },
-        ...beanForms.map((_, i) => {
-          const input = el('input', { type: 'text', inputmode: 'numeric', class: 'split-input', id: `bean-${i}-share`, autocomplete: 'off' });
-          input.addEventListener('input', () => {
-            const value = Number(input.value.trim());
-            if (input.value.trim() === '' || !Number.isInteger(value)) return;
-            applyShares(typeShare(shares(), i, value));
-            showSplit();
-            update();
-          });
-          input.addEventListener('blur', showSplit); // shows the share as kept (e.g. after typing more than allowed)
-          shareInputs.push(input);
-          const name = el('span', { class: 'split-name' });
-          legendNames.push(name);
-          return el('label', { class: 'split-item', for: input.id }, el('span', { class: `dot bean-colour-${i + 1}` }), name, input, '%');
-        }),
-      );
-      splitHolder.replaceChildren(el('div', { class: 'split' }, bar, ...dividers), legend);
-      showSplit();
-    };
-
-    const renderBeans = () => {
-      beansHolder.replaceChildren(
-        ...beanForms.map((form, i) => {
-          const row = el('div', { class: `bean-row bean-${i + 1}` });
-          const kind = el('select', { id: `bean-${i}-kind`, 'aria-label': `Bean ${i + 1}: where it comes from` });
-          kind.append(el('option', { value: 'lot' }, 'A lot from Lots'), el('option', { value: 'planned' }, 'A planned bean (not bought yet)'));
-          kind.value = form.kind;
-          kind.addEventListener('change', () => {
-            form.kind = kind.value === 'planned' ? 'planned' : 'lot';
-            renderBeans();
-            update();
-          });
-          const what: Node[] = [];
-          if (form.kind === 'lot') {
-            const lot = el('select', { id: `bean-${i}-lot`, 'aria-label': `Bean ${i + 1}: lot` });
-            lot.append(el('option', { value: '' }, 'Choose a lot…'));
-            for (const l of beanLots) lot.append(el('option', { value: l.lotId }, `${l.label} · ${l.greenPerKg === null ? 'no price yet' : `${formatPln(Math.round(l.greenPerKg))} per kg`}`));
-            lot.value = form.lotId;
-            lot.addEventListener('change', () => {
-              form.lotId = lot.value;
-              showSplit();
-              update();
-            });
-            what.push(lot);
-          } else {
-            const input = (key: 'plannedName' | 'plannedPrice' | 'plannedLoss', label: string, attrs: Record<string, string>) => {
-              const node = el('input', { id: `bean-${i}-${key}`, type: 'text', autocomplete: 'off', ...attrs });
-              node.value = form[key];
-              node.addEventListener('input', () => {
-                form[key] = node.value;
-                if (key === 'plannedName') showSplit();
-                update();
-              });
-              return el('label', { class: 'bean-field', for: node.id }, el('span', { class: 'bean-field-label' }, label), node);
-            };
-            what.push(
-              input('plannedName', 'Name', { placeholder: 'e.g. Etiopia offer' }),
-              input('plannedPrice', 'Price per kg (zł)', { inputmode: 'decimal', class: 'input-money', placeholder: 'e.g. 52,50' }),
-              input('plannedLoss', 'Roast loss %', { inputmode: 'decimal', class: 'input-short', placeholder: String(settings.defaultLossTenths / 10).replace('.', ',') }),
-              infoTip('The price you were quoted for 1 kg of green beans, with delivery and without VAT. Leave the roast loss empty to use your usual one.'),
-            );
-          }
-          const remove = button(
-            'Remove',
-            () => {
-              const removed = beanForms[i]?.sharePercent ?? 0;
-              beanForms = beanForms.filter((_, k) => k !== i);
-              const tail = beanForms[beanForms.length - 1];
-              if (tail) tail.sharePercent += removed; // its share goes to the last bean, so the total stays 100 %
-              if (beanForms.length === 1 && beanForms[0]) beanForms[0].sharePercent = 100;
-              renderBeans();
-              update();
-            },
-            'link',
-          );
-          row.append(el('div', { class: 'bean-head' }, el('span', { class: `dot bean-colour-${i + 1}` }), el('strong', {}, `Bean ${i + 1}`), kind, remove), el('div', { class: 'bean-what' }, ...what));
-          return row;
-        }),
-        ...(beanForms.length < MAX_BEANS
-          ? [
-              button(
-                beanForms.length === 0 ? 'Choose a bean' : 'Add another bean',
-                () => {
-                  const even = evenShares(beanForms.length + 1);
-                  const added: BeanForm = { kind: 'lot', lotId: '', plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: 0 };
-                  beanForms = [...beanForms, added].map((f, k): BeanForm => ({ ...f, sharePercent: even[k] ?? 0 }));
-                  renderBeans();
-                  update();
-                },
-                'secondary',
-              ),
-            ]
-          : []),
-      );
-      renderSplit();
-    };
-
-    const beansSection = el(
-      'fieldset',
-      { class: 'form-section' },
-      el('legend', {}, 'Made of'),
-      el(
-        'p',
-        { class: 'muted small' },
-        `Up to ${MAX_BEANS} beans: lots you have, or a planned bean you are thinking of buying. `,
-        infoTip('Drag a white divider on the bar to change how much of the bag each bean is, or type the percentage. The shares always add up to 100 %.'),
-      ),
-      splitHolder,
-      beansHolder,
-      beansError,
-    );
-
-    // ---- Prices: one row per size, the price in zł, suggested prices to click and what the price earns ----
-    const chipHolders = new Map<BagSize, HTMLElement>();
-    const earnHolders = new Map<BagSize, HTMLElement>();
-    /** "How is this worked out?" of each size: created once, so it stays open while the shares or prices change. */
-    const howHolders = new Map<BagSize, { box: HTMLDetailsElement; list: HTMLOListElement }>();
-    const madeOfLine = el('p', { class: 'made-of' });
-    const notesHolder = el('div', {});
-    const perKgList = el('ol', { class: 'how-steps' });
-    const perKgTitle = el('summary', {});
-    const perKgBox = el('details', { class: 'how' }, perKgTitle, perKgList);
-    const summary = el('div', { class: 'costing-summary' }, madeOfLine, perKgBox, notesHolder);
-    /** The prices as typed so far (grosze), for "you earn"; a price that cannot be read yet is left out. */
-    const typedPrices = (): Partial<Record<number, number>> => {
-      const out: Partial<Record<number, number>> = {};
-      for (const grams of BAG_SIZES_G) {
-        const grosze = parseMoney(inputs[PRICE_KEYS[grams]].value);
-        if (typeof grosze === 'number' && grosze > 0) out[grams] = grosze;
-      }
-      return out;
-    };
-    const update = () => {
-      const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, typedPrices());
-      madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
-      madeOfLine.hidden = !made.madeOf;
-      perKgTitle.textContent = `Why ${made.perKg.replace(' of roasted coffee', '')}?`;
-      perKgList.replaceChildren(...made.perKgSteps.map((step) => el('li', {}, step)));
-      perKgBox.hidden = made.perKgSteps.length === 0;
-      notesHolder.replaceChildren(...made.notes.map((n) => el('p', { class: 'muted small' }, n)));
-      for (const r of made.rows) {
-        const grams = r.grams as BagSize;
-        const input = inputs[PRICE_KEYS[grams]];
-        const chips = r.suggestions.map((sug) => {
-          const value = String(sug.grosze / 100);
-          const chip = el(
-            'button',
-            { type: 'button', class: 'chip', 'aria-pressed': String(input.value.trim() === value) },
-            el('strong', {}, sug.text),
-            el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings}`),
-          );
-          chip.addEventListener('click', () => {
-            input.value = value;
-            update();
-          });
-          return chip;
-        });
-        chipHolders.get(grams)?.replaceChildren(...(chips.length > 0 ? chips : r.parts ? [el('span', { class: 'muted small' }, r.parts)] : []));
-        earnHolders.get(grams)?.replaceChildren(
-          ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
-          ...(r.cost ? [el('span', { class: 'muted small' }, ` (a bag costs you ${r.cost})`)] : []),
-        );
-        const how = howHolders.get(grams);
-        if (how) {
-          how.list.replaceChildren(...r.steps.map((step) => el('li', {}, step)));
-          how.box.hidden = r.steps.length === 0;
-        }
-      }
-    };
-    const priceRow = (grams: BagSize) => {
-      const input = inputFor(PRICE_KEYS[grams], { inputmode: 'decimal', class: 'input-money', placeholder: '—' });
-      input.addEventListener('input', update);
-      const chips = el('div', { class: 'chips' });
-      chipHolders.set(grams, chips);
-      const earn = el('div', { class: 'price-earn' });
-      earnHolders.set(grams, earn);
-      const list = el('ol', { class: 'how-steps' });
-      const box = el('details', { class: 'how' }, el('summary', {}, 'How is this worked out?'), list);
-      howHolders.set(grams, { box, list });
-      return el(
-        'div',
-        { class: 'price-row' },
-        el('label', { for: input.id, class: 'price-size' }, formatBagSize(grams)),
-        el('span', { class: 'price-input' }, input, el('span', { class: 'price-unit' }, 'zł')),
-        chips,
-        earn,
-        box,
-        errorLines[PRICE_KEYS[grams]],
-      );
-    };
-
-    const priceSection = el(
-      'fieldset',
-      { class: 'form-section' },
-      el('legend', {}, 'Main prices, with VAT'),
-      el(
-        'p',
-        { class: 'muted small' },
-        'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
-        infoTip(
-          'For 250 g, Kraken suggests two, two and a half or three times what the bag costs you, with VAT. Bigger bags follow your 250 g price: as many small bags as fit, with the packaging of one big bag. "Earns" is what is left for you after the cost of the bag, without VAT.',
-        ),
-      ),
-      summary,
-      el('div', { class: 'price-rows' }, ...BAG_SIZES_G.map(priceRow)),
-    );
+    const planner = createPlanner({ settings, beanLots, packaging }, startFrom ?? plannerStartOf(product), {
+      pricesTitle: 'Main prices, with VAT',
+      pricesIntro: 'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
+    });
 
     const banner = el('div', { class: 'form-banner' });
     const label = product ? 'Save changes' : 'Save product';
     const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
     const back = () => (product ? showProduct(product) : showList());
     const cancelButton = button('Cancel', back, 'secondary');
-    const readForm = () => Object.fromEntries(FIELD_KEYS.map((key) => [key, inputs[key].value])) as unknown as ProductForm;
+    const readForm = (): ProductForm => {
+      const prices = planner.prices();
+      const text = Object.fromEntries(TEXT_KEYS.map((key) => [key, inputs[key].value])) as Pick<ProductForm, TextKey>;
+      return { ...text, ...Object.fromEntries(BAG_SIZES_G.map((g) => [PRICE_FIELDS[g], prices[g]])) } as ProductForm;
+    };
 
     const showErrors = (errors: ProductFormErrors) => {
-      for (const key of FIELD_KEYS) {
+      for (const key of TEXT_KEYS) {
         errorLines[key].textContent = errors[key] ?? '';
         inputs[key].setAttribute('aria-invalid', errors[key] ? 'true' : 'false');
       }
-      const first = FIELD_KEYS.find((key) => errors[key]);
+      const first = TEXT_KEYS.find((key) => errors[key]);
       if (first) inputs[first].focus();
+      planner.showPriceErrors(Object.fromEntries(BAG_SIZES_G.map((g) => [g, errors[PRICE_FIELDS[g]]])), !first);
     };
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
@@ -708,10 +461,11 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
     function save(): void {
       const result = validateProductForm(readForm());
+      const beanForms = planner.beans();
       const beanCheck = validateBeans(beanForms);
-      beansError.textContent = beanCheck.ok
-        ? ''
-        : [beanCheck.shares, ...beanCheck.errors.flatMap((e, i) => Object.values(e).map((text) => `${beanName(beanForms[i] ?? beanForms[0]!, i)}: ${text}`))].filter((t) => t).join(' ');
+      planner.showBeanErrors(
+        beanCheck.ok ? '' : [beanCheck.shares, ...beanCheck.errors.flatMap((e, i) => Object.values(e).map((text) => `${beanName(beanForms[i] ?? beanForms[0]!, i, beanLots)}: ${text}`))].filter((t) => t).join(' '),
+      );
       if (!result.ok || !beanCheck.ok) {
         showErrors(result.ok ? {} : result.errors);
         banner.replaceChildren(message('Please fix what is marked below.', 'error'));
@@ -762,8 +516,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       'form',
       { class: 'lot-form', novalidate: '' },
       ...SECTIONS.map((section) => el('fieldset', { class: 'form-section' }, el('legend', {}, section.title), el('div', { class: 'fields' }, ...section.fields.map(fieldNode)))),
-      // Beans on the left, prices on the right (stays in view while the shares change); stacked on a narrow screen.
-      el('div', { class: 'costing-grid' }, el('div', { class: 'costing-beans' }, beansSection), el('div', { class: 'costing-prices' }, priceSection)),
+      planner.node,
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     formNode.addEventListener('submit', (event) => {
@@ -779,8 +532,6 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       banner,
       formNode,
     );
-    renderBeans();
-    update();
     inputs.name.focus();
   }
 

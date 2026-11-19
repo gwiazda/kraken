@@ -116,7 +116,7 @@ const TEXT_KEYS = {
 } as const satisfies Partial<Record<keyof ProductForm, string>>;
 
 /** The form field of each size's price. */
-export const PRICE_FIELDS: Readonly<Record<BagSize, keyof ProductForm>> = { 250: 'price250', 500: 'price500', 1000: 'price1000' };
+export const PRICE_FIELDS = { 250: 'price250', 500: 'price500', 1000: 'price1000' } as const satisfies Readonly<Record<BagSize, keyof ProductForm>>;
 
 const PRICE_KEYS = { price250: 250, price500: 500, price1000: 1000 } as const satisfies Partial<Record<keyof ProductForm, BagSize>>;
 

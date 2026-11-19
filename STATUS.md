@@ -5,7 +5,7 @@ _Last updated: 2026-11-18_
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 7**).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 8**).
 - **Lots:** list, add, edit, delete/restore, stock left (prices are no longer on this page).
 - **Roasts and "Sync with RoasTime"** (PR #19): lots and roasts in one step; stock left per lot (oldest delivery
   first). Roasts with no coffee, or whose coffee has no delivery in RoasTime, are samples and are not tracked.
@@ -17,10 +17,10 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Step 3: a product's beans** (branch `claude/product-beans`, data version **8**: new "Product beans" tab): up to
-  3 beans per product (lot or planned bean), share sliders, live cost of one bag, suggested prices with earnings,
-  what the typed price earns; "Cost and earnings" on the product page. Owner to test locally.
-- Done before: Packaging & discounts, lot price on Lots (PR #27).
+- **Planner tab** (branch `claude/planner`): the product form's beans-and-prices part moved into one shared piece
+  (`planner.ts`), used by the product form and the new Planner tab (nothing saved; "Try in Planner" /
+  "Create product from this"). No sheet change. Owner to test locally.
+- Done before: a product's beans (PR #28, data version 8).
 
 ## Next steps
 1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
