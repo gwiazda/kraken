@@ -19,6 +19,8 @@ import {
   formFromSale,
   isDeleted,
   linesOf,
+  choosableIds,
+  saleEditFields,
   startingInvoice,
   statusChange,
   needsInvoiceDate,
@@ -85,7 +87,15 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         lines = s.lines;
         clients = c.clients;
         products = p.products;
-        problems = [...s.problems, ...c.problems, ...s.sales.filter((x) => !isDeleted(x)).flatMap((x) => x.problems)];
+        const active = s.sales.filter((x) => !isDeleted(x));
+        const activeIds = new Set(active.map((x) => x.id));
+        problems = [
+          ...s.problems,
+          ...c.problems,
+          ...p.problems,
+          ...active.flatMap((x) => x.problems),
+          ...s.lines.filter((l) => l.deletedAt === '' && activeIds.has(l.saleId)).flatMap((l) => l.problems),
+        ];
         showList(note);
       })
       .catch((error: unknown) => {
@@ -126,8 +136,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function showList(note?: string, error?: Node[]): void {
     deps.formClosed();
-    const firstCounts = saleRows(sales, lines, 'all', clientName, productName).counts;
-    filter ??= firstCounts.to_issue > 0 ? 'to_issue' : 'all';
+    filter ??= saleRows(sales, lines, 'all', clientName, productName).counts.to_issue > 0 ? 'to_issue' : 'all';
     const { rows, counts } = saleRows(sales, lines, filter, clientName, productName);
     const deleted = sales.filter(isDeleted);
 
@@ -145,8 +154,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         extra.replaceChildren(el('td', { colspan: '8' }, ...children));
         extra.hidden = false;
       };
+      /** Puts the status dropdown back to the stored status (a date box closed without saving). */
+      let resetStatus = () => {};
       const normal = () => {
         extra.hidden = true;
+        resetStatus();
         actions.replaceChildren(button('Details', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
       };
       /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
@@ -168,10 +180,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           }
           act(statusCell, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: ${STATUS_LABELS[to].toLowerCase()}.`, () => (filter = 'all'));
         };
-        const cancel = () => {
-          select.value = sale.status ?? '';
-          normal();
-        };
+        resetStatus = () => (select.value = sale.status ?? '');
+        const cancel = normal;
         select.addEventListener('change', () => {
           const to = select.value as InvoiceStatus;
           if (!needsInvoiceDate(sale, to)) return save(to, '');
@@ -451,11 +461,13 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     let savedId: string | null = null;
 
     function save(): void {
-      const result = validateSale(
-        form,
+      const { clientIds, productIds } = choosableIds(
         clients.filter((c) => !isClientDeleted(c)).map((c) => c.id),
         products.filter((p) => !isProductDeleted(p)).map((p) => p.id),
+        sale,
+        existingLines,
       );
+      const result = validateSale(form, clientIds, productIds);
       if (!result.ok) {
         const e = result.errors;
         errorBox.replaceChildren(...[e.date, e.client, e.place, e.reason, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
@@ -472,14 +484,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           const by = async () => (email ??= await deps.whoAmI());
           if (savedId === null) {
             if (sale) {
-              // A changed kind starts its invoice again (a sample turned into a sale: "to be issued").
-              const fields = sale.kind === form.kind ? result.fields : { ...result.fields, ...startingInvoice(form.kind) };
-              const changes = changedSaleFields(sale, fields);
+              const changes = changedSaleFields(sale, saleEditFields(sale, form.kind, result.fields));
               if (Object.keys(changes).length > 0) await deps.repo.update(sale, changes, deps.now());
               savedId = sale.id;
               await deps.repo.saveLines(sale.id, result.lines, existingLines, by, deps.now());
             } else {
-              savedId = await deps.repo.add({ ...result.fields, ...startingInvoice(form.kind) }, result.lines, await by(), deps.now());
+              // The sale first, then its lines: if the lines fail, a retry saves only them (never a second sale).
+              savedId = await deps.repo.add({ ...result.fields, ...startingInvoice(form.kind) }, await by(), deps.now());
+              await deps.repo.saveLines(savedId, result.lines, [], by, deps.now());
             }
             return;
           }

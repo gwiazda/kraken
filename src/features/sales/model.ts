@@ -62,6 +62,8 @@ export interface SaleLine {
   /** Whole bags; null when the cell cannot be read. */
   readonly bags: number | null;
   readonly free: boolean;
+  /** Cells Kraken could not read, one sentence each. */
+  readonly problems: readonly string[];
   readonly deletedAt: string;
   readonly source: Fields;
 }
@@ -101,6 +103,9 @@ export function saleFromFields(fields: Fields, row: number): Sale {
 export function lineFromFields(fields: Fields, row: number): SaleLine {
   const grams = Number(text(fields, 'bag_size_g'));
   const bags = Number(text(fields, 'bags'));
+  const problems: string[] = [];
+  if (!isBagSize(grams)) problems.push(`Row ${row} of the Sale lines tab has the bag size "${text(fields, 'bag_size_g')}", which is not 250, 500 or 1000 g.`);
+  if (!(Number.isInteger(bags) && bags > 0)) problems.push(`Row ${row} of the Sale lines tab has "${text(fields, 'bags')}" bags, which is not a whole number; it is not counted.`);
   return {
     id: text(fields, 'id'),
     row,
@@ -110,6 +115,7 @@ export function lineFromFields(fields: Fields, row: number): SaleLine {
     grams: isBagSize(grams) ? grams : null,
     bags: Number.isInteger(bags) && bags > 0 ? bags : null,
     free: text(fields, 'free') === 'yes',
+    problems,
     deletedAt: text(fields, 'deleted_at'),
     source: fields,
   };
@@ -245,6 +251,32 @@ export function validateSale(
   };
 }
 
+/**
+ * The cells to write when an entry is edited (before changedSaleFields): a changed kind starts its invoice again (a
+ * sample turned into a sale: "to be issued"; a sale turned into a sample: no invoice). When the stored kind cannot
+ * be read but its invoice status can, saving it as a sale keeps that status (a paid invoice never goes back to
+ * "to be issued" because of a typo in the kind cell).
+ */
+export function saleEditFields(sale: Sale, kind: SaleKind, fields: Readonly<Record<string, string>>): Record<string, string> {
+  const storedStatus = text(sale.source, 'invoice_status');
+  const keepsInvoice = sale.kind === kind || (sale.kind === null && kind === 'sale' && Object.hasOwn(STATUS_LABELS, storedStatus));
+  return keepsInvoice ? { ...fields } : { ...fields, ...startingInvoice(kind) };
+}
+
+/**
+ * The clients and products the form accepts: the active ones, plus those the entry already uses (a client or
+ * product deleted later never stops an old entry from being edited).
+ */
+export function choosableIds(
+  activeClientIds: readonly string[],
+  activeProductIds: readonly string[],
+  sale: Sale | null,
+  existingLines: readonly SaleLine[],
+): { clientIds: string[]; productIds: string[] } {
+  const clientIds = sale?.clientId ? [...activeClientIds, sale.clientId] : [...activeClientIds];
+  return { clientIds, productIds: [...activeProductIds, ...existingLines.map((l) => l.productId).filter((id) => id !== '')] };
+}
+
 /** The invoice cells when a sale is first saved, or when its kind changes. Samples and own use have none. */
 export const startingInvoice = (kind: SaleKind): Record<string, string> =>
   kind === 'sale' ? { invoice_status: 'to_issue' } : { invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '' };
@@ -274,29 +306,6 @@ export function statusChange(sale: StatusOf, to: InvoiceStatus, date: string): {
   const invoiceDate = to === 'paid' ? knownInvoiceDate(sale) || date : date;
   if (!isValidDate(invoiceDate)) return { ok: false, error: 'Enter the date the invoice was issued.' };
   return { ok: true, fields: { invoice_status: to, invoice_date: invoiceDate } };
-}
-
-/**
- * What to write so the stored lines (`existing`, in order) become `wanted` (from validateSale): each position is
- * updated where something changed, new positions are added, lines no longer wanted are soft-deleted.
- */
-export function lineChanges(
-  existing: readonly SaleLine[],
-  wanted: readonly Record<string, string>[],
-): { updates: { line: SaleLine; changes: Record<string, string> }[]; adds: Record<string, string>[]; removes: SaleLine[] } {
-  const updates: { line: SaleLine; changes: Record<string, string> }[] = [];
-  const adds: Record<string, string>[] = [];
-  wanted.forEach((fields, i) => {
-    const line = existing[i];
-    if (!line) {
-      adds.push(fields);
-      return;
-    }
-    const changes: Record<string, string> = {};
-    for (const [column, value] of Object.entries(fields)) if (text(line.source, column) !== value) changes[column] = value;
-    if (Object.keys(changes).length > 0) updates.push({ line, changes });
-  });
-  return { updates, adds, removes: existing.slice(wanted.length) };
 }
 
 /** Only the sale's cells that differ from it as loaded (an edit writes only what changed). */

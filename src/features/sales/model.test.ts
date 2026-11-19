@@ -4,12 +4,13 @@ import {
   emptyLine,
   emptySaleForm,
   formFromSale,
-  lineChanges,
   lineFromFields,
   linesOf,
   saleFromFields,
   bagCount,
   sortSales,
+  choosableIds,
+  saleEditFields,
   startingInvoice,
   statusChange,
   needsInvoiceDate,
@@ -34,7 +35,11 @@ describe('reading sales and lines', () => {
   it('reads a sale and its lines', () => {
     expect(sale(2)).toMatchObject({ kind: 'sale', clientId: 'C1', status: 'to_issue', problems: [] });
     expect(line(3)).toMatchObject({ grams: 1000, bags: 3, free: false });
-    expect(line(4, { free: 'yes' })).toMatchObject({ free: true });
+    expect(line(4, { free: 'yes' })).toMatchObject({ free: true, problems: [] });
+    expect(line(5, { bags: '2.5', bag_size_g: '300' }).problems).toEqual([
+      'Row 5 of the Sale lines tab has the bag size "300", which is not 250, 500 or 1000 g.',
+      'Row 5 of the Sale lines tab has "2.5" bags, which is not a whole number; it is not counted.',
+    ]);
   });
 
   it('has no invoice status for a sample or own use', () => {
@@ -159,12 +164,26 @@ describe('editing', () => {
     expect(formFromSale(sale(2), [line(3)])).toMatchObject({ kind: 'sale', clientId: 'C1', lines: [{ productId: 'P1', grams: '1000', bags: '3', free: false }] });
   });
 
-  it('writes only what changed: sale cells, lines by position, new lines added, the rest soft-deleted', () => {
+  it('a changed kind starts the invoice again; an unreadable kind with a readable status keeps it', () => {
+    const fields = { date: '2026-11-19', kind: 'sale', client_id: 'C1', place: '', reason: '', notes: '' };
+    expect(saleEditFields(sale(2, { invoice_status: 'paid' }), 'sale', fields)).toEqual(fields);
+    expect(saleEditFields(sale(2, { kind: 'sample', invoice_status: '' }), 'sale', fields)).toEqual({ ...fields, invoice_status: 'to_issue' });
+    expect(saleEditFields(sale(2), 'own_use', fields)).toEqual({ ...fields, invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '' });
+    const typo = sale(2, { kind: 'Sale', invoice_status: 'paid' });
+    expect(changedSaleFields(typo, saleEditFields(typo, 'sale', fields))).toEqual({ kind: 'sale' });
+    expect(saleEditFields(sale(2, { kind: 'Sale', invoice_status: 'whatever' }), 'sale', fields)).toMatchObject({ invoice_status: 'to_issue' });
+  });
+
+  it('accepts the client and products the entry already has, even when deleted since', () => {
+    expect(choosableIds(['C1'], ['P1'], sale(2, { client_id: 'C9' }), [line(3, { product_id: 'P9' })])).toEqual({ clientIds: ['C1', 'C9'], productIds: ['P1', 'P9'] });
+    expect(choosableIds(['C1'], ['P1'], null, [])).toEqual({ clientIds: ['C1'], productIds: ['P1'] });
+    const old = sale(2, { client_id: 'C9' });
+    const { clientIds, productIds } = choosableIds(['C1'], ['P1'], old, [line(3, { product_id: 'P9' })]);
+    expect(validateSale(form({ clientId: 'C9', lines: [{ productId: 'P9', grams: '1000', bags: '2', free: false }] }), clientIds, productIds)).toMatchObject({ ok: true });
+  });
+
+  it('writes only the sale cells that changed', () => {
     const s = sale(2);
     expect(changedSaleFields(s, { date: '2026-11-19', kind: 'sale', client_id: 'C2', place: '', reason: '', notes: '' })).toEqual({ client_id: 'C2' });
-    const first = line(3);
-    const second = line(4, { position: '2' });
-    const wanted = [{ position: '1', product_id: 'P1', bag_size_g: '1000', bags: '4', unit_price_net_pln: '97.02', free: '' }]; // an old price is left as it is
-    expect(lineChanges([first, second], wanted)).toEqual({ updates: [{ line: first, changes: { bags: '4' } }], adds: [], removes: [second] });
   });
 });

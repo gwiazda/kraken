@@ -144,25 +144,3 @@ export function validateBeans(
   return { ok: true, fields };
 }
 
-/**
- * What to write so the stored beans become `wanted` (from validateBeans): the bean in each position is updated
- * where anything changed, missing positions are added, and beans no longer wanted are soft-deleted.
- */
-export function beanChanges(
-  existing: readonly ProductBean[],
-  wanted: readonly Record<string, string>[],
-): { updates: { bean: ProductBean; changes: Record<string, string> }[]; adds: Record<string, string>[]; removes: ProductBean[] } {
-  const updates: { bean: ProductBean; changes: Record<string, string> }[] = [];
-  const adds: Record<string, string>[] = [];
-  wanted.forEach((fields, i) => {
-    const bean = existing[i];
-    if (!bean) {
-      adds.push(fields);
-      return;
-    }
-    const changes: Record<string, string> = {};
-    for (const [column, value] of Object.entries(fields)) if (text(bean.source, column) !== value) changes[column] = value;
-    if (Object.keys(changes).length > 0) updates.push({ bean, changes });
-  });
-  return { updates, adds, removes: existing.slice(wanted.length) };
-}

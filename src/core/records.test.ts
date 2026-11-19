@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fakeGoogleDrive, type FakeDrive } from '../testing/fakeGoogleDrive';
-import { ConflictError, TableError, columnLetters, parseTable, planChange, rowCells, sheetRecordTable } from './records';
+import { ConflictError, TableError, childChanges, columnLetters, parseTable, planChange, rowCells, saveChildren, sheetRecordTable } from './records';
 
 const SHEET = 'fake-sheet-for-records-00001';
 const HEADERS = ['id', 'name', 'kg', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
@@ -362,5 +362,35 @@ describe('planChange', () => {
     expect(planChange(current, loaded, { name: 'Kenya Kegwa' })).toEqual({
       conflict: 'Someone changed name directly in the sheet in the meantime. Reload the page, then try again.',
     });
+  });
+});
+
+describe('children (the beans of a product, the lines of a sale)', () => {
+  const child = (id: string, fields: Record<string, string>) => ({ id, source: { id, ...fields } });
+
+  it('updates what changed by position, adds new ones and soft-deletes the rest; values compared without spaces around', () => {
+    const first = child('A', { name: 'one ', kg: '60' });
+    const second = child('B', { name: 'two', kg: '40' });
+    expect(childChanges([first, second], [{ name: 'one', kg: '70' }])).toEqual({ updates: [{ child: first, changes: { kg: '70' } }], adds: [], removes: [second] });
+    expect(childChanges([first], [{ name: 'one', kg: '60' }, { name: 'new', kg: '1' }])).toEqual({ updates: [], adds: [{ name: 'new', kg: '1' }], removes: [] });
+  });
+
+  it('saves them: new ones get the parent ID, changes are written, the rest soft-deleted; asks who only when adding', async () => {
+    const { table } = setup([[...HEADERS, 'parent_id']]);
+    let asked = 0;
+    const by = async () => (asked++, 'partner@example.com');
+    await saveChildren(table, 'parent_id', 'P1', [], [{ name: 'one', kg: '1' }, { name: 'two', kg: '2' }], by, t1);
+    let loaded = (await table.load()).records.map((r) => ({ id: r.fields['id'] ?? '', source: r.fields }));
+    expect(loaded.map((c) => [c.source['name'], c.source['parent_id'], c.source['created_by']])).toEqual([
+      ['one', 'P1', 'partner@example.com'],
+      ['two', 'P1', 'partner@example.com'],
+    ]);
+    await saveChildren(table, 'parent_id', 'P1', loaded, [{ name: 'one', kg: '5' }], by, t2);
+    loaded = (await table.load()).records.map((r) => ({ id: r.fields['id'] ?? '', source: r.fields }));
+    expect(loaded.map((c) => [c.source['kg'], c.source['deleted_at']])).toEqual([
+      ['5', ''],
+      ['2', t2.toISOString()],
+    ]);
+    expect(asked).toBe(1);
   });
 });
