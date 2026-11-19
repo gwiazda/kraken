@@ -259,8 +259,11 @@ export interface CompareRow {
   /** What one bag earns at the retail price ("earns …" / "loses …"); '' when unknown. */
   readonly earn: string;
   readonly losing: boolean;
-  /** What one bag earns at each wholesale discount, in the order given (from Packaging & discounts). */
-  readonly atDiscounts: readonly { readonly earn: string; readonly losing: boolean }[];
+  /**
+   * At each wholesale discount, in the order given (from Packaging & discounts): the price after the discount (net,
+   * whole złoty: "41 zł"; '' without a retail price) and what one bag earns at it ('' when the cost is unknown).
+   */
+  readonly atDiscounts: readonly { readonly price: string; readonly earn: string; readonly losing: boolean }[];
   /** Why something is missing, in a few words ("no beans chosen"). */
   readonly note: string;
 }
@@ -285,7 +288,10 @@ export function compareRows(
     const price = entry.prices[grams];
     const earned = cost === null || price === undefined ? null : earningsAt(price, cost, vatTenths);
     const retail = earnText(earned);
-    const atDiscounts = discounts.map((d) => earnText(cost === null || price === undefined ? null : wholesalePrice(price, d, vatTenths).net - cost));
+    const atDiscounts = discounts.map((d) => {
+      const net = price === undefined ? null : wholesalePrice(price, d, vatTenths).net;
+      return { price: net === null ? '' : formatWholePln(net), ...earnText(net === null || cost === null ? null : net - cost) };
+    });
     const note =
       entry.beans.length === 0 ? 'no beans chosen' : cost === null ? 'cost not known yet' : price === undefined ? `no ${formatBagSize(grams)} price` : '';
     return {

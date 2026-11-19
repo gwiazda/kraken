@@ -340,7 +340,7 @@ export function createPlanner(
               {},
               el('th', { scope: 'col' }, 'Product'),
               el('th', { scope: 'col', class: 'num' }, 'Cost of a bag ', infoTip('What one bag costs you: the coffee from its beans plus the packaging, without VAT.')),
-              el('th', { scope: 'col', class: 'num' }, 'Retail price'),
+              el('th', { scope: 'col', class: 'num' }, 'Retail price ', infoTip('What a shop customer pays, with VAT. The wholesale columns show the price after each discount, without VAT, and what one bag earns at it.')),
               el('th', { scope: 'col', class: 'num' }, 'You earn ', infoTip('What is left for you from one bag at the retail price: the price without VAT, minus what the bag costs.')),
               ...discounts.map((d) =>
                 el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), `−${String(d.tenths / 10).replace('.', ',')} %`),
@@ -358,7 +358,14 @@ export function createPlanner(
                 el('td', { class: 'num nowrap' }, r.cost || el('span', { class: 'muted small' }, r.note || '—')),
                 el('td', { class: 'num nowrap' }, r.price || el('span', { class: 'muted' }, '—')),
                 earnCell(r.earn, r.losing),
-                ...r.atDiscounts.map((a) => earnCell(a.earn, a.losing)),
+                ...r.atDiscounts.map((a) =>
+                  el(
+                    'td',
+                    { class: 'num nowrap' },
+                    a.price ? el('strong', { class: 'price-main' }, a.price) : el('span', { class: 'muted' }, '—'),
+                    ...(a.earn ? [el('span', { class: a.losing ? 'price-earn-line losing' : 'price-earn-line' }, a.earn)] : []),
+                  ),
+                ),
               ),
             ),
           ),

@@ -179,6 +179,15 @@ describe('compareRows (the plan next to the products)', () => {
       150,
       [150, 300],
     );
+    // At each discount: the price after it (net, whole złoty) and what a bag earns at it.
+    expect(rows[0]?.atDiscounts).toEqual([
+      { price: '41\u00a0zł', earn: 'earns 30,68\u00a0zł', losing: false },
+      { price: '34\u00a0zł', earn: 'earns 23,68\u00a0zł', losing: false },
+    ]);
+    expect(rows[2]?.atDiscounts).toEqual([
+      { price: '45\u00a0zł', earn: '', losing: false }, // Burundi: 65 zł → 45 zł at −15 % (as on the template); no beans, so no earnings
+      { price: '37\u00a0zł', earn: '', losing: false },
+    ]);
     expect(rows.map((r) => [r.name, r.isPlan, r.cost, r.price, r.earn, r.atDiscounts.map((a) => a.earn).join(' / '), r.note])).toEqual([
       // 30 zł per kg green ÷ 0,85 = 35,29 zł per kg roasted; 250 g = 8,82 zł + 1,50 zł packaging = 10,32 zł;
       // 59 zł is 47,97 zł without VAT → earns 37,64 zł; at −30 % it is 34 zł → earns 23,68 zł
