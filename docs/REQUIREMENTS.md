@@ -223,11 +223,15 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
 - **Clients** tab (built first): short name, NIP (checked: 10 digits with a valid check digit), email, registered
   name (CEIDG), wholesale discount chosen from Packaging & discounts. A name or NIP can be there only once. The owner
   adds the existing clients by hand (real client data never goes into the code or tests).
-- **Sales** tab (next): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
+- **Sales** tab (built, data version 10: "Sales" and "Sale lines" tabs): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
   number of bags; price filled in from the product and the client's discount, can be changed; a line can be free),
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag, with a reason).
   Invoice status for sales: **To be issued → Issued (date, optional number) → Paid (date)**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
+  The list opens on **Invoice to be issued** (filters: issued, paid, samples, own use, all, with counts); "Mark
+  issued" asks for the date (number optional), "Mark paid" for the date, "Undo" goes back one step. The line price
+  starts from the product's main price and the client's discount (the same rule as the product page and the offer),
+  and stops following once typed by hand. The total is shown net and with VAT.
 
 ---
 

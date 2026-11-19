@@ -1,0 +1,604 @@
+// The Sales screen (owner, 2026-11-19): what went out and the invoices to issue. Either owner adds entries: a sale
+// to a client (the invoice starts "to be issued"), a sample left somewhere, or own use. The list has filters
+// ("Invoice to be issued" first) and buttons to mark an invoice issued or paid. Prices start from the product's
+// main price and the client's discount (the same rule as on the product page and the offer) and can be changed.
+// Everything from outside comes through SalesPageDeps (main.ts provides it).
+
+import { localDate } from '../../core/dates';
+import { formatPln } from '../../core/numbers';
+import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import { grossOf } from '../../domain/prices';
+import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { googleErrorNodes } from '../../ui/googleErrors';
+import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
+import { DEFAULT_SETTINGS, readSettings, type CostsRepository } from '../costs';
+import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
+import {
+  KIND_LABELS,
+  changedSaleFields,
+  emptyLine,
+  emptySaleForm,
+  formFromSale,
+  isDeleted,
+  linesOf,
+  saleTotal,
+  startingInvoice,
+  statusChange,
+  typedBags,
+  typedPrice,
+  validateSale,
+  type LineForm,
+  type Sale,
+  type SaleForm,
+  type SaleKind,
+  type SaleLine,
+} from './model';
+import { FILTERS, lineTotalText, saleRows, suggestedPrice, type SaleRow, type SalesFilter } from './present';
+import type { SalesRepository } from './repo';
+
+export interface SalesPageDeps {
+  repo: SalesRepository;
+  clients: ClientsRepository;
+  products: ProductsRepository;
+  /** For VAT (Packaging & discounts). */
+  costs: CostsRepository;
+  whoAmI: () => Promise<string>;
+  /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
+  withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
+  signIn: () => Promise<void>;
+  isSignedOut: (error: unknown) => boolean;
+  isIgnorable: (error: unknown) => boolean;
+  describeError: (error: unknown) => string;
+  now: () => Date;
+  /** The form opened (so the browser's Back closes it) / closed. */
+  formOpened: () => void;
+  formClosed: () => void;
+  /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
+  busy: (on: boolean) => void;
+}
+
+export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: string, fromClick = false): void {
+  let sales: Sale[] = [];
+  let lines: SaleLine[] = [];
+  let clients: Client[] = [];
+  let products: Product[] = [];
+  let vatTenths = DEFAULT_SETTINGS.vatTenths;
+  let problems: string[] = [];
+  /** The filter shown; null until the first load (then "to be issued" if there is any, else all). */
+  let filter: SalesFilter | null = null;
+
+  const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
+  const today = () => localDate(deps.now());
+
+  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload sales'): Node[] {
+    return googleErrorNodes(error, deps, {
+      retry,
+      retryLabel,
+      show,
+      ...(mayHaveSaved ? {} : { signedOutNote: 'Nothing was lost.' }),
+      other: { label: mayHaveSaved ? reloadLabel : 'Try again', action: () => load(undefined, true), mayHaveSaved },
+    });
+  }
+
+  function load(note?: string, fromClick = false): void {
+    render(el('p', {}, busy('Loading sales…')));
+    // VAT is only for the gross total in the form: if it cannot be read, the usual 23 % is used, with a note.
+    const vat = () =>
+      deps.costs.load().then(
+        (costs) => readSettings(costs.settings),
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          return { settings: DEFAULT_SETTINGS, problems: [`VAT could not be read (${deps.describeError(error)}); 23 % is used.`] };
+        },
+      );
+    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), vat()]);
+    (fromClick ? deps.withGoogle(all) : all())
+      .then(([s, c, p, v]) => {
+        if (!root.isConnected) return;
+        sales = s.sales;
+        lines = s.lines;
+        clients = c.clients;
+        products = p.products;
+        vatTenths = v.settings.vatTenths;
+        problems = [...s.problems, ...c.problems, ...v.problems, ...s.sales.filter((x) => !isDeleted(x)).flatMap((x) => x.problems)];
+        showList(note);
+      })
+      .catch((error: unknown) => {
+        if (!root.isConnected || deps.isIgnorable(error)) return;
+        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Sign in and show sales', show, false));
+        show(error);
+      });
+  }
+
+  function lockPage(): void {
+    for (const node of root.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('button, input, select, textarea')) node.disabled = true;
+  }
+
+  /** Writes something about one entry from the list (status, delete, restore), inside the click; reloads after. */
+  function act(slot: HTMLElement, working: string, action: () => Promise<void>, done: string): void {
+    lockPage();
+    slot.replaceChildren(busy(working));
+    deps.busy(true);
+    deps
+      .withGoogle(action)
+      .finally(() => deps.busy(false))
+      .then(() => {
+        if (root.isConnected) load(done);
+      })
+      .catch((error: unknown) => {
+        if (!root.isConnected) return;
+        if (deps.isIgnorable(error)) return showList();
+        const show = (e: unknown) => showList(undefined, errorNodes(e, () => act(slot, working, action, done), 'Sign in and try again', show, true));
+        show(error);
+      });
+  }
+
+  const clientName = (id: string) => clients.find((c) => c.id === id)?.name;
+  const productName = (id: string) => products.find((p) => p.id === id)?.name;
+
+  // ---- The list ----
+
+  function showList(note?: string, error?: Node[]): void {
+    deps.formClosed();
+    const firstCounts = saleRows(sales, lines, 'all', clientName, productName).counts;
+    filter ??= firstCounts.to_issue > 0 ? 'to_issue' : 'all';
+    const { rows, counts } = saleRows(sales, lines, filter, clientName, productName);
+    const deleted = sales.filter(isDeleted);
+
+    const chip = (f: SalesFilter, label: string) => {
+      const b = button(`${label} (${counts[f]})`, () => ((filter = f), showList()), 'link');
+      if (f === filter) b.setAttribute('aria-current', 'true');
+      return b;
+    };
+
+    const row = (r: SaleRow) => {
+      const actions = el('td', { class: 'row-actions nowrap' });
+      const extra = el('tr', { class: 'confirm-row', hidden: '' });
+      const sale = r.sale;
+      const inline = (...children: (Node | string)[]) => {
+        extra.replaceChildren(el('td', { colspan: '7' }, ...children));
+        extra.hidden = false;
+      };
+      const normal = () => {
+        extra.hidden = true;
+        const status: Node[] = [];
+        if (sale.kind === 'sale' && sale.status === 'to_issue') status.push(button('Mark issued', markIssued, 'link'));
+        if (sale.kind === 'sale' && sale.status === 'issued') status.push(button('Mark paid', markPaid, 'link'), button('Undo', () => undo('to_issue'), 'link'));
+        if (sale.kind === 'sale' && sale.status === 'paid') status.push(button('Undo', () => undo('issued'), 'link'));
+        actions.replaceChildren(...status, button('Edit', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
+      };
+      /** A small form under the row: the date (today) and, for "issued", the invoice number. */
+      const dateForm = (label: string, withNumber: boolean, save: (date: string, number: string) => void) => {
+        const date = el('input', { type: 'date', class: 'input-short', 'aria-label': label });
+        date.value = today();
+        const number = el('input', { type: 'text', class: 'input-money', placeholder: 'e.g. FV 12/11/2026', 'aria-label': 'Invoice number (optional)', autocomplete: 'off' });
+        const errorLine = el('span', { class: 'field-error', role: 'alert' });
+        const form = el(
+          'form',
+          { class: 'inline-form', novalidate: '' },
+          el('span', {}, label),
+          date,
+          ...(withNumber ? [el('span', { class: 'muted small' }, 'Invoice number (optional)'), number] : []),
+          el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
+          button('Cancel', normal, 'secondary'),
+          errorLine,
+        );
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          save(date.value, number.value);
+        });
+        return { form, errorLine };
+      };
+      const markIssued = () => {
+        const { form, errorLine } = dateForm('Invoice issued on', true, (date, number) => {
+          const change = statusChange('issued', { invoiceDate: date, invoiceNumber: number });
+          if (!change.ok) {
+            errorLine.textContent = change.error;
+            return;
+          }
+          act(actions, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: invoice marked as issued.`);
+        });
+        inline(form);
+      };
+      const markPaid = () => {
+        const { form, errorLine } = dateForm('Paid on', false, (date) => {
+          const change = statusChange('paid', { paidDate: date });
+          if (!change.ok) {
+            errorLine.textContent = change.error;
+            return;
+          }
+          act(actions, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: marked as paid.`);
+        });
+        inline(form);
+      };
+      const undo = (to: 'to_issue' | 'issued') => {
+        const change = to === 'to_issue' ? statusChange('to_issue', {}) : statusChange('issued', { invoiceDate: sale.invoiceDate, invoiceNumber: sale.invoiceNumber });
+        if (!change.ok) return;
+        act(actions, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: back to "${to === 'to_issue' ? 'Invoice to be issued' : 'Invoice issued'}".`);
+      };
+      const ask = () => {
+        const no = button('No', normal, 'secondary');
+        inline(
+          el('span', {}, `Delete this ${r.kindLabel.toLowerCase()} (${r.date})? It can be restored later. `),
+          button('Yes, delete', () => act(actions, 'Deleting…', () => deps.repo.remove(sale, deps.now()), 'Deleted. It can be restored under "Deleted entries".'), 'primary'),
+          ' ',
+          no,
+        );
+        no.focus();
+      };
+      normal();
+      return [
+        el(
+          'tr',
+          {},
+          el('td', { class: 'nowrap' }, r.date),
+          el('td', { class: 'nowrap' }, el('span', { class: `badge kind-${r.kind ?? 'unknown'}` }, r.kindLabel)),
+          el('td', {}, r.who || el('span', { class: 'muted' }, '—')),
+          el('td', {}, r.items),
+          el('td', { class: 'num nowrap' }, r.total || el('span', { class: 'muted' }, '—')),
+          el('td', { class: 'nowrap' }, r.status ? el('span', { class: `status status-${sale.status ?? ''}` }, r.status) : el('span', { class: 'muted' }, '—')),
+          actions,
+        ),
+        extra,
+      ];
+    };
+
+    render(
+      el(
+        'div',
+        { class: 'page-head' },
+        el('h2', {}, 'Sales'),
+        el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
+      ),
+      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, click "Mark issued"; when it is paid, "Mark paid". Samples and own use have no invoice.')),
+      ...(note ? [message(note)] : []),
+      ...(error ?? []),
+      ...problems.map((text) => message(text, 'error')),
+      el('p', { class: 'compare-sizes sales-filters small' }, ...FILTERS.flatMap(({ filter: f, label }) => [chip(f, label), ' '])),
+      rows.length === 0
+        ? el('p', { class: 'muted' }, filter === 'to_issue' ? 'No invoices to issue.' : 'Nothing here yet.')
+        : el(
+            'div',
+            { class: 'table-wrap' },
+            el(
+              'table',
+              { class: 'data-table sales-table' },
+              el('thead', {}, el('tr', {}, ...['Date', 'What', 'Client / place', 'Products', 'Total net', 'Invoice', ''].map((h) => el('th', { scope: 'col' }, h)))),
+              el('tbody', {}, ...rows.flatMap(row)),
+            ),
+          ),
+      ...(deleted.length > 0 ? [deletedList(deleted)] : []),
+    );
+  }
+
+  function deletedList(deleted: readonly Sale[]): HTMLElement {
+    return el(
+      'details',
+      { class: 'small deleted-products' },
+      el('summary', {}, `Deleted entries (${deleted.length})`),
+      el(
+        'ul',
+        {},
+        ...deleted.map((s) => {
+          const slot = el('span', {});
+          slot.append(button('Restore', () => act(slot, 'Restoring…', () => deps.repo.restore(s, deps.now()), 'Restored.'), 'link'));
+          return el('li', {}, `${s.date} · ${s.kind ? KIND_LABELS[s.kind] : '?'} · ${s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason} `, slot);
+        }),
+      ),
+    );
+  }
+
+  // ---- The form ----
+
+  function showForm(sale: Sale | null): void {
+    deps.formOpened();
+    const existingLines = sale ? linesOf(lines, sale.id) : [];
+    const form: SaleForm = sale ? formFromSale(sale, existingLines) : emptySaleForm(today());
+    if (form.lines.length === 0) form.lines.push(emptyLine());
+    const activeClients = sortClients(clients).filter((c) => !isClientDeleted(c));
+    const activeProducts = sortProducts(products).filter((p) => !isProductDeleted(p));
+    /** Lines whose price the owner typed: a later change of product, size or client does not overwrite them. */
+    const typed = new Set<LineForm>(sale ? form.lines : []);
+
+    const discountOf = (clientId: string) => clients.find((c) => c.id === clientId)?.discountTenths ?? null;
+    const suggest = (line: LineForm) => {
+      if (typed.has(line) || form.kind !== 'sale') return;
+      const product = products.find((p) => p.id === line.productId);
+      const price = suggestedPrice(product?.prices[Number(line.grams) as 250 | 500 | 1000], discountOf(form.clientId), vatTenths);
+      line.price = price === null ? '' : `${Math.floor(price / 100)},${String(price % 100).padStart(2, '0')}`;
+    };
+
+    const errorBox = el('div', {});
+    const banner = el('div', { class: 'form-banner' });
+
+    // Who and why: a sale needs a client; a sample a client or a place; own use a reason.
+    const kindHolder = el('div', { class: 'kind-choice', role: 'radiogroup', 'aria-label': 'What it was' });
+    const whoHolder = el('div', { class: 'fields' });
+    const linesHolder = el('div', {});
+    const totalLine = el('p', { class: 'sale-total' });
+
+    const date = el('input', { id: 'sale-date', type: 'date' });
+    date.value = form.date;
+    date.addEventListener('input', () => (form.date = date.value));
+    const notes = el('textarea', { id: 'sale-notes', rows: '2' });
+    notes.value = form.notes;
+    notes.addEventListener('input', () => (form.notes = notes.value));
+
+    const renderKind = () => {
+      kindHolder.replaceChildren(
+        ...(['sale', 'sample', 'own_use'] as SaleKind[]).map((k) => {
+          const b = button(KIND_LABELS[k], () => {
+            form.kind = k;
+            for (const line of form.lines) suggest(line);
+            renderKind();
+            renderWho();
+            renderLines();
+          }, 'secondary');
+          b.setAttribute('role', 'radio');
+          b.setAttribute('aria-checked', String(form.kind === k));
+          if (form.kind === k) b.classList.add('chosen');
+          return b;
+        }),
+      );
+    };
+
+    const renderWho = () => {
+      const fields: Node[] = [];
+      if (form.kind !== 'own_use') {
+        const select = el('select', { id: 'sale-client' });
+        select.append(el('option', { value: '' }, form.kind === 'sale' ? 'Choose a client…' : 'Not a client (type the place)'));
+        for (const c of activeClients) select.append(el('option', { value: c.id }, c.name));
+        if (form.clientId && !activeClients.some((c) => c.id === form.clientId)) select.append(el('option', { value: form.clientId }, `${clientName(form.clientId) ?? '?'} (deleted)`));
+        select.value = form.clientId;
+        select.addEventListener('change', () => {
+          form.clientId = select.value;
+          for (const line of form.lines) suggest(line);
+          renderWho();
+          renderLines();
+        });
+        const discount = discountOf(form.clientId);
+        fields.push(
+          el(
+            'div',
+            { class: 'field' },
+            el('div', { class: 'label-row' }, el('label', { for: select.id }, form.kind === 'sale' ? 'Client *' : 'Client')),
+            select,
+            ...(form.kind === 'sale' && form.clientId ? [el('p', { class: 'field-hint' }, discount === null ? 'No discount: prices without VAT.' : `Discount ${String(discount / 10).replace('.', ',')} %: prices start from the wholesale price.`)] : []),
+          ),
+        );
+      }
+      if (form.kind === 'sample' && form.clientId === '') {
+        const place = el('input', { id: 'sale-place', type: 'text', autocomplete: 'off', placeholder: 'e.g. Café Nowa, Kazimierz' });
+        place.value = form.place;
+        place.addEventListener('input', () => (form.place = place.value));
+        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: place.id }, 'Where was it left? *')), place));
+      }
+      if (form.kind === 'own_use') {
+        const reason = el('input', { id: 'sale-reason', type: 'text', autocomplete: 'off', placeholder: 'e.g. tasting at home' });
+        reason.value = form.reason;
+        reason.addEventListener('input', () => (form.reason = reason.value));
+        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: reason.id }, 'Why? *')), reason));
+      }
+      whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Date *')), date), ...fields);
+    };
+
+    const showTotal = () => {
+      if (form.kind !== 'sale') {
+        totalLine.replaceChildren();
+        return;
+      }
+      const net = saleTotal(form.lines.map((l) => ({ bags: typedBags(l.bags), priceGrosze: typedPrice(l.price), free: l.free })));
+      totalLine.replaceChildren('Total ', el('strong', {}, `${formatPln(net)} net`), el('span', { class: 'muted' }, ` · ${formatPln(Math.round(grossOf(net, vatTenths)))} with VAT`));
+    };
+
+    const renderLines = () => {
+      const priced = form.kind === 'sale';
+      const rows = form.lines.map((line, i) => {
+        const product = el('select', { 'aria-label': `Line ${i + 1}: product` });
+        product.append(el('option', { value: '' }, 'Choose a product…'));
+        for (const p of activeProducts) product.append(el('option', { value: p.id }, p.name));
+        if (line.productId && !activeProducts.some((p) => p.id === line.productId)) product.append(el('option', { value: line.productId }, `${productName(line.productId) ?? '?'} (deleted)`));
+        product.value = line.productId;
+        const size = el('select', { 'aria-label': `Line ${i + 1}: bag size` });
+        for (const g of BAG_SIZES_G) size.append(el('option', { value: String(g) }, formatBagSize(g)));
+        size.value = line.grams;
+        const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Line ${i + 1}: number of bags`, autocomplete: 'off' });
+        bags.value = line.bags;
+        const price = el('input', { type: 'text', inputmode: 'decimal', class: 'input-money', 'aria-label': `Line ${i + 1}: net price per bag (zł)`, autocomplete: 'off', placeholder: 'zł net' });
+        price.value = line.price;
+        const free = el('input', { type: 'checkbox', 'aria-label': `Line ${i + 1}: free` });
+        free.checked = line.free;
+        const lineTotalCell = el('td', { class: 'num nowrap muted' });
+        const showLineTotal = () => (lineTotalCell.textContent = lineTotalText({ bags: typedBags(line.bags), priceGrosze: typedPrice(line.price), free: line.free }));
+        product.addEventListener('change', () => {
+          line.productId = product.value;
+          suggest(line);
+          price.value = line.price;
+          showLineTotal();
+          showTotal();
+        });
+        size.addEventListener('change', () => {
+          line.grams = size.value;
+          suggest(line);
+          price.value = line.price;
+          showLineTotal();
+          showTotal();
+        });
+        bags.addEventListener('input', () => {
+          line.bags = bags.value;
+          showLineTotal();
+          showTotal();
+        });
+        price.addEventListener('input', () => {
+          line.price = price.value;
+          typed.add(line);
+          showLineTotal();
+          showTotal();
+        });
+        free.addEventListener('change', () => {
+          line.free = free.checked;
+          price.disabled = line.free;
+          showLineTotal();
+          showTotal();
+        });
+        price.disabled = line.free;
+        showLineTotal();
+        const remove = button(
+          'Remove',
+          () => {
+            form.lines.splice(i, 1);
+            renderLines();
+          },
+          'link',
+        );
+        return el(
+          'tr',
+          {},
+          el('td', {}, product),
+          el('td', {}, size),
+          el('td', {}, bags),
+          ...(priced ? [el('td', {}, price), el('td', { class: 'nowrap' }, el('label', { class: 'free-label' }, free, ' free')), lineTotalCell] : []),
+          el('td', {}, form.lines.length > 1 ? remove : ''),
+        );
+      });
+      linesHolder.replaceChildren(
+        el(
+          'div',
+          { class: 'table-wrap' },
+          el(
+            'table',
+            { class: 'data-table sale-lines' },
+            el(
+              'thead',
+              {},
+              el(
+                'tr',
+                {},
+                el('th', { scope: 'col' }, 'Product'),
+                el('th', { scope: 'col' }, 'Size'),
+                el('th', { scope: 'col' }, 'Bags'),
+                ...(priced
+                  ? [
+                      el('th', { scope: 'col' }, 'Price per bag, net ', infoTip("Starts from the product's main price and the client's discount (the same as on the product page). Change it if you agreed another price.")),
+                      el('th', { scope: 'col' }, ''),
+                      el('th', { scope: 'col', class: 'num' }, 'Line total'),
+                    ]
+                  : []),
+                el('th', { scope: 'col' }, ''),
+              ),
+            ),
+            el('tbody', {}, ...rows),
+          ),
+        ),
+        button(
+          'Add another product',
+          () => {
+            const line = emptyLine();
+            form.lines.push(line);
+            suggest(line);
+            renderLines();
+          },
+          'secondary',
+        ),
+      );
+      showTotal();
+    };
+
+    const label = sale ? 'Save changes' : 'Save';
+    const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
+    const cancelButton = button('Cancel', () => showList(), 'secondary');
+    const setBusy = (working: boolean) => {
+      saveButton.disabled = working;
+      cancelButton.disabled = working;
+      saveButton.replaceChildren(working ? busy('Saving…') : label);
+    };
+    /** The entry once saved: if the lines then fail, a retry saves only the lines (never a second entry). */
+    let savedId: string | null = null;
+
+    function save(): void {
+      const result = validateSale(
+        form,
+        clients.filter((c) => !isClientDeleted(c)).map((c) => c.id),
+        products.filter((p) => !isProductDeleted(p)).map((p) => p.id),
+      );
+      if (!result.ok) {
+        const e = result.errors;
+        errorBox.replaceChildren(...[e.date, e.client, e.place, e.reason, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
+        banner.replaceChildren(message('Please fix what is listed below.', 'error'));
+        return;
+      }
+      errorBox.replaceChildren();
+      banner.replaceChildren();
+      setBusy(true);
+      deps.busy(true);
+      deps
+        .withGoogle(async () => {
+          let email: string | null = null;
+          const by = async () => (email ??= await deps.whoAmI());
+          if (savedId === null) {
+            if (sale) {
+              // A changed kind starts its invoice again (a sample turned into a sale: "to be issued").
+              const fields = sale.kind === form.kind ? result.fields : { ...result.fields, ...startingInvoice(form.kind) };
+              const changes = changedSaleFields(sale, fields);
+              if (Object.keys(changes).length > 0) await deps.repo.update(sale, changes, deps.now());
+              savedId = sale.id;
+              await deps.repo.saveLines(sale.id, result.lines, existingLines, by, deps.now());
+            } else {
+              savedId = await deps.repo.add({ ...result.fields, ...startingInvoice(form.kind) }, result.lines, await by(), deps.now());
+            }
+            return;
+          }
+          // A retry after the entry was saved: read again and write only what still differs.
+          const fresh = await deps.repo.load();
+          const stored = fresh.sales.find((s) => s.id === savedId);
+          if (stored) {
+            const changes = changedSaleFields(stored, result.fields);
+            if (Object.keys(changes).length > 0) await deps.repo.update(stored, changes, deps.now());
+          }
+          await deps.repo.saveLines(savedId, result.lines, linesOf(fresh.lines, savedId), by, deps.now());
+        })
+        .finally(() => deps.busy(false))
+        .then(() => {
+          if (root.isConnected) load('Saved.');
+        })
+        .catch((error: unknown) => {
+          setBusy(false);
+          if (deps.isIgnorable(error)) return;
+          const show = (e: unknown) => {
+            banner.replaceChildren(...errorNodes(e, save, 'Sign in and save', show, true, 'Reload sales (drops this form)'));
+            banner.scrollIntoView({ block: 'nearest' });
+          };
+          show(error);
+        });
+    }
+
+    const formNode = el(
+      'form',
+      { class: 'lot-form', novalidate: '' },
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'What was it?'), kindHolder),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'When and who'), whoHolder),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Products'), linesHolder, totalLine),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Notes'), el('div', { class: 'field field-wide' }, el('label', { for: notes.id, class: 'visually-hidden' }, 'Notes'), notes)),
+      errorBox,
+      el('div', { class: 'actions' }, saveButton, cancelButton),
+    );
+    formNode.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!saveButton.disabled) save();
+    });
+
+    if (!sale) for (const line of form.lines) suggest(line);
+    renderKind();
+    renderWho();
+    renderLines();
+    render(
+      el('p', { class: 'small back-link' }, button('← All sales', () => showList(), 'link')),
+      el('h2', {}, sale ? `Edit ${sale.kind ? KIND_LABELS[sale.kind].toLowerCase() : 'entry'} of ${sale.date}` : 'Add a sale, sample or own use'),
+      ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('The invoice for this sale is already issued: if you change the products, correct the invoice in Fakturownia too.', 'error')] : []),
+      banner,
+      formNode,
+    );
+  }
+
+  load(note, fromClick);
+}
