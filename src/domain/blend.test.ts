@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bagCost, blendPerKg, dividersOf, earningsAt, evenShares, moveDivider, moveShare, roastedPerKg, sharesComplete, suggestionsFor, typeShare } from './blend';
+import { bagCost, blendPerKg, dividersOf, scaledPrice, earningsAt, evenShares, moveDivider, moveShare, roastedPerKg, sharesComplete, suggestionsFor, typeShare } from './blend';
 import { roundGrosze } from './prices';
 
 describe('roasted price per kg', () => {
@@ -116,6 +116,23 @@ describe('typing a share', () => {
   it('ignores what is not a number, and keeps a single bean at 100 %', () => {
     expect(typeShare([50, 50], 0, Number.NaN)).toEqual([50, 50]);
     expect(typeShare([100], 0, 40)).toEqual([100]);
+  });
+});
+
+describe('bigger bags follow the 250 g price', () => {
+  it("is as many 250 g bags as fit, without their packaging, plus the big bag's packaging (owner's example)", () => {
+    // 250 g at 45 zł, packaging 5,27 zł net (6,48 zł with VAT) for every size:
+    // 1 kg: 4 × 45 = 180 zł, minus 4 × 6,48 = 25,93 zł, plus 6,48 zł = 160,55 zł → 161 zł
+    const kg = scaledPrice(4500, 527, 1000, 527, 230);
+    expect(roundGrosze(kg.exact)).toBe(16055);
+    expect(kg.gross).toBe(16100);
+    // 500 g: 2 × 45 = 90 zł, minus 2 × 6,48, plus 6,48 = 83,52 zł → 84 zł
+    expect(scaledPrice(4500, 527, 500, 527, 230).gross).toBe(8400);
+  });
+
+  it("uses the big bag's own packaging", () => {
+    // 1 kg packaging 2,50 zł (3,08 zł with VAT): 180 − 25,93 + 3,08 = 157,15 zł → 157 zł
+    expect(scaledPrice(4500, 527, 1000, 250, 230).gross).toBe(15700);
   });
 });
 

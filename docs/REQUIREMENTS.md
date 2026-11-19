@@ -365,6 +365,11 @@ need to know what price to put on my product".
 - Rule: roasted price per kg of a bean = green price per kg ÷ (1 − roast loss); the blend's = each bean's, weighted
   by its share of the coffee in the bag.
 - The product page shows **Cost and earnings** (made of …, cost of one bag, what the retail price earns).
+- **Suggestions (owner, 2026-11-19):** only the **250 g** bag gets 2× / 2,5× / 3× its cost (with VAT, whole złoty).
+  **500 g and 1 kg follow the 250 g price** the owner set: as many 250 g bags as fit (2 or 4), without their
+  packaging, plus the packaging of the one big bag (packaging with VAT), rounded to whole złoty. Example: 250 g at
+  45 zł, packaging 6,48 zł with VAT: 1 kg = 180 − 25,93 + 6,48 = 160,55 → 161 zł. Without a 250 g price the bigger
+  sizes say "Set the 250 g price first".
 - **Every number is explained** (owner, 2026-11-19): "Why … per kg?" (each bean's green price, how roasting makes
   it lighter, how the beans are mixed) and, per size, "How is this worked out?" (coffee, packaging, cost of one bag,
   what your price earns after VAT, how each suggested price is reached), in plain sentences with the real numbers.

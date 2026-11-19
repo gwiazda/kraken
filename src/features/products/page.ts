@@ -673,7 +673,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         'p',
         { class: 'muted small' },
         'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
-        infoTip('Kraken works out what one bag costs you and suggests a price two, two and a half or three times higher, with VAT added. "Earns" is what is left for you after the cost of the bag, without VAT.'),
+        infoTip(
+          'For 250 g, Kraken suggests two, two and a half or three times what the bag costs you, with VAT. Bigger bags follow your 250 g price: as many small bags as fit, with the packaging of one big bag. "Earns" is what is left for you after the cost of the bag, without VAT.',
+        ),
       ),
       summary,
       el('div', { class: 'price-rows' }, ...BAG_SIZES_G.map(priceRow)),

@@ -86,6 +86,14 @@ describe('costing (what a bag costs and earns)', () => {
       'Two and a half times the cost is 60,37\u00a0zł; with VAT 74,25\u00a0zł, rounded to 74\u00a0zł. At that price you earn 36,02\u00a0zł per bag.',
       'Three times the cost is 72,44\u00a0zł; with VAT 89,10\u00a0zł, rounded to 89\u00a0zł. At that price you earn 48,21\u00a0zł per bag.',
     ]);
+    // 1 kg follows the 250 g price: 4 × 59 zł − 4 small packagings (1,845 zł with VAT) + one 1 kg packaging (3,075 zł) = 231,695 zł
+    expect(result.rows[2]?.suggestions.map((x) => [x.text, x.markup, x.earnings])).toEqual([['232\u00a0zł', 'like 4 × 250 g', '95,53\u00a0zł']]);
+    expect(result.rows[2]?.steps[3]).toBe(
+      'Suggested price, from your 250 g price: four 250 g bags at 59\u00a0zł are 236,00\u00a0zł. Take away the packaging of those four small bags (7,38\u00a0zł with VAT) and add the packaging of one 1 kg bag (3,08\u00a0zł with VAT): 231,70\u00a0zł, rounded to 232\u00a0zł. At that price you earn 95,53\u00a0zł per bag.',
+    );
+    const noBase = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, {});
+    expect(noBase.rows[2]?.suggestions).toEqual([]);
+    expect(noBase.rows[2]?.steps[3]).toBe('Set the 250 g price first: the suggested 1 kg price is worked out from it.');
     expect(result.rows[1]?.steps).toEqual([
       'Coffee: 500 g of roasted coffee at 90,59\u00a0zł per kg costs 45,29\u00a0zł.',
       'Packaging for 500 g is not entered yet: add it under Packaging & discounts to see the full cost.',

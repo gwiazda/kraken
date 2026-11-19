@@ -4,7 +4,7 @@
 
 import { formatPln, formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
-import { bagCost, blendPerKg, earningsAt, roastedPerKg, suggestionsFor, type BeanCost } from '../../domain/blend';
+import { BASE_GRAMS, bagCost, blendPerKg, earningsAt, roastedPerKg, scaledPrice, suggestionsFor, type BeanCost } from '../../domain/blend';
 import { grossOf, netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
 import type { BeanLot } from '../costs';
 import { typedBeanLoss, typedBeanPrice, type BeanForm } from './modelBeans';
@@ -171,7 +171,23 @@ export function costing(
     const cost = bag.total;
     const price = prices[grams];
     const earned = price === undefined ? null : earningsAt(price, cost, vatTenths);
-    const suggestions = suggestionsFor(cost, vatTenths);
+    const base = grams === BASE_GRAMS;
+    const basePrice = prices[BASE_GRAMS];
+    const basePack = packaging.get(BASE_GRAMS) ?? null;
+    // 250 g: the cost × 2 / 2,5 / 3. Bigger bags follow the 250 g price (owner, 2026-11-19).
+    const scaled = !base && basePrice !== undefined && basePack !== null ? scaledPrice(basePrice, basePack, grams, pack ?? 0, vatTenths) : null;
+    const bags = grams / BASE_GRAMS;
+    const bagsText = bags === 2 ? 'Two' : bags === 4 ? 'Four' : String(bags);
+    const suggestionSteps = base
+      ? suggestionsFor(cost, vatTenths).map((sug) => {
+          const net = (cost * sug.markupHundredths) / 100;
+          return `${MARKUP_WORDS[sug.markupHundredths] ?? `${sug.markupHundredths / 100} times`} the cost is ${money(net)}; with VAT ${money(grossOf(net, vatTenths))}, rounded to ${formatWholePln(sug.gross)}. At that price you earn ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} per bag.`;
+        })
+      : scaled && basePrice !== undefined && basePack !== null
+        ? [
+            `Suggested price, from your ${formatBagSize(BASE_GRAMS)} price: ${bagsText.toLowerCase()} ${formatBagSize(BASE_GRAMS)} bags at ${formatWholePln(basePrice)} are ${money(bags * basePrice)}. Take away the packaging of those ${bagsText.toLowerCase()} small bags (${money(bags * grossOf(basePack, vatTenths))} with VAT) and add the packaging of one ${size} bag (${money(grossOf(pack ?? 0, vatTenths))} with VAT): ${money(scaled.exact)}, rounded to ${formatWholePln(scaled.gross)}. At that price you earn ${signedMoney(earningsAt(scaled.gross, cost, vatTenths))} per bag.`,
+          ]
+        : [`Set the ${formatBagSize(BASE_GRAMS)} price first: the suggested ${size} price is worked out from it.`];
     const steps = [
       coffeeStep,
       `Packaging: ${formatPln(bag.packaging ?? 0)} (the bag, label and the rest, from Packaging & discounts).`,
@@ -181,10 +197,7 @@ export function costing(
             `Your price ${formatWholePln(price)} includes ${vatText} VAT; without VAT it is ${money(netOf(price, vatTenths))}. Take away the ${money(cost)} the bag costs: you ${earned < 0 ? 'lose' : 'earn'} ${formatPln(roundGrosze(Math.abs(earned)))} per bag.`,
           ]
         : []),
-      ...suggestions.map((sug) => {
-        const net = (cost * sug.markupHundredths) / 100;
-        return `${MARKUP_WORDS[sug.markupHundredths] ?? `${sug.markupHundredths / 100} times`} the cost is ${money(net)}; with VAT ${money(grossOf(net, vatTenths))}, rounded to ${formatWholePln(sug.gross)}. At that price you earn ${signedMoney(sug.earnings)} per bag.`;
-      }),
+      ...suggestionSteps,
     ];
     return {
       grams,
@@ -192,7 +205,11 @@ export function costing(
       cost: formatPln(roundGrosze(cost)),
       parts: `coffee ${money(bag.coffee)} and packaging ${formatPln(bag.packaging ?? 0)}`,
       steps,
-      suggestions: suggestions.map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings) })),
+      suggestions: base
+        ? suggestionsFor(cost, vatTenths).map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings) }))
+        : scaled
+          ? [{ grosze: scaled.gross, text: formatWholePln(scaled.gross), markup: `like ${bags} × ${formatBagSize(BASE_GRAMS)}`, earnings: signedMoney(earningsAt(scaled.gross, cost, vatTenths)) }]
+          : [],
       earnings: earned === null ? '' : signedMoney(earned),
       losing: earned !== null && earned < 0,
     };

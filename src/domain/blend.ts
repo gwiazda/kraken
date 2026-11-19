@@ -80,6 +80,20 @@ export function suggestionsFor(costGrosze: number, vatTenths: number): Suggestio
   });
 }
 
+/** The bag size the price suggestions are worked out for (owner, 2026-11-19); the other sizes follow its price. */
+export const BASE_GRAMS = 250;
+
+/**
+ * A bigger bag's suggested gross price, from the 250 g price (owner, 2026-11-19): as many 250 g bags as fit in it,
+ * without their packaging, plus the packaging of the one big bag. Packaging is net, so its VAT is added. Rounded to
+ * whole złoty. E.g. 1 kg from 45 zł: 4 × 45 zł − 4 × small packaging + 1 × 1 kg packaging.
+ */
+export function scaledPrice(baseGross: number, basePackagingNet: number, grams: number, packagingNet: number, vatTenths: number): { exact: number; gross: number } {
+  const bags = grams / BASE_GRAMS;
+  const exact = bags * baseGross - bags * grossOf(basePackagingNet, vatTenths) + grossOf(packagingNet, vatTenths);
+  return { exact, gross: roundToZloty(exact) };
+}
+
 /**
  * New shares after one slider moved (whole percent). The last bean always takes what is left, so the total stays
  * 100 %; a slider cannot take more than what the beans before it leave.
