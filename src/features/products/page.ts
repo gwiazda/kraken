@@ -232,33 +232,40 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           const tr = handle.closest('tr');
           const body = tr?.parentElement;
           if (!tr || !body) return;
-          handle.setPointerCapture(event.pointerId);
+          // Listened to on the whole window: moving the row in the page ends the browser's pointer capture, so
+          // the handle alone would stop hearing the pointer after the first step.
           tr.classList.add('dragging');
+          const pointer = event.pointerId;
           const follow = (e: PointerEvent) => {
+            if (e.pointerId !== pointer) return;
             // The dragged row goes before the first other row whose middle is below the pointer.
             const others = [...body.children].filter((r) => r !== tr);
-            const before = others.find((r) => {
-              const box = r.getBoundingClientRect();
-              return e.clientY < box.top + box.height / 2;
-            });
-            body.insertBefore(tr, before ?? null);
+            const before =
+              others.find((r) => {
+                const box = r.getBoundingClientRect();
+                return e.clientY < box.top + box.height / 2;
+              }) ?? null;
+            if (tr.nextElementSibling !== before) body.insertBefore(tr, before);
           };
-          const drop = () => {
-            handle.removeEventListener('pointermove', follow);
-            handle.removeEventListener('pointerup', drop);
-            handle.removeEventListener('pointercancel', cancel);
+          const stop = () => {
+            window.removeEventListener('pointermove', follow);
+            window.removeEventListener('pointerup', drop);
+            window.removeEventListener('pointercancel', cancel);
             tr.classList.remove('dragging');
+          };
+          const drop = (e: PointerEvent) => {
+            if (e.pointerId !== pointer) return;
+            stop();
             move(active, p, [...body.children].indexOf(tr));
           };
-          const cancel = () => {
-            handle.removeEventListener('pointermove', follow);
-            handle.removeEventListener('pointerup', drop);
-            handle.removeEventListener('pointercancel', cancel);
+          const cancel = (e: PointerEvent) => {
+            if (e.pointerId !== pointer) return;
+            stop();
             showList(); // put the rows back
           };
-          handle.addEventListener('pointermove', follow);
-          handle.addEventListener('pointerup', drop);
-          handle.addEventListener('pointercancel', cancel);
+          window.addEventListener('pointermove', follow);
+          window.addEventListener('pointerup', drop);
+          window.addEventListener('pointercancel', cancel);
         });
         return el('td', { class: 'order-grip' }, handle);
       };
