@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bagCost, blendPerKg, dividersOf, scaledPrice, earningsAt, evenShares, moveDivider, moveShare, roastedPerKg, sharesComplete, suggestionsFor, typeShare } from './blend';
+import { bagCost, blendPerKg, dividersOf, scaledPrice, earningsAt, evenShares, marginAt, moveDivider, moveShare, roastedPerKg, sharesComplete, suggestionsFor, typeShare } from './blend';
 import { roundGrosze } from './prices';
 
 describe('roasted price per kg', () => {
@@ -58,6 +58,12 @@ describe('cost of one bag, suggestions and earnings', () => {
   it('works out the earnings for any price, also a loss', () => {
     expect(roundGrosze(earningsAt(12300, 6000, 230))).toBe(4000);
     expect(roundGrosze(earningsAt(6150, 6000, 230))).toBe(-1000);
+  });
+
+  it('works out the gross margin at a gross price: 123 zł is 100 zł without VAT, 40 zł of it is 40 %', () => {
+    expect(marginAt(12300, 6000, 230)).toBe(40);
+    expect(marginAt(6150, 6000, 230)).toBe(-20); // 50 zł without VAT, 10 zł short
+    expect(marginAt(0, 6000, 230)).toBeNull();
   });
 });
 

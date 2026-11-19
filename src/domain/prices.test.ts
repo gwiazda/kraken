@@ -54,4 +54,9 @@ describe('grossMarginPercent', () => {
     expect(grossMarginPercent(10000, 10040)).toBe(0);
     expect(grossMarginPercent(0, 100)).toBeNull();
   });
+
+  it('rounds halves away from zero, the same for a profit and a loss', () => {
+    expect(grossMarginPercent(10000, 5750)).toBe(43); // 42,5 %
+    expect(grossMarginPercent(10000, 14250)).toBe(-43); // −42,5 %
+  });
 });

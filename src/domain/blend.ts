@@ -8,7 +8,7 @@
 //   suggested price = cost of one bag × 2 / 2,5 / 3, plus VAT, rounded to whole złoty (domain/prices.ts)
 //   earnings per bag = the price without VAT − the cost of one bag
 
-import { grossOf, netOf, roundToZloty } from './prices';
+import { grossMarginPercent, grossOf, netOf, roundToZloty } from './prices';
 
 /** At most this many beans in one product (owner, 2026-11-18). */
 export const MAX_BEANS = 3;
@@ -63,6 +63,9 @@ export function bagCost(blendPerKgGrosze: number, grams: number, packagingGrosze
 
 /** Earnings per bag at a gross price: the price without VAT, minus the cost of the bag (grosze, may be negative). */
 export const earningsAt = (grossGrosze: number, costGrosze: number, vatTenths: number) => netOf(grossGrosze, vatTenths) - costGrosze;
+
+/** The gross margin (whole percent, see grossMarginPercent) at a gross price; null for a price of 0. */
+export const marginAt = (grossGrosze: number, costGrosze: number, vatTenths: number) => grossMarginPercent(netOf(grossGrosze, vatTenths), costGrosze);
 
 export interface Suggestion {
   readonly markupHundredths: number;

@@ -45,5 +45,7 @@ export function wholesalePrice(mainGrossGrosze: number, discountTenths: number, 
  */
 export function grossMarginPercent(netGrosze: number, costGrosze: number): number | null {
   if (!(netGrosze > 0)) return null;
-  return Math.round(((netGrosze - costGrosze) * 100) / netGrosze) || 0; // "|| 0": never "−0 %"
+  const exact = ((netGrosze - costGrosze) * 100) / netGrosze;
+  // Half away from zero (42,5 → 43, −42,5 → −43), nudged like roundGrosze against float error; "|| 0": never "−0 %".
+  return Math.sign(exact) * Math.round(Math.abs(exact) + 1e-9) || 0;
 }

@@ -271,7 +271,8 @@ export function createPlanner(
 
   // ---- Prices: one row per size, the price in zł, suggested prices to click and what the price earns ----
   const chipHolders = new Map<BagSize, HTMLElement>();
-  const earnHolders = new Map<BagSize, HTMLElement>();
+  /** What the price earns, per size: the texts change; the margin ⓘ is made once (never rebuilt while typing). */
+  const earnHolders = new Map<BagSize, { box: HTMLElement; texts: HTMLElement; tip: HTMLElement; cost: HTMLElement }>();
   /** "How is this worked out?" of each size: created once, so it stays open while the shares or prices change. */
   const howHolders = new Map<BagSize, { box: HTMLDetailsElement; list: HTMLOListElement }>();
   const madeOfLine = el('p', { class: 'made-of' });
@@ -374,7 +375,7 @@ export function createPlanner(
           'button',
           { type: 'button', class: 'chip', 'aria-pressed': String(input.value.trim() === value) },
           el('strong', {}, sug.text),
-          el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings} · margin ${sug.margin}`),
+          el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings}${sug.margin ? ` · margin ${sug.margin}` : ''}`),
         );
         chip.addEventListener('click', () => {
           input.value = value;
@@ -383,11 +384,16 @@ export function createPlanner(
         return chip;
       });
       chipHolders.get(grams)?.replaceChildren(...(chips.length > 0 ? chips : r.parts ? [el('span', { class: 'muted small' }, r.parts)] : []));
-      earnHolders.get(grams)?.replaceChildren(
-        ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
-        ...(r.margin ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, ` · gross margin ${r.margin} `), infoTip(MARGIN_TIP)] : []),
-        ...(r.cost ? [el('span', { class: 'muted small' }, ` (a bag costs you ${r.cost})`)] : []),
-      );
+      const earn = earnHolders.get(grams);
+      if (earn) {
+        earn.texts.replaceChildren(
+          ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
+          ...(r.margin ? [el('span', { class: r.marginLosing ? 'earn losing' : 'earn' }, ` · gross margin ${r.margin} `)] : []),
+        );
+        earn.tip.hidden = r.margin === '';
+        earn.cost.textContent = r.cost ? ` (a bag costs you ${r.cost})` : '';
+        earn.box.hidden = !r.earnings && !r.margin && !r.cost;
+      }
       const how = howHolders.get(grams);
       if (how) {
         how.list.replaceChildren(...r.steps.map((step) => el('li', {}, step)));
@@ -400,8 +406,11 @@ export function createPlanner(
     input.addEventListener('input', update);
     const chips = el('div', { class: 'chips' });
     chipHolders.set(grams, chips);
-    const earn = el('div', { class: 'price-earn' });
-    earnHolders.set(grams, earn);
+    const texts = el('span', {});
+    const tip = infoTip(MARGIN_TIP);
+    const cost = el('span', { class: 'muted small' });
+    const earn = el('div', { class: 'price-earn', hidden: '' }, texts, tip, cost);
+    earnHolders.set(grams, { box: earn, texts, tip, cost });
     const list = el('ol', { class: 'how-steps' });
     const box = el('details', { class: 'how' }, el('summary', {}, 'How is this worked out?'), list);
     howHolders.set(grams, { box, list });

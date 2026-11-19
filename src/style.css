@@ -1649,7 +1649,7 @@ details summary {
   margin: 0.25rem 0 0.5rem;
 }
 
-.price-earn:empty {
+.price-earn[hidden] {
   display: none;
 }
 
@@ -1705,16 +1705,9 @@ details summary {
   color: #ff6b6b;
 }
 
-/* The gross margin under "earns …": the same colour, a little quieter. */
+/* The gross margin under "earns …" (also a .price-earn-line): a little quieter. */
 .price-margin-line {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--lime);
   opacity: 0.8;
-}
-
-.price-margin-line.losing {
-  color: #ff6b6b;
 }
 
 .planner-extra {

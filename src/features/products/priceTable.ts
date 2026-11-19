@@ -12,14 +12,14 @@ export const MARGIN_TIP =
 const discountTh = (d: { tenths: number; name: string }) =>
   el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), discountHeader(d.tenths));
 
-function priceCell(cell: Pick<PriceCell, 'main' | 'earn' | 'margin' | 'losing'> & { other?: string }, extra = ''): HTMLTableCellElement {
+function priceCell(cell: Pick<PriceCell, 'main' | 'earn' | 'margin' | 'losing' | 'marginLosing'> & { other?: string }, extra = ''): HTMLTableCellElement {
   return el(
     'td',
     { class: `num nowrap${extra}` },
     cell.main ? el('strong', { class: 'price-main' }, cell.main) : el('span', { class: 'muted' }, '—'),
     ...(cell.other ? [el('span', { class: 'price-other' }, cell.other)] : []),
     ...(cell.earn ? [el('span', { class: cell.losing ? 'price-earn-line losing' : 'price-earn-line' }, cell.earn)] : []),
-    ...(cell.margin ? [el('span', { class: cell.losing ? 'price-margin-line losing' : 'price-margin-line' }, cell.margin)] : []),
+    ...(cell.margin ? [el('span', { class: cell.marginLosing ? 'price-earn-line price-margin-line losing' : 'price-earn-line price-margin-line' }, cell.margin)] : []),
   );
 }
 
@@ -84,8 +84,8 @@ export function compareTable(rows: readonly CompareRow[], discounts: readonly { 
             r.isPlan ? { class: 'compare-plan' } : {},
             el('th', { scope: 'row' }, r.isPlan ? '▶ This plan' : r.name),
             el('td', { class: 'num nowrap' }, r.cost || muted(r.note)),
-            priceCell({ main: r.price, earn: r.earn, margin: r.margin, losing: r.losing }),
-            ...r.atDiscounts.map((a) => priceCell({ main: a.price, earn: a.earn, margin: a.margin, losing: a.losing })),
+            priceCell({ ...r, main: r.price }),
+            ...r.atDiscounts.map((a) => priceCell({ ...a, main: a.price })),
           ),
         ),
       ),
