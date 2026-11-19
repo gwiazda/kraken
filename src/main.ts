@@ -19,6 +19,7 @@ import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
 import { lotLosses, sheetCostsRepository, showPackagingPage, validateLoss } from './features/costs';
+import { sheetClientsRepository, showClientsPage } from './features/clients';
 import { showOfferPage } from './features/offers';
 import { sheetProductsRepository, showPlannerPage, showProductsPage, type PlannerStart } from './features/products';
 import { showRoastimeSync } from './features/roastime';
@@ -86,7 +87,7 @@ function leave(screen: Screen): void {
 /** How a menu click moves: back to the same screen (or out of an open form) replaces, anything else adds a step. */
 function menuMove(target: Screen): HistoryMove {
   const now = screenOf(window.history.state);
-  return now === target || now === 'lot-form' || now === 'roast-form' || now === 'product-form' ? 'replace' : 'push';
+  return now === target || now === 'lot-form' || now === 'roast-form' || now === 'product-form' || now === 'client-form' ? 'replace' : 'push';
 }
 
 window.addEventListener('popstate', (event) => {
@@ -104,6 +105,10 @@ window.addEventListener('popstate', (event) => {
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'packaging') showPackaging(info, false, 'none');
   else if (screen === 'offer') showOffer(info, false, 'none');
+  else if (screen === 'clients' || screen === 'client-form') {
+    if (screen === 'client-form') window.history.replaceState(stateFor('clients'), '', '#clients');
+    showClients(info, false, 'none');
+  }
   else if (screen === 'planner') showPlanner(info, lastPlan, false, 'none');
   else if (screen === 'products' || screen === 'product-form') {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
@@ -121,7 +126,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'products' | 'planner' | 'offer' | 'packaging' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'products' | 'planner' | 'offer' | 'clients' | 'packaging' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -150,6 +155,9 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Offer', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
+      }),
+      tab('Clients', 'clients', () => {
+        if (!saving) showClients(info, true, menuMove('clients'));
       }),
       tab('Packaging & discounts', 'packaging', () => {
         if (!saving) showPackaging(info, true, menuMove('packaging'));
@@ -452,6 +460,26 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
     undefined,
     fromClick,
     create,
+  );
+}
+
+/** The Clients page (owner, 2026-11-19). */
+function showClients(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+  record('clients', move);
+  showClientsPage(
+    showApp(info, 'clients'),
+    {
+      ...googleDeps(),
+      repo: sheetClientsRepository(client, info.id),
+      costs: sheetCostsRepository(client, info.id),
+      formOpened: () => record('client-form', currentScreen === 'client-form' ? 'replace' : 'push'),
+      formClosed: () => {
+        currentScreen = 'clients';
+        leave('client-form');
+      },
+    },
+    undefined,
+    fromClick,
   );
 }
 

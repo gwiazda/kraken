@@ -179,11 +179,27 @@ describe('version 8', () => {
 
   it('updates a version 7 sheet with the Product beans tab, keeping the data', async () => {
     const google = sheetAt(7, [{ title: 'Discounts', sheetId: 3, rows: [['id', 'percent'], ['D1', '15']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 7), appVersion: 8 });
     expect(result.toVersion).toBe(8);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Discounts', 'Product beans']);
     expect(tab(google, 'Discounts')?.rows).toEqual([['id', 'percent'], ['D1', '15']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '8']);
+  });
+});
+
+describe('version 9', () => {
+  it('adds the Clients tab, agreed on 2026-11-19', () => {
+    const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
+    expect(MIGRATIONS[7]?.steps).toEqual([{ kind: 'add-tab', tab: 'Clients', headers: ['id', 'name', 'nip', 'email', 'registered_name', 'discount_percent', ...safety] }]);
+  });
+
+  it('updates a version 8 sheet with the Clients tab, keeping the data', async () => {
+    const google = sheetAt(8, [{ title: 'Product beans', sheetId: 3, rows: [['id', 'product_id'], ['B1', 'P1']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result.toVersion).toBe(9);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Product beans', 'Clients']);
+    expect(tab(google, 'Product beans')?.rows).toEqual([['id', 'product_id'], ['B1', 'P1']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '9']);
   });
 });
 

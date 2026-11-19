@@ -17,9 +17,9 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Product planner extras** (branch `claude/planner-compare`): renamed to Product planner; wholesale prices with
-  earnings and "Compare with your products" (shared prices table with the product page). No sheet change.
-- Done before: the Planner (PR #29).
+- **Clients** (branch `claude/clients`, data version **9**: new "Clients" tab). Then **Sales** (lines, samples, own
+  use, invoice status), agreed with the owner on 2026-11-19.
+- Done before: Product planner extras (PR #30).
 
 ## Next steps
 1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
