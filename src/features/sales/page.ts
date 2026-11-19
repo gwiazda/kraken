@@ -31,7 +31,7 @@ import {
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, bagsText, saleRows, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
 import type { SalesRepository } from './repo';
 
 export interface SalesPageDeps {
@@ -347,7 +347,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         reason.addEventListener('input', () => (form.reason = reason.value));
         fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: reason.id }, 'Why? *')), reason));
       }
-      whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Date *')), date), ...fields);
+      whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, `Date of the ${KIND_LABELS[form.kind].toLowerCase()} *`)), date), ...fields);
     };
 
     const showTotal = () => {
@@ -528,6 +528,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     render(
       el('p', { class: 'small back-link' }, button('← All sales', () => showList(), 'link')),
       el('h2', {}, sale ? `Edit ${sale.kind ? KIND_LABELS[sale.kind].toLowerCase() : 'entry'} of ${sale.date}` : 'Add a sale, sample or own use'),
+      ...(sale ? [el('dl', { class: 'product-details sale-facts' }, ...saleFacts(sale).flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]))] : []),
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('The invoice for this sale is already issued: if you change the products, correct the invoice in Fakturownia too.', 'error')] : []),
       banner,
       formNode,

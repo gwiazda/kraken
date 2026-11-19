@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lineFromFields, saleFromFields } from './model';
-import { bagsText, saleRows } from './present';
+import { bagsText, saleFacts, saleRows } from './present';
 
 const sale = (row: number, o: Record<string, string> = {}) =>
   saleFromFields({ id: `S${row}`, date: '2026-11-19', kind: 'sale', client_id: 'C1', invoice_status: 'to_issue', created_by: 'partner@example.com', ...o }, row);
@@ -39,5 +39,27 @@ describe('saleRows', () => {
     expect(bagsText([{ bags: 1, free: false }])).toBe('1 bag');
     expect(bagsText([{ bags: 3, free: false }, { bags: 1, free: true }])).toBe('4 bags (1 free)');
     expect(bagsText([])).toBe('');
+  });
+});
+
+describe('saleFacts', () => {
+  it('shows the date of the sale, when it was added and by whom, and when the invoice was issued', () => {
+    const s = sale(2, { date: '2026-11-10', created_at: '2026-11-11T10:00:00.000Z', invoice_status: 'paid', invoice_date: '2026-11-12' });
+    expect(saleFacts(s)).toEqual([
+      { label: 'Date of the sale', value: '2026-11-10' },
+      { label: 'Added to Kraken', value: '2026-11-11 by partner@example.com' },
+      { label: 'Invoice', value: 'Paid' },
+      { label: 'Invoice issued on', value: '2026-11-12' },
+    ]);
+  });
+
+  it('says "Not yet" before the invoice is issued, and samples have no invoice', () => {
+    expect(saleFacts(sale(2, { created_at: '' }))).toEqual([
+      { label: 'Date of the sale', value: '2026-11-19' },
+      { label: 'Added to Kraken', value: '—' },
+      { label: 'Invoice', value: 'Invoice to be issued' },
+      { label: 'Invoice issued on', value: 'Not yet' },
+    ]);
+    expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Date of the sample', 'Added to Kraken']);
   });
 });

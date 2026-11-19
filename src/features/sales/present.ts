@@ -2,7 +2,8 @@
 // what, how many bags) and the filters with their counts. No prices (owner, 2026-11-19).
 
 import { formatBagSize } from '../../domain/bagSizes';
-import { KIND_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
+import { localDate } from '../../core/dates';
+import { KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
 
 export type SalesFilter = 'all' | InvoiceStatus | 'sample' | 'own_use';
 
@@ -83,4 +84,24 @@ export function bagsText(lines: readonly { bags: number | null; free: boolean }[
   if (lines.length === 0) return '';
   const { bags, free } = bagCount(lines);
   return `${bags} ${bags === 1 ? 'bag' : 'bags'}${free > 0 ? ` (${free} free)` : ''}`;
+}
+
+/**
+ * The dates at the top of an entry's edit screen (owner, 2026-11-19: "make it clear when the record was added and
+ * when the invoice was issued"): the date of the entry, the day it was added to Kraken (and by whom), and for a
+ * sale its invoice status and the date the invoice was issued.
+ */
+export function saleFacts(sale: Sale): { label: string; value: string }[] {
+  const what = sale.kind ? KIND_LABELS[sale.kind].toLowerCase() : 'entry';
+  const created = new Date(sale.source['created_at'] ?? '');
+  const added = Number.isNaN(created.getTime()) ? '—' : `${localDate(created)}${sale.createdBy ? ` by ${sale.createdBy}` : ''}`;
+  const facts = [
+    { label: `Date of the ${what}`, value: sale.date || '—' },
+    { label: 'Added to Kraken', value: added },
+  ];
+  if (sale.kind === 'sale') {
+    facts.push({ label: 'Invoice', value: sale.status ? STATUS_LABELS[sale.status] : '? (cannot be read)' });
+    facts.push({ label: 'Invoice issued on', value: (sale.status === 'issued' || sale.status === 'paid') && sale.invoiceDate ? sale.invoiceDate : 'Not yet' });
+  }
+  return facts;
 }
