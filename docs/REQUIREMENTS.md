@@ -219,6 +219,16 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   from a request with one click, and fill in the invoice number automatically. Not in the first version.
   It would need a Fakturownia API token, which must never be committed (see `CLAUDE.md`).
 
+**[R] Decided with the owner (2026-11-19):**
+- **Clients** tab (built first): short name, NIP (checked: 10 digits with a valid check digit), email, registered
+  name (CEIDG), wholesale discount chosen from Packaging & discounts. A name or NIP can be there only once. The owner
+  adds the existing clients by hand (real client data never goes into the code or tests).
+- **Sales** tab (next): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
+  number of bags; price filled in from the product and the client's discount, can be changed; a line can be free),
+  a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag, with a reason).
+  Invoice status for sales: **To be issued → Issued (date, optional number) → Paid (date)**; both owners can change
+  it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
+
 ---
 
 ## 5. Price lists for contractors
