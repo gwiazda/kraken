@@ -42,7 +42,13 @@ export function showPlannerPage(root: HTMLElement, deps: PlannerPageDeps, start:
 
   function load(fromClick = false): void {
     render(el('p', {}, busy('Loading lots and packaging…')));
-    const data = () => Promise.all([loadPlannerData(deps), deps.products.load()]);
+    // The products are only for the comparison: if they cannot be read, the planner still opens, with a note.
+    const products = () =>
+      deps.products.load().catch((error: unknown) => {
+        if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+        return { products: [], beans: [], problems: [`Your products could not be read for the comparison (${deps.describeError(error)}).`] };
+      });
+    const data = () => Promise.all([loadPlannerData(deps), products()]);
     (fromClick ? deps.withGoogle(data) : data())
       .then(([found, stored]) => {
         if (!root.isConnected) return;

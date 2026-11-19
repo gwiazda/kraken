@@ -376,8 +376,8 @@ need to know what price to put on my product".
   retail price, what it earns, and what it earns at **each wholesale discount** set under Packaging & discounts,
   one column each with its name), sorted by what they earn. The product form
   stays without these. A product's page shows the earnings under its prices too (same table).
-- **Planner tab** (owner, 2026-11-19): the same beans-and-prices tool as in the product form, as a scratchpad:
-  try beans (lots or planned), shares and prices, nothing saved. "Try in Planner" on a product's page copies its
+- **Product planner tab** (owner, 2026-11-19): the same beans-and-prices tool as in the product form, as a scratchpad:
+  try beans (lots or planned), shares and prices, nothing saved. "Try in Product planner" on a product's page copies its
   beans and prices there (the product is not changed); "Create product from this" opens Add product with them
   filled in. One shared piece of code for both places, so they never differ.
 - **Every number is explained** (owner, 2026-11-19): "Why … per kg?" (each bean's green price, how roasting makes

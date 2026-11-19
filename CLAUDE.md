@@ -87,10 +87,11 @@ test that reads every import line), so CI fails if a rule is broken.
   suggested prices to click with what each earns (250 g: 2×, 2,5×, 3× its cost with VAT, whole złoty; 500 g and 1 kg
   follow the 250 g price with one big bag's packaging), what the typed price earns, and every step explained.
   The blend rules are in `domain/blend.ts`. Only the current price is kept. The beans-and-prices part is **one
-  piece, `planner.ts`**, used by both the product form and the **Product planner** tab (`plannerPage.ts`, with the wholesale prices and
-  a comparison with the products as extras; the prices table is shared in `priceTable.ts`: a scratchpad,
-  nothing saved; "Try in Planner" on a product copies it there, "Create product from this" opens Add product filled
-  in), so a change to the planner changes both (owner, 2026-11-19);
+  piece, `planner.ts`**, used by both the product form and the **Product planner** tab (`plannerPage.ts`: a
+  scratchpad, nothing saved; "Try in Product planner" on a product copies it there, "Create product from this"
+  opens Add product filled in), so a change to the planner changes both (owner, 2026-11-19). The Product planner
+  also shows the wholesale prices and a comparison with the products; the prices table and the comparison table
+  are shared in `priceTable.ts` (also used by a product's page);
   `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file
   name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);

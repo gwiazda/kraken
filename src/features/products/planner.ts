@@ -11,8 +11,8 @@ import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import { button, el, infoTip } from '../../ui/dom';
 import type { BeanForm } from './modelBeans';
-import { compareRows, costing, priceRows } from './present';
-import { costsBySize, pricesTable } from './priceTable';
+import { compareRow, costing, priceRows, sortCompared, type ComparedRow } from './present';
+import { compareTable, costsBySize, pricesTable } from './priceTable';
 
 /** What the planner needs from the rest of Kraken: VAT and the usual loss, every lot as a bean, packaging per size. */
 export interface PlannerData {
@@ -295,83 +295,39 @@ export function createPlanner(
   const compareHolder = el('div', {});
   let compareSize: BagSize = 250;
   const sizeButtons = BAG_SIZES_G.map((grams) => {
-    const b = button(formatBagSize(grams), () => {
-      compareSize = grams;
-      update();
-    }, 'link');
+    const b = button(
+      formatBagSize(grams),
+      () => {
+        compareSize = grams;
+        update();
+      },
+      'link',
+    );
     return { grams, b };
   });
-  /** The wholesale discounts as set under Packaging & discounts, lowest first: one column each. */
+  /** The wholesale discounts as set under Packaging & discounts, lowest first: one column each, in both tables. */
   const discounts = extra ? [...extra.discounts].sort((a, b) => a.tenths - b.tenths) : [];
-  const showExtra = (rows: readonly { grams: number; costGrosze: number | null }[]) => {
+  /** The products' rows per bag size: they do not change while the plan does, so they are worked out once. */
+  const productRows = new Map<BagSize, ComparedRow[]>();
+  const compareArgs = [beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, discounts.map((d) => d.tenths)] as const;
+  const showExtra = (rows: readonly { grams: number; costGrosze: number | null }[], prices: Partial<Record<number, number>>) => {
     if (!extra) return;
-    const prices = typedPrices();
     wholesaleHolder.replaceChildren(
       Object.keys(prices).length === 0
         ? el('p', { class: 'muted small' }, 'Type a price above to see the wholesale prices.')
-        : pricesTable(priceRows(prices, extra.discounts.map((d) => d.tenths), settings.vatTenths, costsBySize(rows)), extra.discounts),
+        : pricesTable(priceRows(prices, discounts.map((d) => d.tenths), settings.vatTenths, costsBySize(rows)), discounts),
     );
     for (const { grams, b } of sizeButtons) {
       if (grams === compareSize) b.setAttribute('aria-current', 'true');
       else b.removeAttribute('aria-current');
     }
-    const compared = compareRows(
-      [{ name: 'This plan', isPlan: true, beans: beanForms, prices }, ...extra.products.map((p) => ({ ...p, isPlan: false }))],
-      compareSize,
-      beanLots,
-      packaging,
-      settings.vatTenths,
-      settings.defaultLossTenths,
-      discounts.map((d) => d.tenths),
-    );
-    const earnCell = (text: string, losing: boolean) => el('td', { class: `num nowrap${losing ? ' losing' : ''}` }, text || el('span', { class: 'muted' }, '—'));
-    compareHolder.replaceChildren(
-      el(
-        'div',
-        { class: 'table-wrap' },
-        el(
-          'table',
-          { class: 'data-table compare-table' },
-          el(
-            'thead',
-            {},
-            el(
-              'tr',
-              {},
-              el('th', { scope: 'col' }, 'Product'),
-              el('th', { scope: 'col', class: 'num' }, 'Cost of a bag ', infoTip('What one bag costs you: the coffee from its beans plus the packaging, without VAT.')),
-              el('th', { scope: 'col', class: 'num' }, 'Retail price ', infoTip('What a shop customer pays, with VAT. The wholesale columns show the price after each discount, without VAT, and what one bag earns at it.')),
-              el('th', { scope: 'col', class: 'num' }, 'You earn ', infoTip('What is left for you from one bag at the retail price: the price without VAT, minus what the bag costs.')),
-              ...discounts.map((d) =>
-                el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), `−${String(d.tenths / 10).replace('.', ',')} %`),
-              ),
-            ),
-          ),
-          el(
-            'tbody',
-            {},
-            ...compared.map((r) =>
-              el(
-                'tr',
-                r.isPlan ? { class: 'compare-plan' } : {},
-                el('th', { scope: 'row' }, r.isPlan ? '▶ This plan' : r.name),
-                el('td', { class: 'num nowrap' }, r.cost || el('span', { class: 'muted small' }, r.note || '—')),
-                el('td', { class: 'num nowrap' }, r.price || el('span', { class: 'muted' }, '—')),
-                earnCell(r.earn, r.losing),
-                ...r.atDiscounts.map((a) =>
-                  el(
-                    'td',
-                    { class: 'num nowrap' },
-                    a.price ? el('strong', { class: 'price-main' }, a.price) : el('span', { class: 'muted' }, '—'),
-                    ...(a.earn ? [el('span', { class: a.losing ? 'price-earn-line losing' : 'price-earn-line' }, a.earn)] : []),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    let products = productRows.get(compareSize);
+    if (!products) {
+      products = extra.products.map((p) => compareRow({ ...p, isPlan: false }, compareSize, ...compareArgs));
+      productRows.set(compareSize, products);
+    }
+    const plan = compareRow({ name: 'This plan', isPlan: true, beans: beanForms, prices }, compareSize, ...compareArgs);
+    compareHolder.replaceChildren(compareTable(sortCompared([plan, ...products]), discounts));
   };
   const extraNode = extra
     ? el(
@@ -400,8 +356,9 @@ export function createPlanner(
 
   const update = () => {
     options.onChange?.({ beans: beanForms.map((f) => ({ ...f })), prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) });
-    const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, typedPrices());
-    showExtra(made.rows);
+    const prices = typedPrices();
+    const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, prices);
+    showExtra(made.rows, prices);
     madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
     madeOfLine.hidden = !made.madeOf;
     perKgTitle.textContent = `Why ${made.perKg.replace(' of roasted coffee', '')}?`;

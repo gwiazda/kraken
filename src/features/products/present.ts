@@ -35,8 +35,9 @@ const NONE: PriceCell = { main: '—', other: '', earn: '', losing: false };
 /** "earns 26,70 zł" or "loses 2,10 zł" (rounded to the grosz, as shown); '' without a cost. */
 function earnText(earned: number | null): { earn: string; losing: boolean } {
   if (earned === null) return { earn: '', losing: false };
-  const rounded = roundGrosze(earned);
-  return rounded < 0 ? { earn: `loses ${formatPln(-rounded)}`, losing: true } : { earn: `earns ${formatPln(rounded)}`, losing: false };
+  // Rounded like signedMoney ("You earn / You lose"): the amount first, then the sign, so both lines always agree.
+  const amount = roundGrosze(Math.abs(earned));
+  return earned < 0 && amount > 0 ? { earn: `loses ${formatPln(amount)}`, losing: true } : { earn: `earns ${formatPln(amount)}`, losing: false };
 }
 
 /** "−15 %", "−12,5 %" (the column headers). */
@@ -274,7 +275,7 @@ export interface CompareRow {
  * earn, the most first; rows that cannot be worked out last.
  */
 export function compareRows(
-  entries: readonly { name: string; isPlan: boolean; beans: readonly BeanForm[]; prices: Readonly<Partial<Record<number, number>>> }[],
+  entries: readonly CompareEntry[],
   grams: number,
   lots: readonly BeanLot[],
   packaging: ReadonlyMap<number, number | null>,
@@ -282,30 +283,55 @@ export function compareRows(
   defaultLossTenths: number,
   discounts: readonly number[],
 ): CompareRow[] {
-  const rows = entries.map((entry) => {
-    const row = costing(entry.beans, lots, packaging, vatTenths, defaultLossTenths, entry.prices).rows.find((r) => r.grams === grams);
-    const cost = row?.costGrosze ?? null;
-    const price = entry.prices[grams];
-    const earned = cost === null || price === undefined ? null : earningsAt(price, cost, vatTenths);
-    const retail = earnText(earned);
-    const atDiscounts = discounts.map((d) => {
-      const net = price === undefined ? null : wholesalePrice(price, d, vatTenths).net;
-      return { price: net === null ? '' : formatWholePln(net), ...earnText(net === null || cost === null ? null : net - cost) };
-    });
-    const note =
-      entry.beans.length === 0 ? 'no beans chosen' : cost === null ? 'cost not known yet' : price === undefined ? `no ${formatBagSize(grams)} price` : '';
-    return {
-      sortBy: earned === null ? Number.NEGATIVE_INFINITY : earned,
-      name: entry.name,
-      isPlan: entry.isPlan,
-      cost: cost === null ? '' : money(cost),
-      price: price === undefined ? '' : formatWholePln(price),
-      earn: retail.earn,
-      losing: retail.losing,
-      atDiscounts,
-      note,
-    };
+  return sortCompared(entries.map((entry) => compareRow(entry, grams, lots, packaging, vatTenths, defaultLossTenths, discounts)));
+}
+
+/** A product (or the plan) to compare: its name, beans and main prices per size. */
+export interface CompareEntry {
+  readonly name: string;
+  readonly isPlan: boolean;
+  readonly beans: readonly BeanForm[];
+  readonly prices: Readonly<Partial<Record<number, number>>>;
+}
+
+/** One row of the comparison, with what it earns (for sorting). */
+export type ComparedRow = CompareRow & { readonly sortBy: number };
+
+/** Sorted by what they earn, the most first; rows that cannot be worked out last. */
+export const sortCompared = (rows: readonly ComparedRow[]): CompareRow[] =>
+  [...rows].sort((a, b) => b.sortBy - a.sortBy).map(({ sortBy: _sortBy, ...row }) => row);
+
+/** One product (or the plan) for one bag size; see compareRows. */
+export function compareRow(
+  entry: CompareEntry,
+  grams: number,
+  lots: readonly BeanLot[],
+  packaging: ReadonlyMap<number, number | null>,
+  vatTenths: number,
+  defaultLossTenths: number,
+  discounts: readonly number[],
+): ComparedRow {
+  const row = costing(entry.beans, lots, packaging, vatTenths, defaultLossTenths, entry.prices).rows.find((r) => r.grams === grams);
+  const cost = row?.costGrosze ?? null;
+  const price = entry.prices[grams];
+  const earned = cost === null || price === undefined ? null : earningsAt(price, cost, vatTenths);
+  const retail = earnText(earned);
+  const atDiscounts = discounts.map((d) => {
+    const net = price === undefined ? null : wholesalePrice(price, d, vatTenths).net;
+    return { price: net === null ? '' : formatWholePln(net), ...earnText(net === null || cost === null ? null : net - cost) };
   });
-  return rows.sort((a, b) => b.sortBy - a.sortBy).map(({ sortBy: _sortBy, ...row }) => row);
+  const noPrice = price === undefined ? `no ${formatBagSize(grams)} price` : '';
+  const note = entry.beans.length === 0 ? 'no beans chosen' : cost === null ? ['cost not known yet', noPrice].filter((t) => t).join(', ') : noPrice;
+  return {
+    sortBy: earned === null ? Number.NEGATIVE_INFINITY : earned,
+    name: entry.name,
+    isPlan: entry.isPlan,
+    cost: cost === null ? '' : money(cost),
+    price: price === undefined ? '' : formatWholePln(price),
+    earn: retail.earn,
+    losing: retail.losing,
+    atDiscounts,
+    note,
+  };
 }
 

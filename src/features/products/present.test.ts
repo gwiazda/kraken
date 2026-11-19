@@ -36,6 +36,9 @@ describe('priceRows', () => {
     const [cheap] = priceRows({ 250: 3000 }, [300], 230, { 250: 2415 });
     // 30 zł − 30 % = 17,07 zł → 17 zł without VAT, less than the 24,15 zł the bag costs
     expect(cheap?.wholesale[0]).toMatchObject({ main: '17\u00a0zł', earn: 'loses 7,15\u00a0zł', losing: true });
+    // Rounded like "You lose … per bag": 123 zł is 100 zł without VAT; a cost of 102,505 zł loses 2,51 zł, not 2,50 zł.
+    const [half] = priceRows({ 250: 12300 }, [], 230, { 250: 10250.5 });
+    expect(half?.retail).toMatchObject({ earn: 'loses 2,51\u00a0zł', losing: true });
   });
 
   it('writes the discount headers the Polish way', () => {
@@ -202,7 +205,6 @@ describe('compareRows (the plan next to the products)', () => {
       [
         { name: 'No price', isPlan: true, beans: [kenBean(100)], prices: {} },
         { name: 'Too cheap', isPlan: false, beans: [kenBean(100)], prices: { 250: 3000 } },
-        { name: 'No packaging', isPlan: false, beans: [kenBean(100)], prices: { 500: 9000 } },
       ],
       250,
       lots,
@@ -214,8 +216,11 @@ describe('compareRows (the plan next to the products)', () => {
     expect(rows.map((r) => [r.name, r.atDiscounts[0]?.earn, r.atDiscounts[0]?.losing, r.note])).toEqual([
       ['Too cheap', 'loses 7,15\u00a0zł', true, ''],
       ['No price', '', false, 'no 250 g price'],
-      ['No packaging', '', false, 'no 250 g price'],
     ]);
+    // No packaging for 250 g: the cost cannot be worked out (and both reasons when the price is missing too).
+    const noPackaging = new Map([[250, null]]);
+    expect(compareRows([{ name: 'X', isPlan: false, beans: [kenBean(100)], prices: { 250: 5900 } }], 250, lots, noPackaging, 230, 150, [300])[0]?.note).toBe('cost not known yet');
+    expect(compareRows([{ name: 'X', isPlan: false, beans: [kenBean(100)], prices: {} }], 250, lots, noPackaging, 230, 150, [300])[0]?.note).toBe('cost not known yet, no 250 g price');
     expect(compareRows([{ name: 'X', isPlan: false, beans: [kenBean(100)], prices: { 500: 9000 } }], 500, lots, new Map([[500, null]]), 230, 150, [])[0]?.note).toBe('cost not known yet');
   });
 });
