@@ -228,7 +228,7 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag, with a reason).
   Invoice status for sales: **To be issued → Issued (date) → Paid**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
-  The list opens on **Invoice to be issued** (filters: issued, paid, samples, own use, all, with counts). The status
+  The list opens on **Invoice to be issued** (filters: all first, then to be issued, issued, paid, samples, own use, with counts). The status
   is changed with **one dropdown** in the Invoice column, any status to any other (owner, 2026-11-19: simpler than
   separate buttons). **Two dates** (owner, 2026-11-19): the entry's date and the date the invoice was issued
   ("Issued on" column). Choosing Issued opens a small date box (today, or the date it already has); Paid has no date
