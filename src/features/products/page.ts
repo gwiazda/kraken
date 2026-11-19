@@ -415,7 +415,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     // ---- The beans: up to 3, each a lot or a planned bean. Their shares are set on one bar: drag the divider between
     // two colours, or type a percentage (owner, 2026-11-19: easier than one slider per bean). ----
     const existingBeans = product ? beansOf(beans, product.id) : [];
-    let beanForms: BeanForm[] = existingBeans.map(formFromBean);
+    // A bean whose lot is no longer on the Lots page starts empty, so the form asks to choose another (never saves it).
+    let beanForms: BeanForm[] = existingBeans.map(formFromBean).map((f) => (f.kind === 'lot' && f.lotId !== '' && !beanLots.some((l) => l.lotId === f.lotId) ? { ...f, lotId: '' } : f));
     const beansHolder = el('div', { class: 'beans' });
     const beansError = el('p', { class: 'field-error', role: 'alert' });
     const splitHolder = el('div', { class: 'split-holder' });
@@ -722,11 +723,24 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       deps.busy(true);
       deps
         .withGoogle(async () => {
+          // Who is signed in is asked once per save (a new product and new beans both need it).
+          let email: string | null = null;
+          const by = async () => (email ??= await deps.whoAmI());
           if (savedId === null) {
             if (product) await deps.repo.update(product, changedProductFields(product, result.fields), deps.now());
-            savedId = product ? product.id : await deps.repo.add(result.fields, await deps.whoAmI(), deps.now());
+            savedId = product ? product.id : await deps.repo.add(result.fields, await by(), deps.now());
+            await deps.repo.saveBeans(savedId, beanCheck.fields, existingBeans, by, deps.now());
+            return savedId;
           }
-          await deps.repo.saveBeans(savedId, beanCheck.fields, existingBeans, deps.whoAmI, deps.now());
+          // A retry after the product row was saved: read the product and its beans again (part of the save may have
+          // gone through), then write only what still differs, including anything changed in the form meanwhile.
+          const fresh = await deps.repo.load();
+          const stored = fresh.products.find((p) => p.id === savedId);
+          if (stored) {
+            const changes = changedProductFields(stored, result.fields);
+            if (Object.keys(changes).length > 0) await deps.repo.update(stored, changes, deps.now());
+          }
+          await deps.repo.saveBeans(savedId, beanCheck.fields, beansOf(fresh.beans, savedId), by, deps.now());
           return savedId;
         })
         .finally(() => deps.busy(false))

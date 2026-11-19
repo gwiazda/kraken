@@ -127,4 +127,22 @@ describe('costing (what a bag costs and earns)', () => {
     expect(costing([lotBean('KEN', 60), lotBean('', 30)], lots, packaging, 230, 150, {}).notes).toEqual(['Choose a lot for each bean.', 'The shares add up to 90 %, not 100 %.']);
     expect(costing([], lots, packaging, 230, 150, {})).toEqual({ madeOf: '', perKg: '', rows: expect.any(Array) as unknown, notes: [], perKgSteps: [] });
   });
+
+  it('names the missing 250 g packaging when the bigger sizes cannot follow the 250 g price', () => {
+    const noSmall = new Map([
+      [250, null],
+      [500, 200],
+      [1000, 250],
+    ]);
+    const result = costing([lotBean('KEN', 100)], lots, noSmall, 230, 150, { 250: 5900 });
+    expect(result.rows[2]?.suggestions).toEqual([]);
+    expect(result.rows[2]?.steps[3]).toBe('Add the packaging for 250 g under Packaging & discounts: the suggested 1 kg price is worked out from the 250 g bag.');
+  });
+
+  it('never says "You lose 0,00 zł" for a loss of less than a grosz', () => {
+    // The bag costs 24,147059 zł; 29,70 zł with VAT is 24,146341 zł without: 0,07 grosz short, shown as 0,00 zł.
+    const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 2970 });
+    expect(result.rows[0]).toMatchObject({ earnings: '0,00\u00a0zł', losing: false });
+  });
 });
+

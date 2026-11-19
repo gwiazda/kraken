@@ -35,12 +35,12 @@ export interface ProductBean {
 const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 
 /**
- * A percentage in tenths, 0 to 99,9 %. A cell typed as "15%" in Google Sheets arrives as 0.15, which would read as
- * 0,15 %: values between 0 and 1 % are refused (as everywhere in Kraken).
+ * A roast loss in tenths, 1 to 99,9 %. A cell typed as "15%" in Google Sheets arrives as 0.15, which would read as
+ * 0,15 %: values under 1 % are refused (as everywhere in Kraken), and 0 % is no real roast loss.
  */
 function percentTenths(value: string): number | null {
   const tenths = parseDecimal(value, 1);
-  if (typeof tenths !== 'number' || tenths >= 1000 || (tenths > 0 && tenths < 10)) return null;
+  if (typeof tenths !== 'number' || tenths < 10 || tenths >= 1000) return null; // 0 % loss does not happen
   return tenths;
 }
 

@@ -178,8 +178,9 @@ export function costing(
     const scaled = !base && basePrice !== undefined && basePack !== null ? scaledPrice(basePrice, basePack, grams, pack ?? 0, vatTenths) : null;
     const bags = grams / BASE_GRAMS;
     const bagsText = bags === 2 ? 'Two' : bags === 4 ? 'Four' : String(bags);
+    const baseSuggestions = base ? suggestionsFor(cost, vatTenths) : [];
     const suggestionSteps = base
-      ? suggestionsFor(cost, vatTenths).map((sug) => {
+      ? baseSuggestions.map((sug) => {
           const net = (cost * sug.markupHundredths) / 100;
           return `${MARKUP_WORDS[sug.markupHundredths] ?? `${sug.markupHundredths / 100} times`} the cost is ${money(net)}; with VAT ${money(grossOf(net, vatTenths))}, rounded to ${formatWholePln(sug.gross)}. At that price you earn ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} per bag.`;
         })
@@ -187,7 +188,9 @@ export function costing(
         ? [
             `Suggested price, from your ${formatBagSize(BASE_GRAMS)} price: ${bagsText.toLowerCase()} ${formatBagSize(BASE_GRAMS)} bags at ${formatWholePln(basePrice)} are ${money(bags * basePrice)}. Take away the packaging of those ${bagsText.toLowerCase()} small bags (${money(bags * grossOf(basePack, vatTenths))} with VAT) and add the packaging of one ${size} bag (${money(grossOf(pack ?? 0, vatTenths))} with VAT): ${money(scaled.exact)}, rounded to ${formatWholePln(scaled.gross)}. At that price you earn ${signedMoney(earningsAt(scaled.gross, cost, vatTenths))} per bag.`,
           ]
-        : [`Set the ${formatBagSize(BASE_GRAMS)} price first: the suggested ${size} price is worked out from it.`];
+        : basePrice === undefined
+          ? [`Set the ${formatBagSize(BASE_GRAMS)} price first: the suggested ${size} price is worked out from it.`]
+          : [`Add the packaging for ${formatBagSize(BASE_GRAMS)} under Packaging & discounts: the suggested ${size} price is worked out from the ${formatBagSize(BASE_GRAMS)} bag.`];
     const steps = [
       coffeeStep,
       `Packaging: ${formatPln(bag.packaging ?? 0)} (the bag, label and the rest, from Packaging & discounts).`,
@@ -206,12 +209,12 @@ export function costing(
       parts: `coffee ${money(bag.coffee)} and packaging ${formatPln(bag.packaging ?? 0)}`,
       steps,
       suggestions: base
-        ? suggestionsFor(cost, vatTenths).map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings) }))
+        ? baseSuggestions.map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings) }))
         : scaled
           ? [{ grosze: scaled.gross, text: formatWholePln(scaled.gross), markup: `like ${bags} × ${formatBagSize(BASE_GRAMS)}`, earnings: signedMoney(earningsAt(scaled.gross, cost, vatTenths)) }]
           : [],
       earnings: earned === null ? '' : signedMoney(earned),
-      losing: earned !== null && earned < 0,
+      losing: earned !== null && roundGrosze(earned) < 0, // as shown: never "You lose 0,00 zł"
     };
   });
   const missingPackaging = perKg !== null && BAG_SIZES_G.filter((g) => (packaging.get(g) ?? null) === null);

@@ -29,6 +29,8 @@ describe('typing a planned bean', () => {
     expect(typedBeanPrice('')).toBeNull();
     expect(typedBeanLoss('')).toBeNull();
     expect(typedBeanLoss('16,5')).toBe(165);
+    expect(typedBeanLoss('0')).toBeNull(); // 0 % is no real roast loss
+    expect(validateBeans([planned({ plannedLoss: '0', sharePercent: 100 })])).toMatchObject({ ok: false, errors: [{ plannedLoss: 'Enter a percentage from 1 to 99, e.g. 16, or leave it empty.' }] });
   });
 });
 

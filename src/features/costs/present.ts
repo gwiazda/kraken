@@ -85,6 +85,8 @@ export interface LotCard {
   readonly roastedFromKg: string;
   readonly roastedPerKg: string;
   readonly bags: readonly BagLine[];
+  /** Green price per kg (grosze, not rounded) from the calculation; null when the price or quantity is missing. */
+  readonly greenPerKgGrosze: number | null;
 }
 
 const money = (grosze: number) => formatPln(roundGrosze(grosze));
@@ -158,12 +160,13 @@ export function lotCards(
         lot.coffeePriceGrosze === null
           ? 'Price missing: click "Add price" below.'
           : 'Quantity missing: add the kg delivered on the Lots page (Edit).';
-      return { ...base, missing, greenPerKg: '', roastedFromKg: '', roastedPerKg: '', bags: [] };
+      return { ...base, missing, greenPerKg: '', greenPerKgGrosze: null, roastedFromKg: '', roastedPerKg: '', bags: [] };
     }
     return {
       ...base,
       missing: '',
       greenPerKg: `${money(calc.greenPerKg)} / kg`,
+      greenPerKgGrosze: calc.greenPerKg,
       roastedFromKg: formatKg(Math.round(calc.roastedFromKg * 1000)),
       roastedPerKg: `${money(calc.roastedPerKg)} / kg`,
       bags: calc.bags.map((bag, i) => ({
@@ -213,17 +216,7 @@ export function pricingFor(
   const discounts = activeDiscounts(data.discounts);
   const { views, problems: sizeProblems } = bagSizeViews(data.costs);
   const { cards, problems: cardProblems } = lotCards(lots, roasts, data.lotCosts, [], settings);
-  const beanLots = cards.map((card) => {
-    const price = card.lot.coffeePriceGrosze === null ? null : card.lot.coffeePriceGrosze + (card.lot.deliveryCostGrosze ?? 0);
-    const kg = card.lot.quantityGrams;
-    return {
-      lotId: card.lot.id,
-      label: card.title,
-      greenPerKg: price === null || kg === null || kg <= 0 ? null : (price * 1000) / kg,
-      lossTenths: card.lossTenths,
-      lossSource: card.lossSource,
-    };
-  });
+  const beanLots = cards.map((card) => ({ lotId: card.lot.id, label: card.title, greenPerKg: card.greenPerKgGrosze, lossTenths: card.lossTenths, lossSource: card.lossSource }));
   const packaging = new Map(views.map((v) => [v.grams, v.costs.length === 0 || v.unreadable ? null : v.costs.reduce((sum, c) => sum + (c.costGrosze ?? 0), 0)]));
   return { settings, discounts: discounts.discounts, lots: beanLots, packaging, problems: [...problems, ...discounts.problems, ...sizeProblems, ...cardProblems] };
 }
