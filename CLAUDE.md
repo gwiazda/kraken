@@ -79,7 +79,7 @@ test that reads every import line), so CI fails if a rule is broken.
   the tab is empty the template's 15 / 25 / 30 % are used and the first change writes them), VAT and the usual roast
   loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
   rounded), `pricingFor` (Products: settings, discounts, every lot as a bean with its green price per kg and roast loss, packaging per size) and `lotLosses` (Lots page);
-  `products`: Products page, **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
+  `products`: Products page (products in the owner's order, ↑ ↓, `position` column, migration 11; the Offer and other lists use the same order), **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
   list → click a product → its main gross prices and wholesale at each discount (one column per discount from Packaging & discounts), and its
   offer details, and **Cost and earnings** (cost of one bag and what the retail price earns). A product is **made of
   up to 3 beans** ("Product beans" tab, `modelBeans.ts`): a lot, or a planned bean (name, price per kg, optional
@@ -147,7 +147,7 @@ Everything must be **migration-proof**; full rules in `docs/REQUIREMENTS.md` sec
 - Everyday edits: soft delete only, row IDs, `created_at` / `updated_at` / `created_by`; read columns by header name.
 - Migrations run in the browser when a user clicks "Update now" (never on merge; GitHub has no access to the sheet).
   One file per migration in `src/schema/migrations/` (`NNN-what.ts`, listed in `index.ts`); steps are data
-  (`migrationTypes.ts`: only `add-tab` so far, no delete step exists). The runner is `src/schema/migrate.ts`. Never edit a
+  (`migrationTypes.ts`: `add-tab`, and `add-columns` which writes only new header cells after the last one, skipping columns already there; no delete step exists). The runner is `src/schema/migrate.ts`. Never edit a
   released migration: add a new one. New sheets are built from the same migration steps in one request (`initialTabs`).
 - Raise `APP_SCHEMA_VERSION` in `src/schema/meta.ts` only together with a migration and its tests (a test checks they match).
   An app that sees a newer schema version than it knows must not write.

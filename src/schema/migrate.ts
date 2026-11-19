@@ -3,6 +3,7 @@
 // headers are there; 4. only then raise `schema_version`. Every step is safe to run again after a failure.
 
 import { localDate } from '../core/dates';
+import { columnLetters } from '../core/records';
 import { copyFile } from '../core/drive';
 import { addTab, getSpreadsheetInfo, readTabs, writeValues, type InitialTab, type SheetsClient } from '../core/sheets';
 import { APP_SCHEMA_VERSION, BASE_SCHEMA_VERSION, META_TAB, checkMeta, initialMetaRows, schemaVersionCell } from './meta';
@@ -128,14 +129,16 @@ export async function migrateSpreadsheet(ops: SheetOps, id: string, options: Mig
     progress(`Updating to data version ${migration.toVersion}: ${migration.description}…`);
     for (const step of migration.steps) await applyStep(ops, id, step, notRaised, stop);
 
-    // 3. Check, in one read: the old tabs have the same number of rows, and the new tabs have their headers.
+    // 3. Check, in one read: the old tabs have the same number of rows, and the new tabs and columns have their headers.
     const newTabs = migration.steps.map((step) => step.tab);
     const after = await ops.readTabs(id, [...tabs, ...newTabs]);
     tabs.forEach((tab, i) => {
       if (countRows(after[i] ?? []) !== rowsBefore[i]) stop(`Tab "${tab}" has a different number of rows after the update. ${notRaised}`);
     });
     migration.steps.forEach((step, i) => {
-      if (!sameHeaders(after[tabs.length + i]?.[0], step.headers)) stop(`Tab "${step.tab}" is missing its column headers. ${notRaised}`);
+      const header = after[tabs.length + i]?.[0];
+      const ok = step.kind === 'add-tab' ? sameHeaders(header, step.headers) : missingColumns(header, step.columns).length === 0;
+      if (!ok) stop(`Tab "${step.tab}" is missing its column headers. ${notRaised}`);
     });
 
     // 4. Raise the version, unless someone else changed it meanwhile.
@@ -166,9 +169,16 @@ export function initialTabs(createdAt: Date, all: readonly Migration[] = MIGRATI
         case 'add-tab':
           tabs.push({ title: step.tab, rows: [[...step.headers]], frozenRows: 1 });
           break;
+        case 'add-columns': {
+          const tab = tabs.find((t) => t.title === step.tab);
+          const header = tab?.rows[0];
+          if (!header) throw new Error(`initialTabs: step adds columns to "${step.tab}", which no earlier step adds`);
+          header.push(...missingColumns(header, step.columns));
+          break;
+        }
         default: {
-          const unknown: never = step.kind;
-          throw new Error(`initialTabs does not know step ${String(unknown)}`);
+          const unknown: never = step;
+          throw new Error(`initialTabs does not know step ${JSON.stringify(unknown)}`);
         }
       }
     }
@@ -176,8 +186,26 @@ export function initialTabs(createdAt: Date, all: readonly Migration[] = MIGRATI
   return tabs;
 }
 
+/** The columns not yet in a header row (header names compared without spaces around). */
+function missingColumns(header: readonly unknown[] | undefined, columns: readonly string[]): string[] {
+  const have = new Set((header ?? []).map((cell) => String(cell ?? '').trim()));
+  return columns.filter((column) => !have.has(column));
+}
+
 async function applyStep(ops: SheetOps, id: string, step: MigrationStep, notRaised: string, stop: (message: string) => never): Promise<void> {
   const tabs = await ops.tabs(id);
+  if (step.kind === 'add-columns') {
+    if (!tabs.includes(step.tab)) stop(`The sheet has no "${step.tab}" tab, so Kraken could not add its new columns. ${notRaised}`);
+    const [rows] = await ops.readTabs(id, [step.tab]);
+    const header = rows?.[0] ?? [];
+    const missing = missingColumns(header, step.columns);
+    if (missing.length === 0) return; // a previous attempt added them
+    // After the last filled header cell (columnLetters counts from 1: column 17 is Q), so a column someone added by hand is never overwritten.
+    let last = header.length;
+    while (last > 0 && String(header[last - 1] ?? '').trim() === '') last--;
+    await ops.writeValues(id, step.tab, `${columnLetters(last + 1)}1:${columnLetters(last + missing.length)}1`, [missing]);
+    return;
+  }
   if (!tabs.includes(step.tab)) {
     await ops.addTab(id, step.tab, step.headers);
     return;

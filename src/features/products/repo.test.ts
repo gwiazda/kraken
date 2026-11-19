@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createKrakenSpreadsheet } from '../../schema';
 import { fakeGoogleDrive } from '../../testing/fakeGoogleDrive';
+import { moveProduct, sortProducts } from './model';
 import { beansOf } from './modelBeans';
 import { sheetProductsRepository } from './repo';
 
@@ -54,5 +55,41 @@ describe('sheetProductsRepository (in-memory Google)', () => {
     beans = beansOf(all, 'P1');
     expect(beans.map((b) => [b.position, b.lotId, b.sharePercent])).toEqual([[1, 'L1', 100]]);
     expect(all.filter((b) => b.deletedAt !== '').map((b) => b.lotId)).toEqual(['L2']); // kept, soft-deleted
+  });
+
+  it('saves the order: the first move numbers every product, later moves write only what changed', async () => {
+    const google = fakeGoogleDrive();
+    const info = await createKrakenSpreadsheet(google, now);
+    const repo = sheetProductsRepository(google, info.id);
+    for (const name of ['Burundi', 'Kenia', 'Peru']) await repo.add({ name }, 'owner@example.com', now);
+    const active = async () => sortProducts((await repo.load()).products);
+    const names = async () => (await active()).map((p) => [p.name, p.position]);
+    expect(await names()).toEqual([
+      ['Burundi', null],
+      ['Kenia', null],
+      ['Peru', null],
+    ]);
+
+    await repo.savePositions(moveProduct(await active(), (await active())[2]?.id ?? '', -1), later); // Peru up
+    expect(await names()).toEqual([
+      ['Burundi', 1],
+      ['Peru', 2],
+      ['Kenia', 3],
+    ]);
+    const second = moveProduct(await active(), (await active())[0]?.id ?? '', 1); // Burundi down: two positions change
+    expect(second.map((c) => [c.product.name, c.position])).toEqual([
+      ['Peru', 1],
+      ['Burundi', 2],
+    ]);
+    await repo.savePositions(second, later);
+    expect(await names()).toEqual([
+      ['Peru', 1],
+      ['Burundi', 2],
+      ['Kenia', 3],
+    ]);
+
+    // a new product goes to the end
+    await repo.add({ name: 'Etiopia' }, 'owner@example.com', later);
+    expect((await names()).map(([name]) => name)).toEqual(['Peru', 'Burundi', 'Kenia', 'Etiopia']);
   });
 });

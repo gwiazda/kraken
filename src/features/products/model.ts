@@ -24,6 +24,8 @@ export const PRODUCT_COLUMNS = [
   'price_250_gross_pln',
   'price_500_gross_pln',
   'price_1000_gross_pln',
+  // Migration 011: the order set with ↑ ↓ on the Products page (owner, 2026-11-19); empty until the first move.
+  'position',
 ] as const;
 
 /** Suggestions for the brew method field (any text is allowed). */
@@ -42,6 +44,8 @@ export interface Product {
   readonly brewMethod: string;
   /** Main gross price per bag size, in grosze; a size without a (readable) price is missing. */
   readonly prices: Readonly<Partial<Record<BagSize, number>>>;
+  /** Place in the owner's order (1 first); null until set (a new product, or before the first move). */
+  readonly position: number | null;
   /** Cells Kraken could not read, one sentence each. */
   readonly problems: readonly string[];
   readonly deletedAt: string;
@@ -73,17 +77,47 @@ export function productFromFields(fields: Fields, row: number): Product {
     flavourProfile: text(fields, 'flavour_profile'),
     brewMethod: text(fields, 'brew_method'),
     prices,
+    position: positionOf(text(fields, 'position')),
     problems,
     deletedAt: text(fields, 'deleted_at'),
     source: fields,
   };
 }
 
+/** A whole number from 1; anything else (empty, typed by hand wrongly) is no position. */
+function positionOf(cell: string): number | null {
+  const n = Number(cell);
+  return cell !== '' && Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export const isDeleted = (product: Product) => product.deletedAt !== '';
 
-/** Active products by name (Polish alphabetical order), then deleted ones. */
+/**
+ * The owner's order (owner, 2026-11-19: ↑ ↓ on the Products page, used by the Offer and everywhere products are
+ * listed): active products by position, then those without one (new products) by name, Polish alphabetical order;
+ * deleted ones last.
+ */
 export function sortProducts(products: readonly Product[]): Product[] {
-  return [...products].sort((a, b) => Number(isDeleted(a)) - Number(isDeleted(b)) || a.name.localeCompare(b.name, 'pl') || a.row - b.row);
+  const place = (p: Product) => p.position ?? Number.POSITIVE_INFINITY;
+  return [...products].sort(
+    (a, b) => Number(isDeleted(a)) - Number(isDeleted(b)) || place(a) - place(b) || a.name.localeCompare(b.name, 'pl') || a.row - b.row,
+  );
+}
+
+/**
+ * Moving one product up (-1) or down (+1) in the order of the active products (`active`, as sortProducts gives
+ * them): the positions to write, 1 to n in the new order, only where the stored one differs (the first move also
+ * numbers every product). Nothing when it cannot move further.
+ */
+export function moveProduct(active: readonly Product[], id: string, by: -1 | 1): { product: Product; position: number }[] {
+  const from = active.findIndex((p) => p.id === id);
+  const to = from + by;
+  if (from < 0 || to < 0 || to >= active.length) return [];
+  const order = [...active];
+  const [moved] = order.splice(from, 1);
+  if (!moved) return [];
+  order.splice(to, 0, moved);
+  return order.flatMap((product, i) => (product.position === i + 1 ? [] : [{ product, position: i + 1 }]));
 }
 
 // ---- The form ----

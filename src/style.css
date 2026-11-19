@@ -1324,7 +1324,8 @@ details summary {
   gap: 0.4rem;
 }
 
-.offer-order-moves .btn {
+.offer-order-moves .btn,
+.order-moves .btn {
   padding: 0.1rem 0.5rem;
   margin-right: 0.2rem;
 }

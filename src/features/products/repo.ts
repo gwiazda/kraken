@@ -21,6 +21,8 @@ export interface ProductsRepository {
    * one for changes and removals (soft delete), one for new beans.
    */
   saveBeans(productId: string, wanted: readonly Fields[], existing: readonly ProductBean[], by: () => Promise<string>, now: Date): Promise<void>;
+  /** Writes the products' positions (moveProduct), in one request; refused if someone changed one meanwhile. */
+  savePositions(changes: readonly { product: Product; position: number }[], now: Date): Promise<void>;
 }
 
 export function productsRepository(table: RecordTable, beans: RecordTable): ProductsRepository {
@@ -38,6 +40,13 @@ export function productsRepository(table: RecordTable, beans: RecordTable): Prod
     remove: async (product, now) => void (await table.remove(product.id, product.source, now)),
     restore: async (product, now) => void (await table.restore(product.id, product.source, now)),
     saveBeans: (productId, wanted, existing, by, now) => saveChildren(beans, 'product_id', productId, existing, wanted, by, now),
+    async savePositions(changes, now) {
+      if (changes.length === 0) return;
+      await table.updateMany(
+        changes.map(({ product, position }) => ({ id: product.id, changes: { position: String(position) }, loaded: product.source })),
+        now,
+      );
+    },
   };
 }
 

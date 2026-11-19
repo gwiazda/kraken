@@ -1,11 +1,11 @@
 # Status
 
-_Last updated: 2026-11-18_
+_Last updated: 2026-11-19_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 9**).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 10**).
 - **Lots:** list, add, edit, delete/restore, stock left (prices are no longer on this page).
 - **Roasts and "Sync with RoasTime"** (PR #19): lots and roasts in one step; stock left per lot (oldest delivery
   first). Roasts with no coffee, or whose coffee has no delivery in RoasTime, are samples and are not tracked.
@@ -17,10 +17,9 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Sales** (branch `claude/sales`, data version **10**: "Sales" and "Sale lines" tabs): sales with lines and
-  no prices, samples (client or a place), own use; invoice status from one dropdown, two dates (entry, invoice
-  issued). Owner tested locally; PR open, then the owner clicks "Update now" (version 10) on their sheet.
-- Done before: Clients (PR #31); the owner's 7 clients were added straight into the sheet.
+- **Product order** (branch `claude/product-order`, data version **11**: `position` column on Products, first
+  `add-columns` migration step): ↑ ↓ on the Products page; the Offer starts in that order. Owner to test locally.
+- Done before: Clients (#31), Sales (#32), gross margin (#33).
 
 ## Next steps
 1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.

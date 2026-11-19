@@ -18,6 +18,7 @@ import {
   emptyProductForm,
   formFromProduct,
   isDeleted,
+  moveProduct,
   sortProducts,
   validateProductForm,
   type Product,
@@ -179,6 +180,26 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       });
   }
 
+  /** ↑ / ↓ on the list: saves the new order (inside the click), then reloads; Back and the menu wait meanwhile. */
+  function move(active: readonly Product[], product: Product, by: -1 | 1): void {
+    const changes = moveProduct(active, product.id, by);
+    if (changes.length === 0) return;
+    lockPage();
+    deps.busy(true);
+    deps
+      .withGoogle(() => deps.repo.savePositions(changes, deps.now()))
+      .finally(() => deps.busy(false))
+      .then(() => {
+        if (root.isConnected) load(`Moved ${product.name} ${by < 0 ? 'up' : 'down'}.`);
+      })
+      .catch((error: unknown) => {
+        if (!root.isConnected) return;
+        if (deps.isIgnorable(error)) return showList();
+        const show = (e: unknown) => showList(undefined, errorNodes(e, () => move(active, product, by), `Sign in and move ${product.name}`, show, true));
+        show(error);
+      });
+  }
+
   // ---- The list ----
 
   function showList(note?: string, error?: Node[]): void {
@@ -192,8 +213,17 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     };
     const origin = (p: Product) => [p.country, p.region].filter((t) => t).join(', ');
 
-    const row = (p: Product, restorable: boolean) => {
+    const row = (p: Product, restorable: boolean, index: number) => {
       const actions = el('td', { class: 'row-actions nowrap' });
+      const moves = () => {
+        const up = button('↑', () => move(active, p, -1), 'secondary');
+        const down = button('↓', () => move(active, p, 1), 'secondary');
+        up.disabled = index === 0;
+        down.disabled = index === active.length - 1;
+        up.setAttribute('aria-label', `Move ${p.name} up`);
+        down.setAttribute('aria-label', `Move ${p.name} down`);
+        return el('td', { class: 'order-moves nowrap' }, up, down);
+      };
       if (restorable) {
         const restore = () =>
           change(p, 'restore', () => {
@@ -205,6 +235,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       return el(
         'tr',
         restorable ? { class: 'row-deleted' } : {},
+        ...(restorable ? [] : [moves()]),
         el(
           'td',
           {},
@@ -231,19 +262,25 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             el(
               'tr',
               {},
+              ...(restorable ? [] : [el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Order'))]),
               el('th', { scope: 'col' }, 'Product'),
               el('th', { scope: 'col' }, 'Origin'),
               ...BAG_SIZES_G.map((g) => el('th', { scope: 'col', class: 'num' }, formatBagSize(g))),
               ...(restorable ? [el('th', { scope: 'col' }, '')] : []),
             ),
           ),
-          el('tbody', {}, ...list.map((p) => row(p, restorable))),
+          el('tbody', {}, ...list.map((p, i) => row(p, restorable, i))),
         ),
       );
 
     render(
       el('div', { class: 'page-head' }, el('h2', {}, 'Products'), el('div', { class: 'head-actions' }, button('Add product', () => showForm(null)))),
-      el('p', { class: 'muted small' }, 'Main prices, gross (retail). Click a product to see its wholesale prices.'),
+      el(
+        'p',
+        { class: 'muted small' },
+        'Main prices, gross (retail). Click a product to see its wholesale prices. ',
+        infoTip('Use ↑ ↓ to set the order of your products. The Offer uses the same order (you can still change it there for one offer), and so do the lists on other pages. New products go to the end.'),
+      ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),

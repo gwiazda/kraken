@@ -430,6 +430,10 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   Prices on the offer: wholesale **net**, rounded to whole złoty (as on the product page), one block per size;
   "Sugerowana cena detaliczna brutto" (the main gross price) under **250 g only**.
 - The owner sets the **order** of the products on the offer (↑ ↓). Empty product details are left out.
+- **Product order** (owner, 2026-11-19): ↑ ↓ on the Products page saves the order in the sheet (`position` column of
+  the Products tab, data version 11). The Offer page starts in that order, and ↑ ↓ there still changes it for that
+  one offer only (not saved). Other lists of products (Product planner, Sales) use the same order. Products without
+  a position (new ones) come last, by name.
 - The **yellow banner** text is made from the ticked discounts and sizes, and can be changed per offer (title, main
   line, small print; "Back to the standard text"). "Sugerowana cena…" stays on one line.
 - **Prices never move under a product name** (owner, 2026-11-17): a long name gets smaller (22 → 16 pt) on one line,

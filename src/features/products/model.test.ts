@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BAG_SIZES_G } from '../../domain/bagSizes';
-import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, productFromFields, sortProducts, validateProductForm } from './model';
+import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, moveProduct, productFromFields, sortProducts, validateProductForm } from './model';
 
 const product = (row: number, o: Record<string, string> = {}) =>
   productFromFields(
@@ -45,6 +45,35 @@ describe('reading a product', () => {
   it('sorts by name the Polish way, deleted ones last', () => {
     const list = [product(2, { name: 'Kenia' }), product(3, { name: 'Ćwiczebna', deleted_at: '2026-11-17T10:00:00.000Z' }), product(4, { name: 'Burundi' }), product(5, { name: 'Ćma' })];
     expect(sortProducts(list).map((p) => p.name)).toEqual(['Burundi', 'Ćma', 'Kenia', 'Ćwiczebna']);
+  });
+
+  it("follows the owner's order: by position, then products without one by name, deleted ones last", () => {
+    const list = [
+      product(2, { name: 'Kenia', position: '2' }),
+      product(3, { name: 'Burundi' }),
+      product(4, { name: 'Peru', position: '1' }),
+      product(5, { name: 'Ćma', position: 'first' }), // cannot be read: no position
+      product(6, { name: 'Andy', position: '1', deleted_at: '2026-11-17T10:00:00.000Z' }),
+    ];
+    expect(sortProducts(list).map((p) => p.name)).toEqual(['Peru', 'Kenia', 'Burundi', 'Ćma', 'Andy']);
+    expect(list.map((p) => p.position)).toEqual([2, null, 1, null, 1]);
+  });
+
+  it('moves a product up or down: positions 1 to n in the new order, only those that change', () => {
+    const active = sortProducts([product(2, { name: 'A', position: '1' }), product(3, { name: 'B', position: '2' }), product(4, { name: 'C', position: '3' })]);
+    expect(moveProduct(active, 'P4', -1).map((c) => [c.product.name, c.position])).toEqual([
+      ['C', 2],
+      ['B', 3],
+    ]);
+    expect(moveProduct(active, 'P2', -1)).toEqual([]); // already first
+    expect(moveProduct(active, 'P4', 1)).toEqual([]); // already last
+    expect(moveProduct(active, 'P9', 1)).toEqual([]);
+    // before the first move nobody has a position: every product gets one
+    const fresh = sortProducts([product(2, { name: 'A' }), product(3, { name: 'B' })]);
+    expect(moveProduct(fresh, 'P2', 1).map((c) => [c.product.name, c.position])).toEqual([
+      ['B', 1],
+      ['A', 2],
+    ]);
   });
 });
 
