@@ -85,6 +85,8 @@ export interface LotCard {
   readonly roastedFromKg: string;
   readonly roastedPerKg: string;
   readonly bags: readonly BagLine[];
+  /** Green price per kg (grosze, not rounded) from the calculation; null when the price or quantity is missing. */
+  readonly greenPerKgGrosze: number | null;
 }
 
 const money = (grosze: number) => formatPln(roundGrosze(grosze));
@@ -158,12 +160,13 @@ export function lotCards(
         lot.coffeePriceGrosze === null
           ? 'Price missing: click "Add price" below.'
           : 'Quantity missing: add the kg delivered on the Lots page (Edit).';
-      return { ...base, missing, greenPerKg: '', roastedFromKg: '', roastedPerKg: '', bags: [] };
+      return { ...base, missing, greenPerKg: '', greenPerKgGrosze: null, roastedFromKg: '', roastedPerKg: '', bags: [] };
     }
     return {
       ...base,
       missing: '',
       greenPerKg: `${money(calc.greenPerKg)} / kg`,
+      greenPerKgGrosze: calc.greenPerKg,
       roastedFromKg: formatKg(Math.round(calc.roastedFromKg * 1000)),
       roastedPerKg: `${money(calc.roastedPerKg)} / kg`,
       bags: calc.bags.map((bag, i) => ({
@@ -187,44 +190,35 @@ export function lotCards(
   return { cards, problems };
 }
 
-/** A lot's suggested prices, to pick from when setting a product's price (owner, 2026-11-18). */
-export interface LotSuggestion {
+/** A lot as a product's bean (owner, 2026-11-18): what 1 kg of it costs green, and its roast loss. */
+export interface BeanLot {
   readonly lotId: string;
   /** "KENYA-26-09 · Kegwa" */
   readonly label: string;
-  readonly country: string;
-  /** Per bag size in grams: the suggested gross prices (whole złoty) at each markup; none when not calculable. */
-  readonly bySize: ReadonlyMap<number, readonly { readonly markup: string; readonly grosze: number; readonly text: string }[]>;
+  /** Green price per kg (grosze, without VAT, with delivery); null when the lot has no price or quantity yet. */
+  readonly greenPerKg: number | null;
+  /** Tenths of a percent. */
+  readonly lossTenths: number;
+  /** "average of 23 roasts", "your own", "usual loss: …" */
+  readonly lossSource: string;
 }
 
-/** The suggestions of every lot that can be calculated, newest delivery first (from the lot cards). */
-export function lotSuggestions(cards: readonly LotCard[]): LotSuggestion[] {
-  return cards
-    .filter((card) => card.bags.some((bag) => bag.prices.length > 0))
-    .map((card) => ({
-      lotId: card.lot.id,
-      label: card.title,
-      country: card.lot.country,
-      bySize: new Map(
-        card.bags.map((bag) => [
-          bag.grams,
-          bag.prices.map((p) => ({ markup: p.markup, grosze: p.suggestedGrossGrosze, text: p.suggestedGross })),
-        ]),
-      ),
-    }));
-}
-
-/** Everything the Products page needs: the settings (VAT), the wholesale discounts and each lot's suggestions. */
+/**
+ * Everything the Products page needs: VAT and the usual loss, the wholesale discounts, every active lot as a bean
+ * (newest delivery first) and the packaging cost of each bag size (null: not entered).
+ */
 export function pricingFor(
   data: CostData,
   lots: readonly Lot[],
   roasts: readonly Roast[],
-): { settings: CostSettings; discounts: Discount[]; suggestions: LotSuggestion[]; problems: string[] } {
+): { settings: CostSettings; discounts: Discount[]; lots: BeanLot[]; packaging: ReadonlyMap<number, number | null>; problems: string[] } {
   const { settings, problems } = readSettings(data.settings);
   const discounts = activeDiscounts(data.discounts);
-  const { views } = bagSizeViews(data.costs);
-  const { cards } = lotCards(lots, roasts, data.lotCosts, views, settings);
-  return { settings, discounts: discounts.discounts, suggestions: lotSuggestions(cards), problems: [...problems, ...discounts.problems] };
+  const { views, problems: sizeProblems } = bagSizeViews(data.costs);
+  const { cards, problems: cardProblems } = lotCards(lots, roasts, data.lotCosts, [], settings);
+  const beanLots = cards.map((card) => ({ lotId: card.lot.id, label: card.title, greenPerKg: card.greenPerKgGrosze, lossTenths: card.lossTenths, lossSource: card.lossSource }));
+  const packaging = new Map(views.map((v) => [v.grams, v.costs.length === 0 || v.unreadable ? null : v.costs.reduce((sum, c) => sum + (c.costGrosze ?? 0), 0)]));
+  return { settings, discounts: discounts.discounts, lots: beanLots, packaging, problems: [...problems, ...discounts.problems, ...sizeProblems, ...cardProblems] };
 }
 
 /** A lot's roast loss for the Lots page: the one in use, where it comes from, and the owner's own value as typed. */

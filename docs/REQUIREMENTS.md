@@ -348,8 +348,32 @@ amounts stay visible in the step-by-step calculation. (Built 2026-11-16.)
 - Short plain-language tooltips next to every number, in normal letters, floating above the page (owner, 2026-11-18).
 - **Sync with RoasTime** is under Settings (owner, 2026-11-18), not on the Lots or Roasts page.
 - The product page shows a column per discount from Packaging & discounts (no "Another discount" box).
-- **Next (step 3):** a product made of up to 3 beans (a lot, or a planned bean with a typed price per kg), share
-  sliders, cost of one bag, suggested prices and earnings per bag, saved with the product.
+
+**[R] A product's beans (owner, 2026-11-18; built, data version 8):** goal: "when I think about buying some beans I
+need to know what price to put on my product".
+- A product is made of **up to 3 beans**: a **lot** (its price per kg from Lots, its roast loss) or a **planned
+  bean** not bought yet (a name, the quoted price per kg with delivery and without VAT, an optional roast loss;
+  empty: the usual loss). Saved with the product ("Product beans" tab).
+- Each bean has a **share of the bag** (whole percent), set on **one bar** (owner, 2026-11-19): drag the white divider
+  between two colours, or type the percentage; the total is always 100 % (each at least 1 %). The colours are easy
+  to tell apart (lime, orange, sky blue).
+- In the form, the beans are on the left and the prices on the right (staying in view while the shares change);
+  stacked on a narrow screen.
+- Live under the beans, per size: **cost of one bag** (coffee + packaging), **suggested prices** at 2×, 2,5×, 3×
+  (with VAT, whole złoty) as buttons with **what each earns per bag**, and what the typed price earns ("You earn" /
+  "You lose" in red when it does not cover the cost). Earnings = the price without VAT minus the cost of one bag.
+- Rule: roasted price per kg of a bean = green price per kg ÷ (1 − roast loss); the blend's = each bean's, weighted
+  by its share of the coffee in the bag.
+- The product page shows **Cost and earnings** (made of …, cost of one bag, what the retail price earns).
+- **Suggestions (owner, 2026-11-19):** only the **250 g** bag gets 2× / 2,5× / 3× its cost (with VAT, whole złoty).
+  **500 g and 1 kg follow the 250 g price** the owner set: as many 250 g bags as fit (2 or 4), without their
+  packaging, plus the packaging of the one big bag (packaging with VAT), rounded to whole złoty. Example: 250 g at
+  45 zł, packaging 6,48 zł with VAT: 1 kg = 180 − 25,93 + 6,48 = 160,55 → 161 zł. Without a 250 g price the bigger
+  sizes say "Set the 250 g price first".
+- **Every number is explained** (owner, 2026-11-19): "Why … per kg?" (each bean's green price, how roasting makes
+  it lighter, how the beans are mixed) and, per size, "How is this worked out?" (coffee, packaging, cost of one bag,
+  what your price earns after VAT, how each suggested price is reached), in plain sentences with the real numbers.
+  Folded by default; they stay open while the shares or prices change.
 
 **[R] Blend calculator (owner, 2026-11-17, later):** an easy way to see what a blend costs: pick coffees from the
 lots, set each one's share with a slider, and see the cost of one bag of the blend (250 g, 500 g, 1 kg) and the

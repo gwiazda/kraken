@@ -65,7 +65,8 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `domain/`: shared business rules used by several features, pure (no Google, no screen): `bagSizes.ts` the fixed
   bag sizes (250 g, 500 g, 1 kg) and how a size is written; `prices.ts` VAT, rounding (grosz, whole złoty) and the
-  wholesale price (net, whole złoty), used by the cost calculation, Products and the Offer. Each rule is in one place.
+  wholesale price (net, whole złoty); `blend.ts` a product's beans: roasted price per kg, blend by share, cost of
+  one bag, suggestions at the fixed multipliers, earnings, share sliders. Each rule is in one place.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
 - `features/<name>/` (built: `lots`: list, add, edit, delete, show deleted, restore, stock left, price (coffee +
@@ -77,11 +78,15 @@ test that reads every import line), so CI fails if a rule is broken.
   items per bag size, wholesale discounts with a name for the offer (`modelDiscounts.ts`, "Discounts" tab; while
   the tab is empty the template's 15 / 25 / 30 % are used and the first change writes them), VAT and the usual roast
   loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
-  rounded), `pricingFor` (Products: settings, discounts, each lot's suggested prices) and `lotLosses` (Lots page);
+  rounded), `pricingFor` (Products: settings, discounts, every lot as a bean with its green price per kg and roast loss, packaging per size) and `lotLosses` (Lots page);
   `products`: Products page, **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
   list → click a product → its main gross prices and wholesale at each discount (one column per discount from Packaging & discounts), and its
-  offer details; the form has suggestion buttons from a chosen lot (only the price is saved; products are not linked
-  to lots); only the current price is kept;
+  offer details, and **Cost and earnings** (cost of one bag and what the retail price earns). A product is **made of
+  up to 3 beans** ("Product beans" tab, `modelBeans.ts`): a lot, or a planned bean (name, price per kg, optional
+  roast loss), each with a share of the bag set on one bar (drag a divider or type a %; always 100 %); the form shows live the cost of one bag,
+  suggested prices to click with what each earns (250 g: 2×, 2,5×, 3× its cost with VAT, whole złoty; 500 g and 1 kg
+  follow the 250 g price with one big bag's packaging), what the typed price earns, and every step explained.
+  The blend rules are in `domain/blend.ts`. Only the current price is kept;
   `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file
   name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);

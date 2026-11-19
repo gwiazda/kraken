@@ -5,7 +5,7 @@ _Last updated: 2026-11-18_
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 6**).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 7**).
 - **Lots:** list, add, edit, delete/restore, stock left (prices are no longer on this page).
 - **Roasts and "Sync with RoasTime"** (PR #19): lots and roasts in one step; stock left per lot (oldest delivery
   first). Roasts with no coffee, or whose coffee has no delivery in RoasTime, are samples and are not tracked.
@@ -17,20 +17,17 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Step 2: Costs & prices removed** (branch `claude/packaging-discounts`, data version **7**: new "Discounts" tab):
-  lot price, delivery cost, price per kg and roast loss on the Lots page; new **Packaging & discounts** page
-  (packaging, discounts with names, VAT, usual roast loss); multipliers fixed; Offer ticks up to 4 named discounts.
-  Owner to test locally.
-- Done before: Products = the one place for prices (PR #26).
+- **Step 3: a product's beans** (branch `claude/product-beans`, data version **8**: new "Product beans" tab): up to
+  3 beans per product (lot or planned bean), share sliders, live cost of one bag, suggested prices with earnings,
+  what the typed price earns; "Cost and earnings" on the product page. Owner to test locally.
+- Done before: Packaging & discounts, lot price on Lots (PR #27).
 
 ## Next steps
-1. **Step 3: a product's beans** (owner, 2026-11-18): up to 3 beans per product (a lot, or a planned bean with a
-   typed price per kg), share sliders, live cost of one bag, suggested prices and earnings; saved with the product.
-2. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
-3. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
-4. Prices later: customers (name, NIP, own discount), special prices, hand overrides.
-5. Roasts filters and paging (later).
-6. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
+1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
+2. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
+3. Prices later: customers (name, NIP, own discount), special prices, hand overrides.
+4. Roasts filters and paging (later).
+5. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).

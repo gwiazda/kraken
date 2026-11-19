@@ -1381,3 +1381,306 @@ details summary {
   text-transform: none;
   letter-spacing: 0;
 }
+
+/* ---- A product's beans (owner, 2026-11-18/19): up to 3, one share bar, costing side by side ---- */
+
+/* Three colours that are easy to tell apart: lime (brand), orange and sky blue. */
+.bean-colour-1 {
+  background: #cad401;
+}
+
+.bean-colour-2 {
+  background: #ff8c42;
+}
+
+.bean-colour-3 {
+  background: #4fc3f7;
+}
+
+.bean-1 {
+  --bean-colour: #cad401;
+}
+
+.bean-2 {
+  --bean-colour: #ff8c42;
+}
+
+.bean-3 {
+  --bean-colour: #4fc3f7;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.beans {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.beans > .btn {
+  justify-self: start;
+}
+
+.bean-row {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #222;
+  border-left: 4px solid var(--bean-colour, var(--lime));
+  border-radius: 6px;
+  background: #0b0b0b;
+}
+
+.bean-head,
+.bean-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+}
+
+.bean-head .btn-link {
+  margin-left: auto;
+}
+
+.beans select,
+.bean-field input {
+  font: inherit;
+  padding: 0.35rem 0.55rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+  max-width: 100%;
+}
+
+.bean-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.bean-field-label {
+  font-size: 0.8rem;
+  color: var(--grey);
+}
+
+/* The share bar: coloured parts with white dividers to drag (range inputs laid over the bar). The bar is inset by
+   half a divider's width, so a divider's middle sits exactly on its percentage. */
+.split {
+  position: relative;
+  height: 2.4rem;
+  margin: 0.5rem 0 0.4rem;
+}
+
+.split-bar {
+  position: absolute;
+  inset: 0.2rem 8px;
+  display: flex;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.split-part {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--black);
+}
+
+.split-divider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: none;
+}
+
+.split-divider::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.split-divider::-moz-range-track {
+  background: transparent;
+}
+
+.split-divider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 16px;
+  height: 2.4rem;
+  border: 2px solid var(--black);
+  border-radius: 5px;
+  background: var(--white);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  cursor: ew-resize;
+}
+
+.split-divider::-moz-range-thumb {
+  pointer-events: auto;
+  width: 12px;
+  height: 2.2rem;
+  border: 2px solid var(--black);
+  border-radius: 5px;
+  background: var(--white);
+  cursor: ew-resize;
+}
+
+.split-divider:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--lime);
+}
+
+.split-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.split-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.split-name {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.split-input {
+  width: 3.4rem;
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  text-align: right;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+
+/* Beans on the left, prices on the right; the prices stay in view while the shares change. */
+.costing-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.costing-prices {
+  position: sticky;
+  top: 0.5rem;
+}
+
+@media (max-width: 1000px) {
+  .costing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .costing-prices {
+    position: static;
+  }
+}
+
+.costing-prices .price-rows {
+  gap: 0.4rem;
+}
+
+.costing-prices .price-row {
+  grid-template-columns: 3.2rem auto minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.costing-prices .price-earn {
+  grid-column: 3;
+  grid-row: 1;
+  font-size: 0.85rem;
+}
+
+.costing-prices .chips {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.costing-prices .chip {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.55rem;
+}
+
+.costing-prices .price-input input {
+  width: 6.5rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.costing-summary p {
+  margin: 0.2rem 0;
+  font-size: 0.9rem;
+}
+
+.made-of {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.price-earn:empty {
+  display: none;
+}
+
+.earn {
+  color: var(--lime);
+  font-weight: 600;
+}
+
+.losing,
+.earn.losing {
+  color: #ff6b6b;
+}
+
+/* "How is this worked out?": the steps of a calculation in plain sentences. */
+.how {
+  font-size: 0.85rem;
+}
+
+.how > summary {
+  color: var(--lime);
+  margin: 0.15rem 0;
+}
+
+.how-steps {
+  margin: 0.3rem 0 0.4rem;
+  padding-left: 1.3rem;
+  color: #d8d8d8;
+  line-height: 1.45;
+}
+
+.how-steps li + li {
+  margin-top: 0.2rem;
+}
+
+.costing-prices .how {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+.costing-prices .price-row .field-error {
+  grid-row: 4;
+}

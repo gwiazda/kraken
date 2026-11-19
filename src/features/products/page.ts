@@ -5,11 +5,12 @@
 // A product is named however the owner likes and is not linked to lots (a lot only gives suggestions).
 // Everything from outside comes through ProductsPageDeps (main.ts provides it).
 
-import { formatWholePln } from '../../core/numbers';
+import { formatPln, formatWholePln, parseMoney } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type CostSettings, type CostsRepository, type Discount, type LotSuggestion } from '../costs';
+import { MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
+import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import {
@@ -25,7 +26,8 @@ import {
   type ProductForm,
   type ProductFormErrors,
 } from './model';
-import { discountHeader, priceRows, productDetails, suggestedLot, type PriceCell } from './present';
+import { beansOf, formFromBean, validateBeans, type BeanForm, type ProductBean } from './modelBeans';
+import { costing, discountHeader, priceRows, productDetails, type Costing, type PriceCell } from './present';
 import type { ProductsRepository } from './repo';
 
 export interface ProductsPageDeps {
@@ -86,7 +88,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   let problems: string[] = [];
   let settings: CostSettings = DEFAULT_SETTINGS;
   let discounts: Discount[] = activeDiscounts([]).discounts;
-  let suggestions: LotSuggestion[] = [];
+  /** Every active lot as a possible bean (newest first), and the packaging cost of each size (null: not entered). */
+  let beanLots: BeanLot[] = [];
+  let packaging: ReadonlyMap<number, number | null> = new Map();
+  let beans: ProductBean[] = [];
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
@@ -113,8 +118,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         },
         (error: unknown) => {
           if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          const problem = `The price settings and suggestions could not be read (${deps.describeError(error)}); the default VAT and discounts are used.`;
-          return { settings: DEFAULT_SETTINGS, discounts: activeDiscounts([]).discounts, suggestions: [] as LotSuggestion[], problems: [problem] };
+          const problem = `The packaging, discounts and lots could not be read (${deps.describeError(error)}); the default VAT and discounts are used.`;
+          return { settings: DEFAULT_SETTINGS, discounts: activeDiscounts([]).discounts, lots: [] as BeanLot[], packaging: new Map<number, number | null>(), problems: [problem] };
         },
       );
     const all = () => Promise.all([deps.repo.load(), pricing()]);
@@ -124,7 +129,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         products = result.products;
         settings = found.settings;
         discounts = found.discounts;
-        suggestions = found.suggestions;
+        beanLots = found.lots;
+        packaging = found.packaging;
+        beans = result.beans;
         problems = [...result.problems, ...found.problems];
         const open = openId ? products.find((p) => p.id === openId && !isDeleted(p)) : undefined;
         if (open) showProduct(open, note);
@@ -276,6 +283,29 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     };
     showPrices();
 
+    const made = costing(beansOf(beans, product.id).map(formFromBean), beanLots, packaging, vat, settings.defaultLossTenths, product.prices);
+    const costCard = el(
+      'section',
+      { class: 'product-card' },
+      el('h3', {}, 'Cost and earnings ', infoTip('What one bag costs you (the coffee from its beans plus the packaging), and what you earn on it at the retail price, without VAT.')),
+      ...(made.madeOf
+        ? [
+            el('p', { class: 'made-of' }, made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])),
+            ...made.notes.map((n) => el('p', { class: 'muted small' }, n)),
+            earningsTable(made),
+            el(
+              'details',
+              { class: 'how' },
+              el('summary', {}, 'How is this worked out?'),
+              ...(made.perKgSteps.length > 0 ? [el('ol', { class: 'how-steps' }, ...made.perKgSteps.map((step) => el('li', {}, step)))] : []),
+              ...made.rows
+                .filter((r) => r.steps.length > 0)
+                .map((r) => el('div', {}, el('strong', {}, r.size), el('ol', { class: 'how-steps' }, ...r.steps.map((step) => el('li', {}, step))))),
+            ),
+          ]
+        : [el('p', { class: 'muted' }, 'Choose the beans this product is made of (Edit) to see what a bag costs and earns.')]),
+    );
+
     const details = productDetails(product);
     const actions = el('div', { class: 'head-actions' });
     const confirm = el('div', {});
@@ -314,6 +344,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         ),
         pricesHolder,
       ),
+      costCard,
       el(
         'section',
         { class: 'product-card' },
@@ -321,6 +352,32 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         details.length === 0
           ? el('p', { class: 'muted' }, 'No details yet. Click Edit to add them.')
           : el('dl', { class: 'product-details' }, ...details.flatMap((d) => [el('dt', {}, d.label), el('dd', {}, d.value)])),
+      ),
+    );
+  }
+
+  /** Per size: the cost of one bag, the retail price and what it earns. */
+  function earningsTable(made: Costing): HTMLElement {
+    return el(
+      'div',
+      { class: 'table-wrap' },
+      el(
+        'table',
+        { class: 'data-table product-prices' },
+        el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, ''), el('th', { scope: 'col', class: 'num' }, 'Cost of one bag'), el('th', { scope: 'col', class: 'num' }, 'You earn per bag'))),
+        el(
+          'tbody',
+          {},
+          ...made.rows.map((r) =>
+            el(
+              'tr',
+              {},
+              el('th', { scope: 'row' }, r.size),
+              el('td', { class: 'num nowrap' }, el('strong', { class: 'price-main' }, r.cost || '—'), ...(r.parts ? [el('span', { class: 'price-other' }, r.parts)] : [])),
+              el('td', { class: `num nowrap${r.losing ? ' losing' : ''}` }, r.earnings ? el('strong', { class: 'price-main' }, r.earnings) : el('span', { class: 'muted' }, r.cost ? 'no retail price' : '—')),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -355,62 +412,273 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
     };
 
-    // Prices: one row per size, typed in zł, with the chosen lot's suggestions as buttons that fill the price in.
-    const lotSelect = el('select', { id: 'product-suggestions-lot' });
-    lotSelect.append(el('option', { value: '' }, 'Choose a lot…'));
-    for (const s of suggestions) lotSelect.append(el('option', { value: s.lotId }, s.label));
-    lotSelect.value = suggestedLot(initial, suggestions);
+    // ---- The beans: up to 3, each a lot or a planned bean. Their shares are set on one bar: drag the divider between
+    // two colours, or type a percentage (owner, 2026-11-19: easier than one slider per bean). ----
+    const existingBeans = product ? beansOf(beans, product.id) : [];
+    // A bean whose lot is no longer on the Lots page starts empty, so the form asks to choose another (never saves it).
+    let beanForms: BeanForm[] = existingBeans.map(formFromBean).map((f) => (f.kind === 'lot' && f.lotId !== '' && !beanLots.some((l) => l.lotId === f.lotId) ? { ...f, lotId: '' } : f));
+    const beansHolder = el('div', { class: 'beans' });
+    const beansError = el('p', { class: 'field-error', role: 'alert' });
+    const splitHolder = el('div', { class: 'split-holder' });
+    /** The parts of the bar, its dividers and the typed percentages, updated in place while dragging (keeps focus). */
+    let parts: HTMLElement[] = [];
+    let dividers: HTMLInputElement[] = [];
+    let shareInputs: HTMLInputElement[] = [];
+    let legendNames: HTMLElement[] = [];
+
+    const beanName = (form: BeanForm, i: number) =>
+      form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
+    const shares = () => beanForms.map((f) => f.sharePercent);
+    const applyShares = (next: readonly number[]) =>
+      next.forEach((share, k) => {
+        const f = beanForms[k];
+        if (f) f.sharePercent = share;
+      });
+
+    const showSplit = () => {
+      const at = dividersOf(shares());
+      beanForms.forEach((form, i) => {
+        const part = parts[i];
+        if (part) {
+          part.style.flex = String(form.sharePercent);
+          part.textContent = form.sharePercent >= 8 ? `${form.sharePercent} %` : '';
+        }
+        const input = shareInputs[i];
+        if (input && document.activeElement !== input) input.value = String(form.sharePercent);
+        const name = legendNames[i];
+        if (name) name.textContent = beanName(form, i);
+      });
+      dividers.forEach((d, k) => (d.value = String(at[k] ?? 0)));
+    };
+
+    const renderSplit = () => {
+      parts = [];
+      dividers = [];
+      shareInputs = [];
+      legendNames = [];
+      if (beanForms.length < 2) {
+        splitHolder.replaceChildren(...(beanForms.length === 1 ? [el('p', { class: 'muted small' }, 'One bean: it is 100 % of the bag. Add another to make a blend.')] : []));
+        return;
+      }
+      const bar = el('div', { class: 'split-bar', 'aria-hidden': 'true' });
+      parts = beanForms.map((_, i) => el('span', { class: `split-part bean-colour-${i + 1}` }));
+      bar.append(...parts);
+      dividers = dividersOf(shares()).map((_, k) => {
+        const range = el('input', { type: 'range', min: '0', max: '100', step: '1', class: 'split-divider', 'aria-label': `Divider between bean ${k + 1} and bean ${k + 2}` });
+        range.addEventListener('input', () => {
+          applyShares(moveDivider(shares(), k, Number(range.value)));
+          showSplit();
+          update();
+        });
+        return range;
+      });
+      const legend = el(
+        'div',
+        { class: 'split-legend' },
+        ...beanForms.map((_, i) => {
+          const input = el('input', { type: 'text', inputmode: 'numeric', class: 'split-input', id: `bean-${i}-share`, autocomplete: 'off' });
+          input.addEventListener('input', () => {
+            const value = Number(input.value.trim());
+            if (input.value.trim() === '' || !Number.isInteger(value)) return;
+            applyShares(typeShare(shares(), i, value));
+            showSplit();
+            update();
+          });
+          input.addEventListener('blur', showSplit); // shows the share as kept (e.g. after typing more than allowed)
+          shareInputs.push(input);
+          const name = el('span', { class: 'split-name' });
+          legendNames.push(name);
+          return el('label', { class: 'split-item', for: input.id }, el('span', { class: `dot bean-colour-${i + 1}` }), name, input, '%');
+        }),
+      );
+      splitHolder.replaceChildren(el('div', { class: 'split' }, bar, ...dividers), legend);
+      showSplit();
+    };
+
+    const renderBeans = () => {
+      beansHolder.replaceChildren(
+        ...beanForms.map((form, i) => {
+          const row = el('div', { class: `bean-row bean-${i + 1}` });
+          const kind = el('select', { id: `bean-${i}-kind`, 'aria-label': `Bean ${i + 1}: where it comes from` });
+          kind.append(el('option', { value: 'lot' }, 'A lot from Lots'), el('option', { value: 'planned' }, 'A planned bean (not bought yet)'));
+          kind.value = form.kind;
+          kind.addEventListener('change', () => {
+            form.kind = kind.value === 'planned' ? 'planned' : 'lot';
+            renderBeans();
+            update();
+          });
+          const what: Node[] = [];
+          if (form.kind === 'lot') {
+            const lot = el('select', { id: `bean-${i}-lot`, 'aria-label': `Bean ${i + 1}: lot` });
+            lot.append(el('option', { value: '' }, 'Choose a lot…'));
+            for (const l of beanLots) lot.append(el('option', { value: l.lotId }, `${l.label} · ${l.greenPerKg === null ? 'no price yet' : `${formatPln(Math.round(l.greenPerKg))} per kg`}`));
+            lot.value = form.lotId;
+            lot.addEventListener('change', () => {
+              form.lotId = lot.value;
+              showSplit();
+              update();
+            });
+            what.push(lot);
+          } else {
+            const input = (key: 'plannedName' | 'plannedPrice' | 'plannedLoss', label: string, attrs: Record<string, string>) => {
+              const node = el('input', { id: `bean-${i}-${key}`, type: 'text', autocomplete: 'off', ...attrs });
+              node.value = form[key];
+              node.addEventListener('input', () => {
+                form[key] = node.value;
+                if (key === 'plannedName') showSplit();
+                update();
+              });
+              return el('label', { class: 'bean-field', for: node.id }, el('span', { class: 'bean-field-label' }, label), node);
+            };
+            what.push(
+              input('plannedName', 'Name', { placeholder: 'e.g. Etiopia offer' }),
+              input('plannedPrice', 'Price per kg (zł)', { inputmode: 'decimal', class: 'input-money', placeholder: 'e.g. 52,50' }),
+              input('plannedLoss', 'Roast loss %', { inputmode: 'decimal', class: 'input-short', placeholder: String(settings.defaultLossTenths / 10).replace('.', ',') }),
+              infoTip('The price you were quoted for 1 kg of green beans, with delivery and without VAT. Leave the roast loss empty to use your usual one.'),
+            );
+          }
+          const remove = button(
+            'Remove',
+            () => {
+              const removed = beanForms[i]?.sharePercent ?? 0;
+              beanForms = beanForms.filter((_, k) => k !== i);
+              const tail = beanForms[beanForms.length - 1];
+              if (tail) tail.sharePercent += removed; // its share goes to the last bean, so the total stays 100 %
+              if (beanForms.length === 1 && beanForms[0]) beanForms[0].sharePercent = 100;
+              renderBeans();
+              update();
+            },
+            'link',
+          );
+          row.append(el('div', { class: 'bean-head' }, el('span', { class: `dot bean-colour-${i + 1}` }), el('strong', {}, `Bean ${i + 1}`), kind, remove), el('div', { class: 'bean-what' }, ...what));
+          return row;
+        }),
+        ...(beanForms.length < MAX_BEANS
+          ? [
+              button(
+                beanForms.length === 0 ? 'Choose a bean' : 'Add another bean',
+                () => {
+                  const even = evenShares(beanForms.length + 1);
+                  const added: BeanForm = { kind: 'lot', lotId: '', plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: 0 };
+                  beanForms = [...beanForms, added].map((f, k): BeanForm => ({ ...f, sharePercent: even[k] ?? 0 }));
+                  renderBeans();
+                  update();
+                },
+                'secondary',
+              ),
+            ]
+          : []),
+      );
+      renderSplit();
+    };
+
+    const beansSection = el(
+      'fieldset',
+      { class: 'form-section' },
+      el('legend', {}, 'Made of'),
+      el(
+        'p',
+        { class: 'muted small' },
+        `Up to ${MAX_BEANS} beans: lots you have, or a planned bean you are thinking of buying. `,
+        infoTip('Drag a white divider on the bar to change how much of the bag each bean is, or type the percentage. The shares always add up to 100 %.'),
+      ),
+      splitHolder,
+      beansHolder,
+      beansError,
+    );
+
+    // ---- Prices: one row per size, the price in zł, suggested prices to click and what the price earns ----
     const chipHolders = new Map<BagSize, HTMLElement>();
-    const showChips = () => {
-      const lot = suggestions.find((s) => s.lotId === lotSelect.value);
+    const earnHolders = new Map<BagSize, HTMLElement>();
+    /** "How is this worked out?" of each size: created once, so it stays open while the shares or prices change. */
+    const howHolders = new Map<BagSize, { box: HTMLDetailsElement; list: HTMLOListElement }>();
+    const madeOfLine = el('p', { class: 'made-of' });
+    const notesHolder = el('div', {});
+    const perKgList = el('ol', { class: 'how-steps' });
+    const perKgTitle = el('summary', {});
+    const perKgBox = el('details', { class: 'how' }, perKgTitle, perKgList);
+    const summary = el('div', { class: 'costing-summary' }, madeOfLine, perKgBox, notesHolder);
+    /** The prices as typed so far (grosze), for "you earn"; a price that cannot be read yet is left out. */
+    const typedPrices = (): Partial<Record<number, number>> => {
+      const out: Partial<Record<number, number>> = {};
       for (const grams of BAG_SIZES_G) {
-        const holder = chipHolders.get(grams);
-        if (!holder) continue;
+        const grosze = parseMoney(inputs[PRICE_KEYS[grams]].value);
+        if (typeof grosze === 'number' && grosze > 0) out[grams] = grosze;
+      }
+      return out;
+    };
+    const update = () => {
+      const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, typedPrices());
+      madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
+      madeOfLine.hidden = !made.madeOf;
+      perKgTitle.textContent = `Why ${made.perKg.replace(' of roasted coffee', '')}?`;
+      perKgList.replaceChildren(...made.perKgSteps.map((step) => el('li', {}, step)));
+      perKgBox.hidden = made.perKgSteps.length === 0;
+      notesHolder.replaceChildren(...made.notes.map((n) => el('p', { class: 'muted small' }, n)));
+      for (const r of made.rows) {
+        const grams = r.grams as BagSize;
         const input = inputs[PRICE_KEYS[grams]];
-        const chips = (lot?.bySize.get(grams) ?? []).map((s) => {
-          const value = String(s.grosze / 100);
-          const chip = el('button', { type: 'button', class: 'chip', 'aria-pressed': String(input.value.trim() === value) }, el('strong', {}, s.text), el('span', { class: 'chip-note' }, s.markup));
+        const chips = r.suggestions.map((sug) => {
+          const value = String(sug.grosze / 100);
+          const chip = el(
+            'button',
+            { type: 'button', class: 'chip', 'aria-pressed': String(input.value.trim() === value) },
+            el('strong', {}, sug.text),
+            el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings}`),
+          );
           chip.addEventListener('click', () => {
             input.value = value;
-            showChips();
+            update();
           });
           return chip;
         });
-        holder.replaceChildren(...(chips.length > 0 ? chips : lot ? [el('span', { class: 'muted small' }, 'No suggestion: add the packaging for this size under Packaging & discounts.')] : []));
+        chipHolders.get(grams)?.replaceChildren(...(chips.length > 0 ? chips : r.parts ? [el('span', { class: 'muted small' }, r.parts)] : []));
+        earnHolders.get(grams)?.replaceChildren(
+          ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
+          ...(r.cost ? [el('span', { class: 'muted small' }, ` (a bag costs you ${r.cost})`)] : []),
+        );
+        const how = howHolders.get(grams);
+        if (how) {
+          how.list.replaceChildren(...r.steps.map((step) => el('li', {}, step)));
+          how.box.hidden = r.steps.length === 0;
+        }
       }
     };
     const priceRow = (grams: BagSize) => {
-      const input = inputFor(PRICE_KEYS[grams], { inputmode: 'decimal', class: 'input-money', placeholder: 'not offered' });
-      input.addEventListener('input', showChips);
+      const input = inputFor(PRICE_KEYS[grams], { inputmode: 'decimal', class: 'input-money', placeholder: '—' });
+      input.addEventListener('input', update);
       const chips = el('div', { class: 'chips' });
       chipHolders.set(grams, chips);
+      const earn = el('div', { class: 'price-earn' });
+      earnHolders.set(grams, earn);
+      const list = el('ol', { class: 'how-steps' });
+      const box = el('details', { class: 'how' }, el('summary', {}, 'How is this worked out?'), list);
+      howHolders.set(grams, { box, list });
       return el(
         'div',
         { class: 'price-row' },
         el('label', { for: input.id, class: 'price-size' }, formatBagSize(grams)),
         el('span', { class: 'price-input' }, input, el('span', { class: 'price-unit' }, 'zł')),
         chips,
+        earn,
+        box,
         errorLines[PRICE_KEYS[grams]],
       );
     };
-    lotSelect.addEventListener('change', showChips);
 
     const priceSection = el(
       'fieldset',
       { class: 'form-section' },
-      el('legend', {}, 'Main prices, gross'),
-      el('p', { class: 'muted small' }, 'What retail customers pay; wholesale prices are worked out from these. Click a suggestion or type your own. Empty: not offered in that size.'),
-      ...(suggestions.length > 0
-        ? [
-            el(
-              'div',
-              { class: 'suggest-from' },
-              el('label', { for: lotSelect.id }, 'Suggestions from lot'),
-              lotSelect,
-              infoTip('Kraken takes what one bag costs you and suggests a price two, two and a half or three times higher, with VAT added. Only the price you pick is saved.'),
-            ),
-          ]
-        : [el('p', { class: 'muted small' }, 'No suggestions yet: add a price to a lot (Lots) and the packaging (Packaging & discounts).')]),
+      el('legend', {}, 'Main prices, with VAT'),
+      el(
+        'p',
+        { class: 'muted small' },
+        'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
+        infoTip(
+          'For 250 g, Kraken suggests two, two and a half or three times what the bag costs you, with VAT. Bigger bags follow your 250 g price: as many small bags as fit, with the packaging of one big bag. "Earns" is what is left for you after the cost of the bag, without VAT.',
+        ),
+      ),
+      summary,
       el('div', { class: 'price-rows' }, ...BAG_SIZES_G.map(priceRow)),
     );
 
@@ -435,11 +703,18 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       saveButton.replaceChildren(working ? busy('Saving…') : label);
     };
 
+    /** The product once its row is saved: if the beans then fail, a retry saves only the beans (never a second product). */
+    let savedId: string | null = null;
+
     function save(): void {
       const result = validateProductForm(readForm());
-      if (!result.ok) {
-        showErrors(result.errors);
-        banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
+      const beanCheck = validateBeans(beanForms);
+      beansError.textContent = beanCheck.ok
+        ? ''
+        : [beanCheck.shares, ...beanCheck.errors.flatMap((e, i) => Object.values(e).map((text) => `${beanName(beanForms[i] ?? beanForms[0]!, i)}: ${text}`))].filter((t) => t).join(' ');
+      if (!result.ok || !beanCheck.ok) {
+        showErrors(result.ok ? {} : result.errors);
+        banner.replaceChildren(message('Please fix what is marked below.', 'error'));
         return;
       }
       showErrors({});
@@ -448,9 +723,25 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       deps.busy(true);
       deps
         .withGoogle(async () => {
-          if (!product) return deps.repo.add(result.fields, await deps.whoAmI(), deps.now());
-          await deps.repo.update(product, changedProductFields(product, result.fields), deps.now());
-          return product.id;
+          // Who is signed in is asked once per save (a new product and new beans both need it).
+          let email: string | null = null;
+          const by = async () => (email ??= await deps.whoAmI());
+          if (savedId === null) {
+            if (product) await deps.repo.update(product, changedProductFields(product, result.fields), deps.now());
+            savedId = product ? product.id : await deps.repo.add(result.fields, await by(), deps.now());
+            await deps.repo.saveBeans(savedId, beanCheck.fields, existingBeans, by, deps.now());
+            return savedId;
+          }
+          // A retry after the product row was saved: read the product and its beans again (part of the save may have
+          // gone through), then write only what still differs, including anything changed in the form meanwhile.
+          const fresh = await deps.repo.load();
+          const stored = fresh.products.find((p) => p.id === savedId);
+          if (stored) {
+            const changes = changedProductFields(stored, result.fields);
+            if (Object.keys(changes).length > 0) await deps.repo.update(stored, changes, deps.now());
+          }
+          await deps.repo.saveBeans(savedId, beanCheck.fields, beansOf(fresh.beans, savedId), by, deps.now());
+          return savedId;
         })
         .finally(() => deps.busy(false))
         .then((id) => {
@@ -471,7 +762,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       'form',
       { class: 'lot-form', novalidate: '' },
       ...SECTIONS.map((section) => el('fieldset', { class: 'form-section' }, el('legend', {}, section.title), el('div', { class: 'fields' }, ...section.fields.map(fieldNode)))),
-      priceSection,
+      // Beans on the left, prices on the right (stays in view while the shares change); stacked on a narrow screen.
+      el('div', { class: 'costing-grid' }, el('div', { class: 'costing-beans' }, beansSection), el('div', { class: 'costing-prices' }, priceSection)),
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     formNode.addEventListener('submit', (event) => {
@@ -487,7 +779,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       banner,
       formNode,
     );
-    showChips();
+    renderBeans();
+    update();
     inputs.name.focus();
   }
 
