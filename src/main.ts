@@ -20,7 +20,7 @@ import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
 import { lotLosses, sheetCostsRepository, showPackagingPage, validateLoss } from './features/costs';
 import { showOfferPage } from './features/offers';
-import { sheetProductsRepository, showProductsPage } from './features/products';
+import { sheetProductsRepository, showPlannerPage, showProductsPage, type PlannerStart } from './features/products';
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
@@ -104,6 +104,7 @@ window.addEventListener('popstate', (event) => {
   if (screen === 'settings') showSettings(info, 'none');
   else if (screen === 'packaging') showPackaging(info, false, 'none');
   else if (screen === 'offer') showOffer(info, false, 'none');
+  else if (screen === 'planner') showPlanner(info, undefined, false, 'none');
   else if (screen === 'products' || screen === 'product-form') {
     if (screen === 'product-form') window.history.replaceState(stateFor('products'), '', '#products');
     showProducts(info, false, 'none');
@@ -120,7 +121,7 @@ window.addEventListener('popstate', (event) => {
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
-type MenuTab = 'lots' | 'roasts' | 'products' | 'offer' | 'packaging' | 'settings';
+type MenuTab = 'lots' | 'roasts' | 'products' | 'planner' | 'offer' | 'packaging' | 'settings';
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
@@ -143,6 +144,9 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Products', 'products', () => {
         if (!saving) showProducts(info, true, menuMove('products'));
+      }),
+      tab('Planner', 'planner', () => {
+        if (!saving) showPlanner(info, undefined, true, menuMove('planner'));
       }),
       tab('Offer', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
@@ -426,7 +430,8 @@ function showPackaging(info: SpreadsheetInfo, fromClick = false, move: HistoryMo
   showPackagingPage(showApp(info, 'packaging'), { ...googleDeps(), repo: sheetCostsRepository(client, info.id) }, undefined, fromClick);
 }
 
-function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+/** `create`: open "Add product" with these beans and prices (from the Planner). */
+function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push', create?: PlannerStart): void {
   record('products', move);
   showProductsPage(
     showApp(info, 'products'),
@@ -442,8 +447,27 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
         currentScreen = 'products';
         leave('product-form');
       },
+      openPlanner: (start) => showPlanner(info, start, true),
     },
     undefined,
+    fromClick,
+    create,
+  );
+}
+
+/** The Planner (owner, 2026-11-19): try beans and prices, nothing saved. `start`: e.g. a product's beans and prices. */
+function showPlanner(info: SpreadsheetInfo, start?: PlannerStart, fromClick = false, move: HistoryMove = 'push'): void {
+  record('planner', move);
+  showPlannerPage(
+    showApp(info, 'planner'),
+    {
+      ...googleDeps(),
+      costs: sheetCostsRepository(client, info.id),
+      lots: sheetLotsRepository(client, info.id),
+      roasts: sheetRoastsRepository(client, info.id),
+      createProduct: (plan) => showProducts(info, true, 'push', plan),
+    },
+    start,
     fromClick,
   );
 }
