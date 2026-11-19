@@ -280,6 +280,30 @@ migration 005 cannot be changed.
 - **Discounts:** 15 %, 25 % and 30 % from the start (a setting the owner can extend), plus any % typed once.
 - Later: customers (name, NIP, own discount), special prices, hand overrides of a discounted price, the offer PDF.
 
+**[P] Special prices per client (owner, 2026-11-20: "I will get back to that as one of the next steps"; not built,
+not decided).** A deal agreed with one client: a fixed price for one product and one bag size, e.g. "Café Nowa
+pays 38 zł for KENIA 250 g". Kraken remembers it and uses it on that client's offers.
+- **Where it is set: on the client.** A client's page gets a **Special prices** section, one row per deal:
+  product, size, their price, and next to it what they would pay with their usual discount ("instead of 41 zł at
+  their −15 %") and what you earn on one bag and the gross margin, so the cost of the deal is visible. Add a row
+  by choosing the product and size and typing the price.
+- **Where it is used: the Offer.** On the Offer page the customer is **picked from Clients** (instead of typed):
+  their name fills in, their discount is shown on every product, and wherever they have a deal the special price is
+  used instead of the discounted one. On the PDF it looks like any other price (the client does not see it is
+  special).
+- **Safety:**
+  - A special price **does not change** when the product's retail price changes (it is an agreed deal). The client's
+    page marks such a deal ("retail changed since this deal was set") so the owner can decide to update it.
+  - A deal that loses money is shown in red (as everywhere: below 0 % gross margin).
+  - Deleting a deal is a soft delete (can be restored), as everywhere.
+- **Sheet:** a new **Special prices** tab (client, product, bag size, price, plus the usual id / times / deleted),
+  added by a data-version update with a backup first.
+- **[Q] Before building, the owner decides:**
+  1. Is the special price **net** (like the wholesale prices) or gross?
+  2. Does a deal have an **end date** (e.g. "until 31.12"), or does it stay until deleted?
+  3. When a client is picked on the Offer, is **their discount always used**, or can the discounts still be ticked
+     by hand?
+
 ---
 
 ## 6. Cost calculation and pricing
