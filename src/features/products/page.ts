@@ -18,7 +18,9 @@ import {
   emptyProductForm,
   formFromProduct,
   isDeleted,
-  reorderProducts,
+  withOrder,
+  movedOrder,
+  positionChanges,
   sortProducts,
   validateProductForm,
   type Product,
@@ -93,6 +95,13 @@ const TEXT_KEYS: readonly TextKey[] = SECTIONS.flatMap((s) => s.fields.map((f) =
 /** `create`: open "Add product" straight away with these beans and prices (from the Product planner). */
 export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false, create?: PlannerStart): void {
   let products: Product[] = [];
+  /** The products as last read from or saved to the sheet (the order shown may be ahead of it while saving). */
+  let stored: Product[] = [];
+  /** The order saves, one after another (each waits for the one before, so they never overwrite each other). */
+  let saving: Promise<void> = Promise.resolve();
+  let savesRunning = 0;
+  /** The small "Saving the order…" / "Order saved." line on the list (not in the page when the list is not shown). */
+  let orderNote: HTMLElement | null = null;
   let problems: string[] = [];
   let settings: CostSettings = DEFAULT_SETTINGS;
   let discounts: Discount[] = activeDiscounts([]).discounts;
@@ -134,6 +143,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       .then(([result, found]) => {
         if (!root.isConnected) return;
         products = result.products;
+        stored = result.products;
         settings = found.settings;
         discounts = found.discounts;
         beanLots = found.beanLots;
@@ -181,26 +191,56 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   }
 
   /**
-   * A product dragged (or moved with the arrow keys) to place `to` on the list: saves the new order inside the
-   * drop (so a sign-in renewal can open Google's window), then reloads; Back and the menu wait meanwhile.
+   * A product dragged (or moved with the arrow keys) to place `to` on the list (owner, 2026-11-20: no reload, no
+   * locked page): the new order shows at once and is saved in the background, with a small note. Saves run one
+   * after another, each built on the products as the one before saved them. Started inside the drop, so a sign-in
+   * renewal can open Google's window. If a save fails, the list goes back to the order last saved.
    */
   function move(active: readonly Product[], product: Product, to: number): void {
-    const changes = reorderProducts(active, product.id, to);
-    if (changes.length === 0) return showList();
-    lockPage();
+    const before = active.map((p) => p.id);
+    const order = movedOrder(before, product.id, to);
+    if (order.every((id, i) => id === before[i])) return showList();
+    products = withOrder(products, order);
+    showList();
+    savesRunning++;
     deps.busy(true);
-    deps
-      .withGoogle(() => deps.repo.savePositions(changes, deps.now()))
-      .finally(() => deps.busy(false))
+    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
+    const previous = saving;
+    saving = deps
+      .withGoogle(async () => {
+        await previous;
+        const saved = await deps.repo.savePositions(positionChanges(stored, order), deps.now());
+        const fresh = new Map(saved.map((p) => [p.id, p]));
+        stored = stored.map((p) => fresh.get(p.id) ?? p);
+        // The fresh copies, keeping the order shown (a later move may already be on screen).
+        products = products.map((p) => {
+          const f = fresh.get(p.id);
+          return f ? { ...f, position: p.position } : p;
+        });
+      })
       .then(() => {
-        if (root.isConnected) load(`Order saved: ${product.name} is now number ${to + 1}.`);
+        if (orderNote?.isConnected && savesRunning === 1) orderNote.textContent = 'Order saved.';
       })
       .catch((error: unknown) => {
-        if (!root.isConnected) return;
-        if (deps.isIgnorable(error)) return showList();
-        const show = (e: unknown) => showList(undefined, errorNodes(e, () => move(active, product, to), `Sign in and move ${product.name}`, show, true));
+        products = stored; // back to the order last saved
+        if (!orderNote?.isConnected) return; // not on the list any more: it shows the saved order next time
+        if (deps.isIgnorable(error)) return showList('The order was not saved.');
+        const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Sign in and reload products', show, true, 'Reload products'));
         show(error);
+      })
+      .finally(() => {
+        savesRunning--;
+        if (savesRunning === 0) deps.busy(false);
       });
+  }
+
+  /** Opens a product from the list; while the order is being saved, first waits for it (a second or so). */
+  function openFromList(product: Product): void {
+    if (savesRunning === 0) return showProduct(product);
+    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
+    void saving.then(() => {
+      if (orderNote?.isConnected) showProduct(products.find((p) => p.id === product.id) ?? product);
+    });
   }
 
   /**
@@ -317,6 +357,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   function showList(note?: string, error?: Node[]): void {
     deps.formClosed();
+    orderNote = el('span', { class: 'muted small order-note', role: 'status' }, savesRunning > 0 ? busy('Saving the order…') : '');
     const sorted = sortProducts(products);
     const active = sorted.filter((p) => !isDeleted(p));
     const deleted = sorted.filter(isDeleted);
@@ -360,7 +401,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         el(
           'td',
           {},
-          restorable ? el('span', {}, p.name) : button(p.name, () => showProduct(p), 'link'),
+          restorable ? el('span', {}, p.name) : button(p.name, () => openFromList(p), 'link'),
           ...(p.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, p.brewMethod)] : []),
           ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : []),
         ),
@@ -401,6 +442,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         { class: 'muted small' },
         'Main prices, gross (retail). Click a product to see its wholesale prices. ',
         infoTip('Drag a product by its ⠿ to set the order of your products. The Offer uses the same order (you can still change it there for one offer), and so do the lists on other pages. New products go to the end.'),
+        ' ',
+        orderNote,
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),

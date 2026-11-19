@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BAG_SIZES_G } from '../../domain/bagSizes';
-import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, productFromFields, reorderProducts, sortProducts, validateProductForm } from './model';
+import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, movedOrder, positionChanges, productFromFields, withOrder, sortProducts, validateProductForm } from './model';
 
 const product = (row: number, o: Record<string, string> = {}) =>
   productFromFields(
@@ -59,28 +59,39 @@ describe('reading a product', () => {
     expect(list.map((p) => p.position)).toEqual([2, null, 1, null, 1]);
   });
 
-  it('moves a product to another place: positions 1 to n in the new order, only those that change', () => {
-    const active = sortProducts([product(2, { name: 'A', position: '1' }), product(3, { name: 'B', position: '2' }), product(4, { name: 'C', position: '3' })]);
-    expect(reorderProducts(active, 'P4', 1).map((c) => [c.product.name, c.position])).toEqual([
+  it('moves an id to another place in the order', () => {
+    expect(movedOrder(['A', 'B', 'C'], 'C', 0)).toEqual(['C', 'A', 'B']); // dragged from last to first
+    expect(movedOrder(['A', 'B', 'C'], 'A', 1)).toEqual(['B', 'A', 'C']);
+    expect(movedOrder(['A', 'B', 'C'], 'A', 0)).toEqual(['A', 'B', 'C']); // stays where it is
+    expect(movedOrder(['A', 'B', 'C'], 'A', -1)).toEqual(['A', 'B', 'C']); // above the first
+    expect(movedOrder(['A', 'B', 'C'], 'C', 3)).toEqual(['A', 'B', 'C']); // below the last
+    expect(movedOrder(['A', 'B', 'C'], 'X', 1)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('writes positions 1 to n in the new order, only those that change; the first move numbers every product', () => {
+    const stored = [product(2, { name: 'A', position: '1' }), product(3, { name: 'B', position: '2' }), product(4, { name: 'C', position: '3' })];
+    expect(positionChanges(stored, ['P2', 'P4', 'P3']).map((c) => [c.product.name, c.position])).toEqual([
       ['C', 2],
       ['B', 3],
     ]);
-    // dragged from last to first: everyone moves
-    expect(reorderProducts(active, 'P4', 0).map((c) => [c.product.name, c.position])).toEqual([
-      ['C', 1],
-      ['A', 2],
-      ['B', 3],
-    ]);
-    expect(reorderProducts(active, 'P2', 0)).toEqual([]); // stays where it is
-    expect(reorderProducts(active, 'P2', -1)).toEqual([]); // above the first
-    expect(reorderProducts(active, 'P4', 3)).toEqual([]); // below the last
-    expect(reorderProducts(active, 'P9', 1)).toEqual([]);
-    // before the first move nobody has a position: every product gets one
-    const fresh = sortProducts([product(2, { name: 'A' }), product(3, { name: 'B' })]);
-    expect(reorderProducts(fresh, 'P2', 1).map((c) => [c.product.name, c.position])).toEqual([
+    expect(positionChanges(stored, ['P2', 'P3', 'P4'])).toEqual([]);
+    expect(positionChanges(stored, ['P9', 'P2'])).toEqual([{ product: stored[0], position: 2 }]); // P9 is gone
+    const fresh = [product(2, { name: 'A' }), product(3, { name: 'B' })];
+    expect(positionChanges(fresh, ['P3', 'P2']).map((c) => [c.product.name, c.position])).toEqual([
       ['B', 1],
       ['A', 2],
     ]);
+  });
+
+  it('shows the new order at once, before it is saved', () => {
+    const list = [product(2, { name: 'A', position: '1' }), product(3, { name: 'B', position: '2' }), product(4, { name: 'Gone', deleted_at: '2026-11-17T10:00:00.000Z' })];
+    const shown = withOrder(list, ['P3', 'P2']);
+    expect(sortProducts(shown).map((p) => [p.name, p.position])).toEqual([
+      ['B', 1],
+      ['A', 2],
+      ['Gone', null],
+    ]);
+    expect(shown[0]?.source).toBe(list[0]?.source); // the stored copy is unchanged until saved
   });
 });
 

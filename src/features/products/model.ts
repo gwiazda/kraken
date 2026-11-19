@@ -104,20 +104,31 @@ export function sortProducts(products: readonly Product[]): Product[] {
   );
 }
 
+/** The ids in a new order: `id` moved to place `to` (0 = first). The same order when it cannot move there. */
+export function movedOrder(ids: readonly string[], id: string, to: number): string[] {
+  const from = ids.indexOf(id);
+  if (from < 0 || to < 0 || to >= ids.length || to === from) return [...ids];
+  const order = ids.filter((other) => other !== id);
+  order.splice(to, 0, id);
+  return order;
+}
+
 /**
- * Moving one product to another place (`to`, 0 = first) in the order of the active products (`active`, as
- * sortProducts gives them; dragged on the Products page, or moved with the arrow keys): the positions to write,
- * 1 to n in the new order, only where the stored one differs (the first move also numbers every product). Nothing
- * when it stays where it is.
+ * The positions to write so the products (as last saved) follow `order` (ids, first first): 1 to n, only where the
+ * stored position differs (the first move also numbers every product). Ids no longer there are skipped.
  */
-export function reorderProducts(active: readonly Product[], id: string, to: number): { product: Product; position: number }[] {
-  const from = active.findIndex((p) => p.id === id);
-  if (from < 0 || to < 0 || to >= active.length || to === from) return [];
-  const order = [...active];
-  const [moved] = order.splice(from, 1);
-  if (!moved) return [];
-  order.splice(to, 0, moved);
-  return order.flatMap((product, i) => (product.position === i + 1 ? [] : [{ product, position: i + 1 }]));
+export function positionChanges(products: readonly Product[], order: readonly string[]): { product: Product; position: number }[] {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return order.flatMap((id, i) => {
+    const product = byId.get(id);
+    return product && product.position !== i + 1 ? [{ product, position: i + 1 }] : [];
+  });
+}
+
+/** The products as shown right after a move, before it is saved: each in `order` gets its new position. */
+export function withOrder(products: readonly Product[], order: readonly string[]): Product[] {
+  const place = new Map(order.map((id, i) => [id, i + 1]));
+  return products.map((p) => (place.has(p.id) ? { ...p, position: place.get(p.id) ?? null } : p));
 }
 
 // ---- The form ----

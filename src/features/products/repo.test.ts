@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createKrakenSpreadsheet } from '../../schema';
 import { fakeGoogleDrive } from '../../testing/fakeGoogleDrive';
-import { reorderProducts, sortProducts } from './model';
+import { movedOrder, positionChanges, sortProducts, type Product } from './model';
 import { beansOf } from './modelBeans';
 import { sheetProductsRepository } from './repo';
 
@@ -64,19 +64,27 @@ describe('sheetProductsRepository (in-memory Google)', () => {
     for (const name of ['Burundi', 'Kenia', 'Peru']) await repo.add({ name }, 'owner@example.com', now);
     const active = async () => sortProducts((await repo.load()).products);
     const names = async () => (await active()).map((p) => [p.name, p.position]);
+    const ids = (list: readonly Product[]) => list.map((p) => p.id);
     expect(await names()).toEqual([
       ['Burundi', null],
       ['Kenia', null],
       ['Peru', null],
     ]);
 
-    await repo.savePositions(reorderProducts(await active(), (await active())[2]?.id ?? '', 1), later); // Peru up one
+    let list = await active();
+    const saved = await repo.savePositions(positionChanges(list, movedOrder(ids(list), list[2]?.id ?? '', 1)), later); // Peru up one
+    expect(saved.map((p) => [p.name, p.position, p.source['updated_at']])).toEqual([
+      ['Burundi', 1, later.toISOString()],
+      ['Peru', 2, later.toISOString()],
+      ['Kenia', 3, later.toISOString()],
+    ]);
     expect(await names()).toEqual([
       ['Burundi', 1],
       ['Peru', 2],
       ['Kenia', 3],
     ]);
-    const second = reorderProducts(await active(), (await active())[0]?.id ?? '', 1); // Burundi down one: two positions change
+    // The saved copies are the stored ones: the next move, built on them, is not refused as "changed meanwhile".
+    const second = positionChanges(saved, ['P', 'B', 'K'].map((l) => saved.find((p) => p.name.startsWith(l))?.id ?? ''));
     expect(second.map((c) => [c.product.name, c.position])).toEqual([
       ['Peru', 1],
       ['Burundi', 2],
@@ -90,6 +98,7 @@ describe('sheetProductsRepository (in-memory Google)', () => {
 
     // a new product goes to the end
     await repo.add({ name: 'Etiopia' }, 'owner@example.com', later);
-    expect((await names()).map(([name]) => name)).toEqual(['Peru', 'Burundi', 'Kenia', 'Etiopia']);
+    list = await active();
+    expect(list.map((p) => p.name)).toEqual(['Peru', 'Burundi', 'Kenia', 'Etiopia']);
   });
 });
