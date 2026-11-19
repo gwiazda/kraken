@@ -147,7 +147,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       };
       const normal = () => {
         extra.hidden = true;
-        actions.replaceChildren(button('Edit', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
+        actions.replaceChildren(button('Details', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
       };
       /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
       const statusCell = el('td', { class: 'nowrap' });
