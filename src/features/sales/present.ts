@@ -7,13 +7,14 @@ import { KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, ty
 
 export type SalesFilter = 'all' | InvoiceStatus | 'sample' | 'own_use';
 
+/** The filter buttons, "All" first (owner, 2026-11-19). */
 export const FILTERS: readonly { filter: SalesFilter; label: string }[] = [
+  { filter: 'all', label: 'All' },
   { filter: 'to_issue', label: 'Invoice to be issued' },
   { filter: 'issued', label: 'Invoice issued' },
   { filter: 'paid', label: 'Paid' },
   { filter: 'sample', label: 'Samples' },
   { filter: 'own_use', label: 'Own use' },
-  { filter: 'all', label: 'All' },
 ];
 
 const matches = (sale: Sale, filter: SalesFilter) =>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { grossOf, netOf, roundGrosze, roundToZloty, wholesalePrice } from './prices';
+import { grossOf, netOf, roundGrosze, roundToZloty, wholesalePrice, grossMarginPercent } from './prices';
 
 describe('VAT and rounding', () => {
   it('adds VAT and rounds half up to the grosz', () => {
@@ -39,5 +39,24 @@ describe('wholesalePrice', () => {
 
   it('works for the standard discounts', () => {
     expect([150, 250, 300].map((d) => wholesalePrice(12300, d, 230).net)).toEqual([8500, 7500, 7000]);
+  });
+});
+
+describe('grossMarginPercent', () => {
+  it('is the part of the price without VAT left after the cost, in whole percent', () => {
+    expect(grossMarginPercent(4797, 2115)).toBe(56); // 26,82 of 47,97 zł is 55,9 %
+    expect(grossMarginPercent(10000, 5000)).toBe(50);
+    expect(grossMarginPercent(10000, 0)).toBe(100);
+  });
+
+  it('is below 0 when the price does not cover the cost, never "−0", and unknown for a price of 0', () => {
+    expect(grossMarginPercent(4000, 4200)).toBe(-5);
+    expect(grossMarginPercent(10000, 10040)).toBe(0);
+    expect(grossMarginPercent(0, 100)).toBeNull();
+  });
+
+  it('rounds halves away from zero, the same for a profit and a loss', () => {
+    expect(grossMarginPercent(10000, 5750)).toBe(43); // 42,5 %
+    expect(grossMarginPercent(10000, 14250)).toBe(-43); // −42,5 %
   });
 });

@@ -6,6 +6,7 @@
 //   suggested price   = a calculated gross rounded to whole złoty (half up)
 //   wholesale net     = main gross ÷ (1 + VAT) × (1 − discount), rounded to whole złoty (half up)
 //   wholesale gross   = wholesale net × (1 + VAT) (for the invoice)
+//   gross margin      = (net price − cost) ÷ net price, in whole percent
 
 /** Gross from net: net × (1 + VAT). VAT in tenths of a percent (230 = 23 %). */
 export const grossOf = (net: number, vatTenths: number) => (net * (1000 + vatTenths)) / 1000;
@@ -35,4 +36,16 @@ export function wholesalePrice(mainGrossGrosze: number, discountTenths: number, 
   // Rounded once, from the exact amount (no amount before rounding is shown, so none to agree with).
   const net = roundGrosze((netOf(mainGrossGrosze, vatTenths) * (1000 - discountTenths)) / 100000) * 100;
   return { net, gross: grossOf(net, vatTenths) };
+}
+
+/**
+ * Gross margin in whole percent (owner, 2026-11-19): the part of the price without VAT that is left for you after
+ * the cost of the bag. 56 means: of every 100 zł without VAT, 56 zł is yours. Below 0 when the price does not cover
+ * the cost. null when the price without VAT is 0 (no margin can be worked out).
+ */
+export function grossMarginPercent(netGrosze: number, costGrosze: number): number | null {
+  if (!(netGrosze > 0)) return null;
+  const exact = ((netGrosze - costGrosze) * 100) / netGrosze;
+  // Half away from zero (42,5 → 43, −42,5 → −43), nudged like roundGrosze against float error; "|| 0": never "−0 %".
+  return Math.sign(exact) * Math.round(Math.abs(exact) + 1e-9) || 0;
 }

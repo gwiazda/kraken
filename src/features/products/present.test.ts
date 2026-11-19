@@ -14,11 +14,11 @@ describe('priceRows', () => {
     expect(rows.map((r) => r.size)).toEqual(['250 g', '500 g', '1 kg']);
     expect(rows[0]).toEqual({
       size: '250 g',
-      retail: { main: '59 zł', other: '47,97 zł net', earn: '', losing: false },
+      retail: { main: '59 zł', other: '47,97 zł net', earn: '', margin: '', losing: false, marginLosing: false },
       wholesale: [
-        { main: '41 zł', other: '50,43 zł gross', earn: '', losing: false },
-        { main: '36 zł', other: '44,28 zł gross', earn: '', losing: false },
-        { main: '34 zł', other: '41,82 zł gross', earn: '', losing: false },
+        { main: '41 zł', other: '50,43 zł gross', earn: '', margin: '', losing: false, marginLosing: false },
+        { main: '36 zł', other: '44,28 zł gross', earn: '', margin: '', losing: false, marginLosing: false },
+        { main: '34 zł', other: '41,82 zł gross', earn: '', margin: '', losing: false, marginLosing: false },
       ],
     });
     // The same numbers as the owner's offer template (Kenia 1 kg: 153 / 135 / 126 zł).
@@ -26,7 +26,7 @@ describe('priceRows', () => {
   });
 
   it('shows a dash where the product has no price for a size', () => {
-    expect(priceRows(kenia.prices, [150], 230)[1]).toEqual({ size: '500 g', retail: { main: '—', other: '', earn: '', losing: false }, wholesale: [{ main: '—', other: '', earn: '', losing: false }] });
+    expect(priceRows(kenia.prices, [150], 230)[1]).toEqual({ size: '500 g', retail: { main: '—', other: '', earn: '', margin: '', losing: false, marginLosing: false }, wholesale: [{ main: '—', other: '', earn: '', margin: '', losing: false, marginLosing: false }] });
   });
 
   it('says what each price earns when the cost of a bag is known (wholesale prices are already without VAT)', () => {
@@ -39,6 +39,16 @@ describe('priceRows', () => {
     // Rounded like "You lose … per bag": 123 zł is 100 zł without VAT; a cost of 102,505 zł loses 2,51 zł, not 2,50 zł.
     const [half] = priceRows({ 250: 12300 }, [], 230, { 250: 10250.5 });
     expect(half?.retail).toMatchObject({ earn: 'loses 2,51\u00a0zł', losing: true });
+  });
+
+  it('gives the gross margin next to what each price earns: the part of the price without VAT that stays with you', () => {
+    // 23,82 zł of 47,97 zł is 49,7 % → 50 %; 16,85 of 41 zł is 41,1 % → 41 %; 9,85 of 34 zł is 29,0 % → 29 %
+    const [small] = priceRows(kenia.prices, [150, 300], 230, { 250: 2415 });
+    expect([small?.retail.margin, ...(small?.wholesale.map((c) => c.margin) ?? [])]).toEqual(['margin 50\u00a0%', 'margin 41\u00a0%', 'margin 29\u00a0%']);
+    // a loss: 7,15 zł short of 17 zł is −42 %
+    expect(priceRows({ 250: 3000 }, [300], 230, { 250: 2415 })[0]?.wholesale[0]).toMatchObject({ margin: 'margin −42\u00a0%', marginLosing: true });
+    // a loss of 0,10 zł on 47,97 zł is −0,2 %, shown as "0 %": the earnings are red, the margin is not
+    expect(priceRows({ 250: 5900 }, [], 230, { 250: 4807 })[0]?.retail).toMatchObject({ earn: 'loses 0,10\u00a0zł', losing: true, margin: 'margin 0\u00a0%', marginLosing: false });
   });
 
   it('writes the discount headers the Polish way', () => {
@@ -77,12 +87,14 @@ describe('costing (what a bag costs and earns)', () => {
       cost: '24,15\u00a0zł',
       parts: 'coffee 22,65\u00a0zł and packaging 1,50\u00a0zł',
       earnings: '23,82\u00a0zł',
+      margin: '50\u00a0%', // 23,82 of 47,97 zł
       losing: false,
     });
-    expect(result.rows[0]?.suggestions.map((s) => [s.text, s.markup, s.earnings])).toEqual([
-      ['59\u00a0zł', '2×', '23,82\u00a0zł'],
-      ['74\u00a0zł', '2,5×', '36,02\u00a0zł'],
-      ['89\u00a0zł', '3×', '48,21\u00a0zł'],
+    // 74 zł is 60,16 zł without VAT: 36,02 of it is 59,9 % → 60 %; 89 zł is 72,36 zł: 48,21 of it is 66,6 % → 67 %
+    expect(result.rows[0]?.suggestions.map((s) => [s.text, s.markup, s.earnings, s.margin])).toEqual([
+      ['59\u00a0zł', '2×', '23,82\u00a0zł', '50\u00a0%'],
+      ['74\u00a0zł', '2,5×', '36,02\u00a0zł', '60\u00a0%'],
+      ['89\u00a0zł', '3×', '48,21\u00a0zł', '67\u00a0%'],
     ]);
     expect(result.rows[1]).toMatchObject({ cost: '', parts: 'coffee 45,29\u00a0zł, packaging not entered' });
     // Explained step by step, in plain sentences with the numbers.
@@ -94,14 +106,16 @@ describe('costing (what a bag costs and earns)', () => {
       'Packaging: 1,50\u00a0zł (the bag, label and the rest, from Packaging & discounts).',
       'So one bag costs you 24,15\u00a0zł, without VAT.',
       'Your price 59\u00a0zł includes 23 % VAT; without VAT it is 47,97\u00a0zł. Take away the 24,15\u00a0zł the bag costs: you earn 23,82\u00a0zł per bag.',
-      'Twice the cost is 48,29\u00a0zł; with VAT 59,40\u00a0zł, rounded to 59\u00a0zł. At that price you earn 23,82\u00a0zł per bag.',
-      'Two and a half times the cost is 60,37\u00a0zł; with VAT 74,25\u00a0zł, rounded to 74\u00a0zł. At that price you earn 36,02\u00a0zł per bag.',
-      'Three times the cost is 72,44\u00a0zł; with VAT 89,10\u00a0zł, rounded to 89\u00a0zł. At that price you earn 48,21\u00a0zł per bag.',
+      'Gross margin 50\u00a0%: that is the part of the 47,97\u00a0zł without VAT that stays with you (23,82\u00a0zł).',
+      'Twice the cost is 48,29\u00a0zł; with VAT 59,40\u00a0zł, rounded to 59\u00a0zł. At that price you earn 23,82\u00a0zł per bag, a gross margin of 50\u00a0%.',
+      'Two and a half times the cost is 60,37\u00a0zł; with VAT 74,25\u00a0zł, rounded to 74\u00a0zł. At that price you earn 36,02\u00a0zł per bag, a gross margin of 60\u00a0%.',
+      'Three times the cost is 72,44\u00a0zł; with VAT 89,10\u00a0zł, rounded to 89\u00a0zł. At that price you earn 48,21\u00a0zł per bag, a gross margin of 67\u00a0%.',
     ]);
     // 1 kg follows the 250 g price: 4 × 59 zł − 4 small packagings (1,845 zł with VAT) + one 1 kg packaging (3,075 zł) = 231,695 zł
-    expect(result.rows[2]?.suggestions.map((x) => [x.text, x.markup, x.earnings])).toEqual([['232\u00a0zł', 'like 4 × 250 g', '95,53\u00a0zł']]);
+    // 232 zł is 188,62 zł without VAT: 95,53 of it is 50,6 % → 51 %
+    expect(result.rows[2]?.suggestions.map((x) => [x.text, x.markup, x.earnings, x.margin])).toEqual([['232\u00a0zł', 'like 4 × 250 g', '95,53\u00a0zł', '51\u00a0%']]);
     expect(result.rows[2]?.steps[3]).toBe(
-      'Suggested price, from your 250 g price: four 250 g bags at 59\u00a0zł are 236,00\u00a0zł. Take away the packaging of those four small bags (7,38\u00a0zł with VAT) and add the packaging of one 1 kg bag (3,08\u00a0zł with VAT): 231,70\u00a0zł, rounded to 232\u00a0zł. At that price you earn 95,53\u00a0zł per bag.',
+      'Suggested price, from your 250 g price: four 250 g bags at 59\u00a0zł are 236,00\u00a0zł. Take away the packaging of those four small bags (7,38\u00a0zł with VAT) and add the packaging of one 1 kg bag (3,08\u00a0zł with VAT): 231,70\u00a0zł, rounded to 232\u00a0zł. At that price you earn 95,53\u00a0zł per bag, a gross margin of 51\u00a0%.',
     );
     const noBase = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, {});
     expect(noBase.rows[2]?.suggestions).toEqual([]);
@@ -129,8 +143,10 @@ describe('costing (what a bag costs and earns)', () => {
 
   it('shows a loss when the price does not cover the cost', () => {
     const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 2000 });
-    expect(result.rows[0]).toMatchObject({ earnings: '−7,89\u00a0zł', losing: true });
+    // 7,89 zł short of 16,26 zł is −48,5 % → −49 %
+    expect(result.rows[0]).toMatchObject({ earnings: '−7,89\u00a0zł', margin: '−49\u00a0%', losing: true, marginLosing: true });
     expect(result.rows[0]?.steps[3]).toBe('Your price 20\u00a0zł includes 23 % VAT; without VAT it is 16,26\u00a0zł. Take away the 24,15\u00a0zł the bag costs: you lose 7,89\u00a0zł per bag.');
+    expect(result.rows[0]?.steps[4]).toBe('Gross margin −49\u00a0%: the price without VAT does not cover what the bag costs.');
   });
 
   it('says in plain words what is missing', () => {
@@ -154,7 +170,12 @@ describe('costing (what a bag costs and earns)', () => {
   it('never says "You lose 0,00 zł" for a loss of less than a grosz', () => {
     // The bag costs 24,147059 zł; 29,70 zł with VAT is 24,146341 zł without: 0,07 grosz short, shown as 0,00 zł.
     const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 2970 });
-    expect(result.rows[0]).toMatchObject({ earnings: '0,00\u00a0zł', losing: false });
+    expect(result.rows[0]).toMatchObject({ earnings: '0,00\u00a0zł', margin: '0\u00a0%', losing: false, marginLosing: false });
+    // the explanation agrees with the row: no "lose 0,00 zł", no "does not cover"
+    expect(result.rows[0]?.steps.slice(3, 5)).toEqual([
+      'Your price 29,70\u00a0zł includes 23 % VAT; without VAT it is 24,15\u00a0zł. Take away the 24,15\u00a0zł the bag costs: you earn 0,00\u00a0zł per bag.',
+      'Gross margin 0\u00a0%: that is the part of the 24,15\u00a0zł without VAT that stays with you (0,00\u00a0zł).',
+    ]);
   });
 });
 
@@ -184,12 +205,18 @@ describe('compareRows (the plan next to the products)', () => {
     );
     // At each discount: the price after it (net, whole złoty) and what a bag earns at it.
     expect(rows[0]?.atDiscounts).toEqual([
-      { price: '41\u00a0zł', earn: 'earns 30,68\u00a0zł', losing: false },
-      { price: '34\u00a0zł', earn: 'earns 23,68\u00a0zł', losing: false },
+      // 30,68 of 41 zł is 74,8 % → 75 %; 23,68 of 34 zł is 69,6 % → 70 %
+      { price: '41\u00a0zł', earn: 'earns 30,68\u00a0zł', margin: 'margin 75\u00a0%', losing: false, marginLosing: false },
+      { price: '34\u00a0zł', earn: 'earns 23,68\u00a0zł', margin: 'margin 70\u00a0%', losing: false, marginLosing: false },
     ]);
     expect(rows[2]?.atDiscounts).toEqual([
-      { price: '45\u00a0zł', earn: '', losing: false }, // Burundi: 65 zł → 45 zł at −15 % (as on the template); no beans, so no earnings
-      { price: '37\u00a0zł', earn: '', losing: false },
+      { price: '45\u00a0zł', earn: '', margin: '', losing: false, marginLosing: false }, // Burundi: 65 zł → 45 zł at −15 % (as on the template); no beans, so no earnings
+      { price: '37\u00a0zł', earn: '', margin: '', losing: false, marginLosing: false },
+    ]);
+    // The retail margin: the plan earns 37,64 of 47,97 zł (78,5 % → 78 %); Kenia 23,82 of 47,97 zł → 50 %
+    expect(rows.slice(0, 2).map((r) => [r.margin, r.marginLosing])).toEqual([
+      ['margin 78\u00a0%', false],
+      ['margin 50\u00a0%', false],
     ]);
     expect(rows.map((r) => [r.name, r.isPlan, r.cost, r.price, r.earn, r.atDiscounts.map((a) => a.earn).join(' / '), r.note])).toEqual([
       // 30 zł per kg green ÷ 0,85 = 35,29 zł per kg roasted; 250 g = 8,82 zł + 1,50 zł packaging = 10,32 zł;

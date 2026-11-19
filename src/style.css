@@ -1649,7 +1649,7 @@ details summary {
   margin: 0.25rem 0 0.5rem;
 }
 
-.price-earn:empty {
+.price-earn[hidden] {
   display: none;
 }
 
@@ -1703,6 +1703,11 @@ details summary {
 
 .price-earn-line.losing {
   color: #ff6b6b;
+}
+
+/* The gross margin under "earns …" (also a .price-earn-line): a little quieter. */
+.price-margin-line {
+  opacity: 0.8;
 }
 
 .planner-extra {

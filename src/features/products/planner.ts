@@ -12,7 +12,7 @@ import type { RoastsRepository } from '../roasts';
 import { button, el, infoTip } from '../../ui/dom';
 import type { BeanForm } from './modelBeans';
 import { compareRow, costing, priceRows, sortCompared, type ComparedRow } from './present';
-import { compareTable, costsBySize, pricesTable } from './priceTable';
+import { MARGIN_TIP, compareTable, costsBySize, pricesTable } from './priceTable';
 
 /** What the planner needs from the rest of Kraken: VAT and the usual loss, every lot as a bean, packaging per size. */
 export interface PlannerData {
@@ -271,7 +271,8 @@ export function createPlanner(
 
   // ---- Prices: one row per size, the price in zł, suggested prices to click and what the price earns ----
   const chipHolders = new Map<BagSize, HTMLElement>();
-  const earnHolders = new Map<BagSize, HTMLElement>();
+  /** What the price earns, per size: the texts change; the margin ⓘ is made once (never rebuilt while typing). */
+  const earnHolders = new Map<BagSize, { box: HTMLElement; texts: HTMLElement; tip: HTMLElement; cost: HTMLElement }>();
   /** "How is this worked out?" of each size: created once, so it stays open while the shares or prices change. */
   const howHolders = new Map<BagSize, { box: HTMLDetailsElement; list: HTMLOListElement }>();
   const madeOfLine = el('p', { class: 'made-of' });
@@ -336,7 +337,7 @@ export function createPlanner(
         el(
           'section',
           { class: 'product-card' },
-          el('h3', {}, 'Wholesale prices ', infoTip('What a business customer would pay for your prices above: without VAT, minus their discount, rounded to whole złoty. Under each price: what you would earn on one bag.')),
+          el('h3', {}, 'Wholesale prices ', infoTip(`What a business customer would pay for your prices above: without VAT, minus their discount, rounded to whole złoty. Under each price: what you would earn on one bag and the gross margin. ${MARGIN_TIP}`)),
           wholesaleHolder,
         ),
         el(
@@ -346,7 +347,7 @@ export function createPlanner(
             'h3',
             {},
             'Compare with your products ',
-            infoTip('Your plan next to the products you have, for one bag size, sorted by what they earn. Each wholesale column shows what one bag earns at that discount; the discounts are the ones set under Packaging & discounts.'),
+            infoTip(`Your plan next to the products you have, for one bag size, sorted by what they earn. Each wholesale column shows what one bag earns at that discount and the gross margin; the discounts are the ones set under Packaging & discounts. ${MARGIN_TIP}`),
           ),
           el('p', { class: 'compare-sizes small' }, 'Bag size: ', ...sizeButtons.flatMap(({ b }) => [b, ' '])),
           compareHolder,
@@ -374,7 +375,7 @@ export function createPlanner(
           'button',
           { type: 'button', class: 'chip', 'aria-pressed': String(input.value.trim() === value) },
           el('strong', {}, sug.text),
-          el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings}`),
+          el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings}${sug.margin ? ` · margin ${sug.margin}` : ''}`),
         );
         chip.addEventListener('click', () => {
           input.value = value;
@@ -383,10 +384,16 @@ export function createPlanner(
         return chip;
       });
       chipHolders.get(grams)?.replaceChildren(...(chips.length > 0 ? chips : r.parts ? [el('span', { class: 'muted small' }, r.parts)] : []));
-      earnHolders.get(grams)?.replaceChildren(
-        ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
-        ...(r.cost ? [el('span', { class: 'muted small' }, ` (a bag costs you ${r.cost})`)] : []),
-      );
+      const earn = earnHolders.get(grams);
+      if (earn) {
+        earn.texts.replaceChildren(
+          ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
+          ...(r.margin ? [el('span', { class: r.marginLosing ? 'earn losing' : 'earn' }, ` · gross margin ${r.margin} `)] : []),
+        );
+        earn.tip.hidden = r.margin === '';
+        earn.cost.textContent = r.cost ? ` (a bag costs you ${r.cost})` : '';
+        earn.box.hidden = !r.earnings && !r.margin && !r.cost;
+      }
       const how = howHolders.get(grams);
       if (how) {
         how.list.replaceChildren(...r.steps.map((step) => el('li', {}, step)));
@@ -399,8 +406,11 @@ export function createPlanner(
     input.addEventListener('input', update);
     const chips = el('div', { class: 'chips' });
     chipHolders.set(grams, chips);
-    const earn = el('div', { class: 'price-earn' });
-    earnHolders.set(grams, earn);
+    const texts = el('span', {});
+    const tip = infoTip(MARGIN_TIP);
+    const cost = el('span', { class: 'muted small' });
+    const earn = el('div', { class: 'price-earn', hidden: '' }, texts, tip, cost);
+    earnHolders.set(grams, { box: earn, texts, tip, cost });
     const list = el('ol', { class: 'how-steps' });
     const box = el('details', { class: 'how' }, el('summary', {}, 'How is this worked out?'), list);
     howHolders.set(grams, { box, list });
@@ -425,7 +435,7 @@ export function createPlanner(
       { class: 'muted small' },
       options.pricesIntro,
       infoTip(
-        'For 250 g, Kraken suggests two, two and a half or three times what the bag costs you, with VAT. Bigger bags follow your 250 g price: as many small bags as fit, with the packaging of one big bag. "Earns" is what is left for you after the cost of the bag, without VAT.',
+        'For 250 g, Kraken suggests two, two and a half or three times what the bag costs you, with VAT. Bigger bags follow your 250 g price: as many small bags as fit, with the packaging of one big bag. "Earns" is what is left for you after the cost of the bag, without VAT; the margin is that part of the price without VAT, in percent.',
       ),
     ),
     summary,
