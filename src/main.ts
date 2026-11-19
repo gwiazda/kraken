@@ -472,7 +472,7 @@ function showClients(info: SpreadsheetInfo, fromClick = false, move: HistoryMove
       ...googleDeps(),
       repo: sheetClientsRepository(client, info.id),
       costs: sheetCostsRepository(client, info.id),
-      formOpened: () => record('client-form', 'push'),
+      formOpened: () => record('client-form', currentScreen === 'client-form' ? 'replace' : 'push'),
       formClosed: () => {
         currentScreen = 'clients';
         leave('client-form');

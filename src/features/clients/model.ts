@@ -2,7 +2,7 @@
 // to day, NIP (tax ID), email, the registered name (CEIDG) and their wholesale discount (one of those set under
 // Packaging & discounts). Pure: no Google, no screen. Real client data is never in the code or tests.
 
-import { parseDecimal, toDecimalText } from '../../core/numbers';
+import { percentFromCell, percentText } from '../../domain/percent';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -33,10 +33,13 @@ const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 /** A NIP with spaces and dashes taken out ("123-456-32-18" → "1234563218"). */
 export const cleanNip = (value: string) => value.replace(/[\s-]/g, '');
 
-/** True for a valid Polish NIP: 10 digits whose last one is the check digit (weights 6 5 7 2 3 4 5 6 7, mod 11). */
+/**
+ * True for a valid Polish NIP: 10 digits, starting with the tax office code (never 0), whose last one is the check
+ * digit (weights 6 5 7 2 3 4 5 6 7, mod 11). "0000000000" passes the check digit but is no real NIP.
+ */
 export function isValidNip(value: string): boolean {
   const nip = cleanNip(value);
-  if (!/^\d{10}$/.test(nip)) return false;
+  if (!/^[1-9]\d{9}$/.test(nip)) return false;
   const weights = [6, 5, 7, 2, 3, 4, 5, 6, 7];
   const sum = weights.reduce((total, w, i) => total + w * Number(nip[i]), 0) % 11;
   return sum !== 10 && sum === Number(nip[9]);
@@ -48,10 +51,10 @@ export function formatNip(nip: string): string {
   return /^\d{10}$/.test(n) ? `${n.slice(0, 3)}-${n.slice(3, 6)}-${n.slice(6, 8)}-${n.slice(8)}` : nip;
 }
 
-/** A discount percentage in tenths, 1 to 99,9 % ("15", "12.5"); a "15%" cell arrives as 0.15 and is refused. */
+/** A discount percentage in tenths, 1 to 99,9 % (the same rule as everywhere: a "15%" cell, 0.15, is refused). */
 function discountTenths(value: string): number | null {
-  const tenths = parseDecimal(value, 1);
-  return typeof tenths === 'number' && tenths >= 10 && tenths < 1000 ? tenths : null;
+  const tenths = percentFromCell(value);
+  return typeof tenths === 'number' && tenths > 0 ? tenths : null;
 }
 
 export function clientFromFields(fields: Fields, row: number): Client {
@@ -91,9 +94,15 @@ export interface ClientForm {
   nip: string;
   email: string;
   registeredName: string;
-  /** The discount chosen, as tenths in text ("150"), or '' for none. */
+  /**
+   * The discount chosen, as tenths in text ("150"), '' for none, or KEEP_DISCOUNT: leave a stored value Kraken
+   * cannot read as it is (so editing the email never clears it by accident).
+   */
   discount: string;
 }
+
+/** The form's value for "keep the discount cell as it is" (it cannot be read; the owner corrects it on purpose). */
+export const KEEP_DISCOUNT = 'keep';
 
 export type ClientFormErrors = Partial<Record<keyof ClientForm, string>>;
 
@@ -104,8 +113,11 @@ export const formFromClient = (c: Client): ClientForm => ({
   nip: c.nip,
   email: c.email,
   registeredName: c.registeredName,
-  discount: c.discountTenths === null ? '' : String(c.discountTenths),
+  discount: c.discountTenths !== null ? String(c.discountTenths) : c.discountText !== '' ? KEEP_DISCOUNT : '',
 });
+
+/** A name the way it is compared: no extra spaces, capitals ignored ("Café  Nowa" is "café nowa"). */
+const sameName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -118,7 +130,7 @@ export function validateClientForm(form: ClientForm, others: readonly Client[]):
   const name = form.name.trim().replace(/\s+/g, ' ');
   if (name === '') errors.name = 'Enter the name you use for this client, e.g. Café Nowa.';
   else if (name.length > 100) errors.name = 'At most 100 characters.';
-  else if (others.some((c) => c.name.toLowerCase() === name.toLowerCase())) errors.name = 'Another client already has this name.';
+  else if (others.some((c) => sameName(c.name) === sameName(name))) errors.name = 'Another client already has this name.';
   const nip = cleanNip(form.nip);
   if (nip !== '' && !isValidNip(nip)) errors.nip = 'This is not a valid NIP: 10 digits, e.g. 123-456-32-18. Check it, or leave it empty.';
   else if (nip !== '' && others.some((c) => cleanNip(c.nip) === nip)) errors.nip = 'Another client already has this NIP.';
@@ -126,13 +138,13 @@ export function validateClientForm(form: ClientForm, others: readonly Client[]):
   if (email !== '' && !EMAIL.test(email)) errors.email = 'Enter an email address, e.g. kawiarnia@example.com, or leave it empty.';
   const registeredName = form.registeredName.trim().replace(/\s+/g, ' ');
   if (registeredName.length > 200) errors.registeredName = 'At most 200 characters.';
-  const discount = form.discount === '' ? null : Number(form.discount);
+  const keep = form.discount === KEEP_DISCOUNT;
+  const discount = form.discount === '' || keep ? null : Number(form.discount);
   if (discount !== null && !(Number.isInteger(discount) && discount >= 10 && discount < 1000)) errors.discount = 'Choose a discount from the list.';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return {
-    ok: true,
-    fields: { name, nip, email, registered_name: registeredName, discount_percent: discount === null ? '' : toDecimalText(discount, 1) },
-  };
+  const fields: Record<string, string> = { name, nip, email, registered_name: registeredName };
+  if (!keep) fields['discount_percent'] = discount === null ? '' : percentText(discount); // "keep": the cell is not written
+  return { ok: true, fields };
 }
 
 /** Only the columns whose value differs from the client as loaded (an edit writes only what changed). */

@@ -4,8 +4,9 @@
 // Rules agreed with the owner on 2026-11-16 (docs/REQUIREMENTS.md section 6): all costs are net; markups give the
 // net price; gross = net × (1 + VAT); roast loss = the average of the lot's roasts unless the owner types one.
 
-import { moneyText, parseDecimal, parseMoney, toDecimalText } from '../../core/numbers';
+import { moneyText, parseMoney, toDecimalText } from '../../core/numbers';
 import { MARKUPS } from '../../domain/blend';
+import { percentFromCell, percentText } from '../../domain/percent';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -58,26 +59,7 @@ export const settingFromFields = (fields: Fields, row: number): SettingRow => ({
   source: fields,
 });
 
-/** A percentage typed by a person: "23", "15,5" → tenths. Null if empty, undefined if not a valid percentage below 100. */
-export function parsePercent(value: string): number | null | undefined {
-  const tenths = parseDecimal(value, 1);
-  if (tenths === null || tenths === undefined) return tenths;
-  return tenths < 1000 ? tenths : undefined;
-}
-
-/**
- * A percentage as Kraken stores and accepts it: 0, or at least 1 % (e.g. "15.5"). A cell typed by hand as "20%" in
- * Google Sheets arrives as 0.2, which would silently read as 0,2 %; so values between 0 and 1 % are refused (the page
- * says the cell cannot be read, and the forms ask for e.g. 15 instead of 0,15).
- */
-export function percentFromCell(value: string): number | null | undefined {
-  const tenths = parsePercent(value);
-  return typeof tenths === 'number' && tenths > 0 && tenths < 10 ? undefined : tenths;
-}
-
-export const percentText = (tenths: number) => toDecimalText(tenths, 1);
-/** For the screen: "23 %", "15,5 %". */
-export const formatPercent = (tenths: number) => `${percentText(tenths).replace('.', ',')} %`;
+export { formatPercent, parsePercent, percentFromCell, percentText } from '../../domain/percent';
 
 /** For the screen: "2,5×". */
 export const formatMarkup = (hundredths: number) => `${toDecimalText(hundredths, 2).replace('.', ',')}×`;

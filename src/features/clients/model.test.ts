@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changedClientFields, clientFromFields, emptyClientForm, formFromClient, formatNip, isValidNip, sortClients, validateClientForm } from './model';
+import { KEEP_DISCOUNT, changedClientFields, clientFromFields, emptyClientForm, formFromClient, formatNip, isValidNip, sortClients, validateClientForm } from './model';
 
 // Made-up clients and tax IDs only (the repo is public). 9876543210 and 5550001119 have a valid check digit.
 const client = (row: number, o: Record<string, string> = {}) =>
@@ -12,6 +12,7 @@ describe('NIP', () => {
     expect(isValidNip('9876543211')).toBe(false);
     expect(isValidNip('123')).toBe(false);
     expect(isValidNip('abcdefghij')).toBe(false);
+    expect(isValidNip('0000000000')).toBe(false); // passes the check digit, but no tax office code starts with 0
   });
 
   it('is written the usual way on the screen', () => {
@@ -65,6 +66,22 @@ describe('the client form', () => {
     const existing = [client(2, { deleted_at: '2026-11-19T10:00:00.000Z' })];
     expect(validateClientForm({ ...emptyClientForm(), name: 'café nowa' }, existing)).toMatchObject({ ok: false, errors: { name: 'Another client already has this name.' } });
     expect(validateClientForm({ ...emptyClientForm(), name: 'Other', nip: '9876543210' }, existing)).toMatchObject({ ok: false, errors: { nip: 'Another client already has this NIP.' } });
+  });
+
+  it('keeps a discount cell it cannot read when something else is edited (never clears it by accident)', () => {
+    const odd = client(2, { discount_percent: '0.15' });
+    const form = formFromClient(odd);
+    expect(form.discount).toBe(KEEP_DISCOUNT);
+    const result = validateClientForm({ ...form, email: 'new@example.com' }, []);
+    if (!result.ok) throw new Error('expected valid');
+    expect(result.fields).not.toHaveProperty('discount_percent');
+    expect(changedClientFields(odd, result.fields)).toEqual({ email: 'new@example.com' });
+    // Choosing a discount corrects it.
+    expect(validateClientForm({ ...form, discount: '150' }, [])).toMatchObject({ ok: true, fields: { discount_percent: '15' } });
+  });
+
+  it('compares names without extra spaces or capitals', () => {
+    expect(validateClientForm({ ...emptyClientForm(), name: 'Café Nowa' }, [client(2, { name: 'Café  Nowa ' })])).toMatchObject({ ok: false, errors: { name: 'Another client already has this name.' } });
   });
 
   it('an edit writes only the columns that changed', () => {

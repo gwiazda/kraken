@@ -2,10 +2,11 @@
 // chosen from the wholesale discounts set under Packaging & discounts, so the two never differ.
 // Everything from outside comes through ClientsPageDeps (main.ts provides it).
 
+import { formatPercent } from '../../domain/percent';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
-import { changedClientFields, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
+import { KEEP_DISCOUNT, changedClientFields, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
 import type { ClientsRepository } from './repo';
 
 export interface ClientsPageDeps {
@@ -34,12 +35,15 @@ const FIELDS: readonly { key: Exclude<keyof ClientForm, 'discount'>; label: stri
   { key: 'email', label: 'Email' },
 ];
 
-const percentText = (tenths: number) => `${String(tenths / 10).replace('.', ',')} %`;
 
 export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?: string, fromClick = false): void {
   let clients: Client[] = [];
   let problems: string[] = [];
-  let discounts: Discount[] = activeDiscounts([]).discounts;
+  let discounts: Discount[] = [];
+  /** False when the Discounts tab could not be read: then no discount is offered or judged (it is kept as it is). */
+  let discountsKnown = false;
+  /** The discounts are read once per visit: they are only needed for the form and the labels. */
+  let discountsLoaded = false;
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
@@ -57,19 +61,23 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     render(el('p', {}, busy('Loading clients…')));
     // The discounts are only for the form's list: if they cannot be read, the clients are still shown.
     const discountsNow = () =>
-      deps.costs.load().then(
-        (costs) => activeDiscounts(costs.discounts),
-        (error: unknown) => {
-          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          return { ...activeDiscounts([]), problems: [`The discounts could not be read (${deps.describeError(error)}); the usual ones are offered.`] };
-        },
-      );
+      discountsLoaded
+        ? Promise.resolve({ discounts, known: discountsKnown, problems: [] as string[] })
+        : deps.costs.load().then(
+            (costs) => ({ ...activeDiscounts(costs.discounts), known: true }),
+            (error: unknown) => {
+              if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+              return { discounts: [] as Discount[], known: false, problems: [`The discounts could not be read (${deps.describeError(error)}), so a client's discount cannot be changed now.`] };
+            },
+          );
     const all = () => Promise.all([deps.repo.load(), discountsNow()]);
     (fromClick ? deps.withGoogle(all) : all())
       .then(([result, found]) => {
         if (!root.isConnected) return;
         clients = result.clients;
         discounts = found.discounts;
+        discountsKnown = found.known;
+        discountsLoaded = found.known; // read again next time if it failed
         problems = [...result.problems, ...found.problems];
         showList(note);
       })
@@ -107,8 +115,9 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
   /** "15 % (Do 10 kg)", or the stored value with a note when it is not one of the discounts any more. */
   const discountLabel = (c: Client) => {
     if (c.discountTenths === null) return c.discountText ? `"${c.discountText}"` : '—';
+    if (!discountsKnown) return formatPercent(c.discountTenths);
     const known = discounts.find((d) => d.tenths === c.discountTenths);
-    return known ? `${percentText(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${percentText(c.discountTenths)} (not in your discounts)`;
+    return known ? `${formatPercent(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${formatPercent(c.discountTenths)} (not in your discounts)`;
   };
 
   // ---- The list ----
@@ -209,20 +218,25 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       );
     });
 
-    // The discount: one of those set under Packaging & discounts (a stored one that is not there any more is kept).
+    // The discount: one of those set under Packaging & discounts. A stored one that is not there any more, or that
+    // cannot be read, is offered as it is, so saving another change never alters it by accident.
     const discount = el('select', { id: 'client-discount' });
     discount.append(el('option', { value: '' }, 'No discount'));
-    for (const d of discounts) discount.append(el('option', { value: String(d.tenths) }, `${percentText(d.tenths)}${d.name ? ` (${d.name})` : ''}`));
-    if (initial.discount !== '' && !discounts.some((d) => String(d.tenths) === initial.discount)) {
-      discount.append(el('option', { value: initial.discount }, `${percentText(Number(initial.discount))} (not in your discounts)`));
+    for (const d of discounts) discount.append(el('option', { value: String(d.tenths) }, `${formatPercent(d.tenths)}${d.name ? ` (${d.name})` : ''}`));
+    if (initial.discount === KEEP_DISCOUNT) {
+      discount.append(el('option', { value: KEEP_DISCOUNT }, `Keep "${client?.discountText ?? ''}" (cannot be read: choose one to correct it)`));
+    } else if (initial.discount !== '' && !discounts.some((d) => String(d.tenths) === initial.discount)) {
+      discount.append(el('option', { value: initial.discount }, `${formatPercent(Number(initial.discount))}${discountsKnown ? ' (not in your discounts)' : ''}`));
     }
     discount.value = initial.discount;
+    discount.disabled = !discountsKnown; // the discounts could not be read: the client keeps its discount
     errorLines.discount = el('p', { class: 'field-error', role: 'alert' });
     const discountField = el(
       'div',
       { class: 'field' },
       el('div', { class: 'label-row' }, el('label', { for: discount.id }, 'Wholesale discount'), infoTip('How much cheaper this client gets your coffee. The list comes from Packaging & discounts.')),
       discount,
+      ...(discountsKnown ? [] : [el('p', { class: 'field-hint' }, 'The discounts could not be read, so this stays as it is for now.')]),
       errorLines.discount,
     );
 

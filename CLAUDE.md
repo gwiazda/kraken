@@ -65,7 +65,7 @@ test that reads every import line), so CI fails if a rule is broken.
   and is refused if someone changed the record or those cells meanwhile).
 - `domain/`: shared business rules used by several features, pure (no Google, no screen): `bagSizes.ts` the fixed
   bag sizes (250 g, 500 g, 1 kg) and how a size is written; `prices.ts` VAT, rounding (grosz, whole złoty) and the
-  wholesale price (net, whole złoty); `blend.ts` a product's beans: roasted price per kg, blend by share, cost of
+  wholesale price (net, whole złoty); `percent.ts` how a percentage is read, stored and shown (VAT, roast loss, discounts); `blend.ts` a product's beans: roasted price per kg, blend by share, cost of
   one bag, suggestions at the fixed multipliers, earnings, share sliders. Each rule is in one place.
 - `auth/`: sign-in. `auth.ts` Google glue, `token.ts`, `signInFlow.ts` (keeps a token Google delivers late), `session.ts` renew-on-click.
 - `schema/`: the sheet's structure. `meta.ts` schema version check, `connect.ts` create, open, check and update a sheet, `migrate.ts` backup and migrations.
@@ -100,7 +100,7 @@ test that reads every import line), so CI fails if a rule is broken.
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner, `googleErrors.ts` explains Google errors
-  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Offer and Settings (owner's
+  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Clients (and its form), Offer and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
   the app shows the Lots page with a menu (Lots, Roasts, Products, Product planner, Offer, Clients, Packaging & discounts, Settings; Settings is technical: Sync with RoasTime, sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
