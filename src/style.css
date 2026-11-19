@@ -1684,3 +1684,49 @@ details summary {
 .costing-prices .price-row .field-error {
   grid-row: 4;
 }
+
+/* ---- Product planner extras: earnings under prices, the comparison ---- */
+
+.price-earn-line {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--lime);
+}
+
+.price-earn-line.losing {
+  color: #ff6b6b;
+}
+
+.planner-extra {
+  margin-top: 1.5rem;
+}
+
+.compare-table {
+  width: auto;
+  min-width: 34rem;
+}
+
+.compare-table tbody th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  color: var(--white);
+}
+
+.compare-plan th,
+.compare-plan td {
+  background: #1d2200;
+}
+
+.compare-plan th {
+  color: var(--lime);
+  font-weight: 700;
+}
+
+.compare-sizes .btn-link[aria-current='true'] {
+  color: var(--black);
+  background: var(--lime);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  text-decoration: none;
+}

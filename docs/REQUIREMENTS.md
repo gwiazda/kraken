@@ -370,8 +370,14 @@ need to know what price to put on my product".
   packaging, plus the packaging of the one big bag (packaging with VAT), rounded to whole złoty. Example: 250 g at
   45 zł, packaging 6,48 zł with VAT: 1 kg = 180 − 25,93 + 6,48 = 160,55 → 161 zł. Without a 250 g price the bigger
   sizes say "Set the 250 g price first".
-- **Planner tab** (owner, 2026-11-19): the same beans-and-prices tool as in the product form, as a scratchpad:
-  try beans (lots or planned), shares and prices, nothing saved. "Try in Planner" on a product's page copies its
+- **Product planner** (owner, 2026-11-19; was "Planner"). Below the beans and prices it also shows the **wholesale
+  prices** of the typed prices (the same table as a product's page, with what each price earns per bag; red when it
+  loses money) and **Compare with your products**: the plan next to every product for one bag size (cost of a bag,
+  retail price, what it earns, and what it earns at **each wholesale discount** set under Packaging & discounts,
+  one column each with its name), sorted by what they earn. The product form
+  stays without these. A product's page shows the earnings under its prices too (same table).
+- **Product planner tab** (owner, 2026-11-19): the same beans-and-prices tool as in the product form, as a scratchpad:
+  try beans (lots or planned), shares and prices, nothing saved. "Try in Product planner" on a product's page copies its
   beans and prices there (the product is not changed); "Create product from this" opens Add product with them
   filled in. One shared piece of code for both places, so they never differ.
 - **Every number is explained** (owner, 2026-11-19): "Why … per kg?" (each bean's green price, how roasting makes

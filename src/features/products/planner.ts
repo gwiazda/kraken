@@ -1,5 +1,5 @@
 // The planner (owner, 2026-11-19): a product's beans and its prices, worked out live. One piece, used in two places
-// so they never drift apart: the product form (saved with the product) and the Planner tab (a scratchpad, nothing
+// so they never drift apart: the product form (saved with the product) and the Product planner tab (a scratchpad, nothing
 // saved). Beans on the left (up to 3, shares on one bar), prices on the right (cost of one bag, suggestions, what a
 // price earns, every step explained). The rules are in domain/blend.ts and present.ts (costing).
 
@@ -11,7 +11,8 @@ import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import { button, el, infoTip } from '../../ui/dom';
 import type { BeanForm } from './modelBeans';
-import { costing } from './present';
+import { compareRow, costing, priceRows, sortCompared, type ComparedRow } from './present';
+import { compareTable, costsBySize, pricesTable } from './priceTable';
 
 /** What the planner needs from the rest of Kraken: VAT and the usual loss, every lot as a bean, packaging per size. */
 export interface PlannerData {
@@ -72,7 +73,19 @@ export function beanName(form: BeanForm, i: number, beanLots: readonly BeanLot[]
 export function createPlanner(
   data: Pick<PlannerData, 'settings' | 'beanLots' | 'packaging'>,
   start: PlannerStart,
-  options: { pricesTitle: string; pricesIntro: string; onChange?: (plan: PlannerStart) => void },
+  options: {
+    pricesTitle: string;
+    pricesIntro: string;
+    onChange?: (plan: PlannerStart) => void;
+    /**
+     * The Product planner's extras (owner, 2026-11-19), not in the product form: the wholesale prices of what is
+     * typed, and the plan next to the existing products.
+     */
+    extra?: {
+      discounts: readonly { tenths: number; name: string }[];
+      products: readonly { name: string; beans: readonly BeanForm[]; prices: Readonly<Partial<Record<number, number>>> }[];
+    };
+  },
 ): Planner {
   const { settings, beanLots, packaging } = data;
   const priceInputs = {} as Record<BagSize, HTMLInputElement>;
@@ -276,9 +289,76 @@ export function createPlanner(
     }
     return out;
   };
+  // ---- The Product planner's extras: wholesale prices and the comparison with the products ----
+  const extra = options.extra;
+  const wholesaleHolder = el('div', {});
+  const compareHolder = el('div', {});
+  let compareSize: BagSize = 250;
+  const sizeButtons = BAG_SIZES_G.map((grams) => {
+    const b = button(
+      formatBagSize(grams),
+      () => {
+        compareSize = grams;
+        update();
+      },
+      'link',
+    );
+    return { grams, b };
+  });
+  /** The wholesale discounts as set under Packaging & discounts, lowest first: one column each, in both tables. */
+  const discounts = extra ? [...extra.discounts].sort((a, b) => a.tenths - b.tenths) : [];
+  /** The products' rows per bag size: they do not change while the plan does, so they are worked out once. */
+  const productRows = new Map<BagSize, ComparedRow[]>();
+  const compareArgs = [beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, discounts.map((d) => d.tenths)] as const;
+  const showExtra = (rows: readonly { grams: number; costGrosze: number | null }[], prices: Partial<Record<number, number>>) => {
+    if (!extra) return;
+    wholesaleHolder.replaceChildren(
+      Object.keys(prices).length === 0
+        ? el('p', { class: 'muted small' }, 'Type a price above to see the wholesale prices.')
+        : pricesTable(priceRows(prices, discounts.map((d) => d.tenths), settings.vatTenths, costsBySize(rows)), discounts),
+    );
+    for (const { grams, b } of sizeButtons) {
+      if (grams === compareSize) b.setAttribute('aria-current', 'true');
+      else b.removeAttribute('aria-current');
+    }
+    let products = productRows.get(compareSize);
+    if (!products) {
+      products = extra.products.map((p) => compareRow({ ...p, isPlan: false }, compareSize, ...compareArgs));
+      productRows.set(compareSize, products);
+    }
+    const plan = compareRow({ name: 'This plan', isPlan: true, beans: beanForms, prices }, compareSize, ...compareArgs);
+    compareHolder.replaceChildren(compareTable(sortCompared([plan, ...products]), discounts));
+  };
+  const extraNode = extra
+    ? el(
+        'div',
+        { class: 'planner-extra' },
+        el(
+          'section',
+          { class: 'product-card' },
+          el('h3', {}, 'Wholesale prices ', infoTip('What a business customer would pay for your prices above: without VAT, minus their discount, rounded to whole złoty. Under each price: what you would earn on one bag.')),
+          wholesaleHolder,
+        ),
+        el(
+          'section',
+          { class: 'product-card' },
+          el(
+            'h3',
+            {},
+            'Compare with your products ',
+            infoTip('Your plan next to the products you have, for one bag size, sorted by what they earn. Each wholesale column shows what one bag earns at that discount; the discounts are the ones set under Packaging & discounts.'),
+          ),
+          el('p', { class: 'compare-sizes small' }, 'Bag size: ', ...sizeButtons.flatMap(({ b }) => [b, ' '])),
+          compareHolder,
+        ),
+      )
+    : null;
+
   const update = () => {
     options.onChange?.({ beans: beanForms.map((f) => ({ ...f })), prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) });
-    const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, typedPrices());
+    const prices = typedPrices();
+    const made = costing(beanForms, beanLots, packaging, settings.vatTenths, settings.defaultLossTenths, prices);
+    showExtra(made.rows, prices);
     madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
     madeOfLine.hidden = !made.madeOf;
     perKgTitle.textContent = `Why ${made.perKg.replace(' of roasted coffee', '')}?`;
@@ -356,7 +436,12 @@ export function createPlanner(
   update();
 
   return {
-    node: el('div', { class: 'costing-grid' }, el('div', { class: 'costing-beans' }, beansSection), el('div', { class: 'costing-prices' }, priceSection)),
+    node: el(
+      'div',
+      {},
+      el('div', { class: 'costing-grid' }, el('div', { class: 'costing-beans' }, beansSection), el('div', { class: 'costing-prices' }, priceSection)),
+      ...(extraNode ? [extraNode] : []),
+    ),
     beans: () => beanForms.map((f) => ({ ...f })),
     prices: () => Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) as Record<BagSize, string>,
     showBeanErrors: (text) => (beansError.textContent = text),

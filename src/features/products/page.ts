@@ -1,7 +1,7 @@
 // The Products screen (owner, 2026-11-17/18), the one place for prices:
 // - the list: name, brew method, origin and main prices; click a name to open the product;
 // - a product's page: main (retail) gross prices and the wholesale prices at each discount, its offer details;
-// - the form: details, and the planner (planner.ts, shared with the Planner tab): the beans it is made of and its
+// - the form: details, and the planner (planner.ts, shared with the Product planner tab): the beans it is made of and its
 //   main prices with suggestions and earnings.
 // Everything from outside comes through ProductsPageDeps (main.ts provides it).
 
@@ -26,7 +26,8 @@ import {
   PRICE_FIELDS,
 } from './model';
 import { beansOf, formFromBean, validateBeans, type ProductBean } from './modelBeans';
-import { costing, discountHeader, priceRows, productDetails, type Costing, type PriceCell } from './present';
+import { costing, priceRows, productDetails, type Costing } from './present';
+import { costsBySize, pricesTable } from './priceTable';
 import { beanName, createPlanner, loadPlannerData, type PlannerStart } from './planner';
 import type { ProductsRepository } from './repo';
 
@@ -49,7 +50,7 @@ export interface ProductsPageDeps {
   formClosed: () => void;
   /** Kraken is saving to Google (true) or done (false): Back and the menu wait meanwhile. */
   busy: (on: boolean) => void;
-  /** Opens the Planner with these beans and prices (a copy: the product is not changed). */
+  /** Opens the Product planner with these beans and prices (a copy: the product is not changed). */
   openPlanner: (start: PlannerStart) => void;
 }
 
@@ -88,7 +89,7 @@ const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
 
 const TEXT_KEYS: readonly TextKey[] = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
 
-/** `create`: open "Add product" straight away with these beans and prices (from the Planner). */
+/** `create`: open "Add product" straight away with these beans and prices (from the Product planner). */
 export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note?: string, fromClick = false, create?: PlannerStart): void {
   let products: Product[] = [];
   let problems: string[] = [];
@@ -258,42 +259,17 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     deps.formOpened();
     const vat = settings.vatTenths;
 
-    const priceCell = (c: PriceCell, extra = '') =>
-      el('td', { class: `num nowrap${extra}` }, el('strong', { class: 'price-main' }, c.main), ...(c.other ? [el('span', { class: 'price-other' }, c.other)] : []));
-    const pricesHolder = el('div', {});
-    const showPrices = () => {
-      const columns = discounts;
-      const rows = priceRows(
-        product,
-        columns.map((d) => d.tenths),
-        vat,
-      );
-      pricesHolder.replaceChildren(
-        el(
-          'div',
-          { class: 'table-wrap' },
-          el(
-            'table',
-            { class: 'data-table product-prices' },
-            el(
-              'thead',
-              {},
-              el(
-                'tr',
-                {},
-                el('th', { scope: 'col' }, ''),
-                el('th', { scope: 'col', class: 'num col-retail' }, 'Retail'),
-                ...columns.map((d) => el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), discountHeader(d.tenths))),
-              ),
-            ),
-            el('tbody', {}, ...rows.map((r) => el('tr', {}, el('th', { scope: 'row' }, r.size), priceCell(r.retail, ' col-retail'), ...r.wholesale.map((c) => priceCell(c))))),
-          ),
-        ),
-      );
-    };
-    showPrices();
-
     const made = costing(beansOf(beans, product.id).map(formFromBean), beanLots, packaging, vat, settings.defaultLossTenths, product.prices);
+    const pricesHolder = pricesTable(
+      priceRows(
+        product.prices,
+        discounts.map((d) => d.tenths),
+        vat,
+        costsBySize(made.rows),
+      ),
+      discounts,
+    );
+
     const costCard = el(
       'section',
       { class: 'product-card' },
@@ -321,7 +297,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const confirm = el('div', {});
     const normal = () => {
       confirm.replaceChildren();
-      actions.replaceChildren(button('Try in Planner', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
+      actions.replaceChildren(button('Try in Product planner', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
     };
     const ask = () => {
       const no = button('No', normal, 'secondary');
@@ -394,7 +370,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   // ---- The form ----
 
-  /** Adds (`product` null) or edits a product. `startFrom`: beans and prices brought from the Planner. */
+  /** Adds (`product` null) or edits a product. `startFrom`: beans and prices brought from the Product planner. */
   function showForm(product: Product | null, startFrom?: PlannerStart): void {
     deps.formOpened();
     const initial = product ? formFromProduct(product) : emptyProductForm();
@@ -423,7 +399,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
     };
 
-    // The beans and the prices: the planner, the same piece as the Planner tab (one place for both, owner 2026-11-19).
+    // The beans and the prices: the planner, the same piece as the Product planner tab (one place for both, owner 2026-11-19).
     const existingBeans = product ? beansOf(beans, product.id) : [];
     const planner = createPlanner({ settings, beanLots, packaging }, startFrom ?? plannerStartOf(product), {
       pricesTitle: 'Main prices, with VAT',

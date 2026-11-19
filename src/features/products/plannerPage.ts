@@ -1,4 +1,4 @@
-// The Planner tab (owner, 2026-11-19): a scratchpad to try beans, shares and prices before buying or deciding
+// The Product planner tab (owner, 2026-11-19; renamed from "Planner"): a scratchpad to try beans, shares and prices before buying or deciding
 // ("when I think about buying some beans I need to know what price to put on my product"). Nothing is saved. It is
 // the same planner as in the product form (planner.ts), so a change to one is a change to both.
 // Everything from outside comes through PlannerPageDeps (main.ts provides it).
@@ -8,9 +8,14 @@ import { googleErrorNodes } from '../../ui/googleErrors';
 import type { CostsRepository } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
+import { isDeleted, sortProducts } from './model';
+import { beansOf, formFromBean } from './modelBeans';
 import { createPlanner, loadPlannerData, type PlannerStart } from './planner';
+import type { ProductsRepository } from './repo';
 
 export interface PlannerPageDeps {
+  /** The products, to compare the plan with. */
+  products: ProductsRepository;
   costs: CostsRepository;
   lots: LotsRepository;
   roasts: RoastsRepository;
@@ -31,30 +36,41 @@ export const EMPTY_PLAN: PlannerStart = {
   prices: {},
 };
 
-/** `start`: what to begin with (e.g. a product's beans and prices from "Try in Planner"); else an empty plan. */
+/** `start`: what to begin with (e.g. a product's beans and prices from "Try in Product planner"); else an empty plan. */
 export function showPlannerPage(root: HTMLElement, deps: PlannerPageDeps, start: PlannerStart = EMPTY_PLAN, fromClick = false): void {
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
   function load(fromClick = false): void {
     render(el('p', {}, busy('Loading lots and packaging…')));
-    const data = () => loadPlannerData(deps);
+    // The products are only for the comparison: if they cannot be read, the planner still opens, with a note.
+    const products = () =>
+      deps.products.load().catch((error: unknown) => {
+        if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+        return { products: [], beans: [], problems: [`Your products could not be read for the comparison (${deps.describeError(error)}).`] };
+      });
+    const data = () => Promise.all([loadPlannerData(deps), products()]);
     (fromClick ? deps.withGoogle(data) : data())
-      .then((found) => {
+      .then(([found, stored]) => {
         if (!root.isConnected) return;
+        // Every product with its beans and main prices, to compare the plan with.
+        const products = sortProducts(stored.products)
+          .filter((p) => !isDeleted(p))
+          .map((p) => ({ name: p.name, beans: beansOf(stored.beans, p.id).map(formFromBean), prices: p.prices }));
         const show = (plan: PlannerStart) => {
           const planner = createPlanner(found, plan, {
             pricesTitle: 'Prices to try, with VAT',
             pricesIntro: 'Type a price to see what it earns, or click a suggestion. ',
             onChange: deps.remember,
+            extra: { discounts: found.discounts, products },
           });
           render(
-            el('div', { class: 'page-head' }, el('h2', {}, 'Planner')),
+            el('div', { class: 'page-head' }, el('h2', {}, 'Product planner')),
             el(
               'p',
               { class: 'muted small' },
               'Try beans, shares and prices before you buy or decide: lots you have, or a planned bean with the price you were quoted. Nothing is saved; when you like it, make a product from it.',
             ),
-            ...found.problems.map((text) => message(text, 'error')),
+            ...[...found.problems, ...stored.problems].map((text) => message(text, 'error')),
             planner.node,
             el(
               'div',
@@ -72,7 +88,7 @@ export function showPlannerPage(root: HTMLElement, deps: PlannerPageDeps, start:
           render(
             ...googleErrorNodes(e, deps, {
               retry: () => load(),
-              retryLabel: 'Sign in and open the Planner',
+              retryLabel: 'Sign in and open the Product planner',
               show,
               other: { label: 'Try again', action: () => load(true), mayHaveSaved: false },
               signedOutNote: 'Nothing was lost.',
