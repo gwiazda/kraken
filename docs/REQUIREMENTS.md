@@ -226,10 +226,11 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
 - **Sales** tab (built, data version 10: "Sales" and "Sale lines" tabs): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
   number of bags; a line can be free),
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag, with a reason).
-  Invoice status for sales: **To be issued → Issued (date, optional number) → Paid (date)**; both owners can change
+  Invoice status for sales: **To be issued → Issued (date) → Paid (date)**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
   The list opens on **Invoice to be issued** (filters: issued, paid, samples, own use, all, with counts); "Mark
-  issued" asks for the date (number optional), "Mark paid" for the date, "Undo" goes back one step.
+  issued" asks only for the date (owner, 2026-11-19: no invoice number), "Mark paid" for the date, "Undo" goes back
+  one step. The `invoice_number` column stays in the sheet, unused.
 - **No prices in Sales** (owner, 2026-11-19): it records only how much went out (bags, and which are free). The owner
   takes the prices from the client's offer when issuing the invoice; the partner does not need to know them. The
   `unit_price_net_pln` column of the Sale lines tab stays (migration 10) but is left empty.

@@ -148,31 +148,29 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         if (sale.kind === 'sale' && sale.status === 'paid') status.push(button('Undo', () => undo('issued'), 'link'));
         actions.replaceChildren(...status, button('Edit', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
       };
-      /** A small form under the row: the date (today) and, for "issued", the invoice number. */
-      const dateForm = (label: string, withNumber: boolean, save: (date: string, number: string) => void) => {
+      /** A small form under the row: the date, today unless changed. */
+      const dateForm = (label: string, save: (date: string) => void) => {
         const date = el('input', { type: 'date', class: 'input-short', 'aria-label': label });
         date.value = today();
-        const number = el('input', { type: 'text', class: 'input-money', placeholder: 'e.g. FV 12/11/2026', 'aria-label': 'Invoice number (optional)', autocomplete: 'off' });
         const errorLine = el('span', { class: 'field-error', role: 'alert' });
         const form = el(
           'form',
           { class: 'inline-form', novalidate: '' },
           el('span', {}, label),
           date,
-          ...(withNumber ? [el('span', { class: 'muted small' }, 'Invoice number (optional)'), number] : []),
           el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
           button('Cancel', normal, 'secondary'),
           errorLine,
         );
         form.addEventListener('submit', (event) => {
           event.preventDefault();
-          save(date.value, number.value);
+          save(date.value);
         });
         return { form, errorLine };
       };
       const markIssued = () => {
-        const { form, errorLine } = dateForm('Invoice issued on', true, (date, number) => {
-          const change = statusChange('issued', { invoiceDate: date, invoiceNumber: number });
+        const { form, errorLine } = dateForm('Invoice issued on', (date) => {
+          const change = statusChange('issued', { invoiceDate: date });
           if (!change.ok) {
             errorLine.textContent = change.error;
             return;
@@ -182,7 +180,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         inline(form);
       };
       const markPaid = () => {
-        const { form, errorLine } = dateForm('Paid on', false, (date) => {
+        const { form, errorLine } = dateForm('Paid on', (date) => {
           const change = statusChange('paid', { paidDate: date });
           if (!change.ok) {
             errorLine.textContent = change.error;
@@ -231,7 +229,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
       ),
-      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, click "Mark issued"; when it is paid, "Mark paid". Samples and own use have no invoice.')),
+      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, click "Mark issued" and give the date; when it is paid, "Mark paid". Samples and own use have no invoice.')),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
