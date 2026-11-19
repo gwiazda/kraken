@@ -28,15 +28,13 @@ describe('sheetSalesRepository (in-memory Google)', () => {
     data = await repo.load();
     expect(linesOf(data.lines, id).map((l) => l.bags)).toEqual([4]);
 
-    const issued = statusChange('issued', { invoiceDate: '2026-11-20', invoiceNumber: 'FV 1/11/2026' });
-    if (!issued.ok) throw new Error('setup');
     let [sale] = data.sales;
     if (!sale) throw new Error('setup');
-    await repo.update(sale, issued.fields, later);
+    await repo.update(sale, statusChange(sale, 'issued', '2026-11-20'), later);
     data = await repo.load();
     [sale] = data.sales;
     if (!sale) throw new Error('setup');
-    expect(sale).toMatchObject({ status: 'issued', invoiceDate: '2026-11-20', invoiceNumber: 'FV 1/11/2026' });
+    expect(sale).toMatchObject({ status: 'issued', invoiceDate: '2026-11-20' });
 
     await repo.remove(sale, later);
     expect((await repo.load()).sales[0]?.deletedAt).toBe(later.toISOString());

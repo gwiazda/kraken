@@ -21,11 +21,11 @@ describe('saleRows', () => {
 
   it('sums up each entry: who, what, how many bags and the invoice status', () => {
     const { rows } = saleRows(sales, lines, 'all', (id) => clients[id], (id) => products[id]);
-    expect(rows.map((r) => [r.sale.id, r.kindLabel, r.who, r.items, r.bags, r.status])).toEqual([
+    expect(rows.map((r) => [r.sale.id, r.kindLabel, r.who, r.items, r.bags, r.statusDate])).toEqual([
       ['S5', 'Own use', 'Tasting at home', '—', '', ''],
       ['S4', 'Sample', 'Café X, Kazimierz (not a client)', 'GWATEMALA 1 kg × 3', '3 bags', ''],
-      ['S2', 'Sale', 'Café Nowa', 'GWATEMALA 1 kg × 3, KENIA 250 g × 1 (free)', '4 bags (1 free)', 'Invoice to be issued'],
-      ['S3', 'Sale', 'Café Nowa', '—', '', 'Invoice issued 2026-11-20 (FV 1/11)'],
+      ['S2', 'Sale', 'Café Nowa', 'GWATEMALA 1 kg × 3, KENIA 250 g × 1 (free)', '4 bags (1 free)', ''],
+      ['S3', 'Sale', 'Café Nowa', '—', '', '2026-11-20'],
     ]);
   });
 

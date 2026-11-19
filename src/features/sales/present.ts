@@ -2,7 +2,7 @@
 // what, how many bags) and the filters with their counts. No prices (owner, 2026-11-19).
 
 import { formatBagSize } from '../../domain/bagSizes';
-import { KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
+import { KIND_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
 
 export type SalesFilter = 'all' | InvoiceStatus | 'sample' | 'own_use';
 
@@ -29,8 +29,8 @@ export interface SaleRow {
   readonly items: string;
   /** How many bags: "4 bags (1 free)", "1 bag". */
   readonly bags: string;
-  /** "Invoice to be issued", "Invoice issued 2026-11-20 (FV 1/11)", "Paid 2026-11-25"; '' when there is no invoice. */
-  readonly status: string;
+  /** The date of the status shown next to it: when the invoice was issued, or when it was paid; '' otherwise. */
+  readonly statusDate: string;
   readonly createdBy: string;
 }
 
@@ -62,14 +62,7 @@ export function saleRows(
             : sale.place
               ? `${sale.place} (not a client)`
               : '';
-      const status =
-        sale.kind !== 'sale' || sale.status === null
-          ? ''
-          : sale.status === 'issued'
-            ? `${STATUS_LABELS.issued} ${sale.invoiceDate}${sale.invoiceNumber ? ` (${sale.invoiceNumber})` : ''}`
-            : sale.status === 'paid'
-              ? `${STATUS_LABELS.paid} ${sale.paidDate}`
-              : STATUS_LABELS.to_issue;
+      const statusDate = sale.kind !== 'sale' ? '' : sale.status === 'issued' ? sale.invoiceDate : sale.status === 'paid' ? sale.paidDate : '';
       return {
         sale,
         date: sale.date,
@@ -78,7 +71,7 @@ export function saleRows(
         who,
         items: items || '—',
         bags: bagsText(own),
-        status,
+        statusDate,
         createdBy: sale.createdBy,
       };
     });

@@ -250,22 +250,16 @@ export const startingInvoice = (kind: SaleKind): Record<string, string> =>
   kind === 'sale' ? { invoice_status: 'to_issue' } : { invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '' };
 
 /**
- * The cells to write when the invoice status changes. Issued needs the date it was issued (the number is optional);
- * paid needs the date it was paid. Going back clears what came after.
+ * The cells to write when the invoice status is chosen from the list (owner, 2026-11-19: one simple dropdown, any
+ * status to any other). The date is today, except a date already known is kept: going from issued to paid keeps
+ * the date the invoice was issued. Going back clears what came after.
  */
-export function statusChange(
-  to: InvoiceStatus,
-  details: { invoiceDate?: string; invoiceNumber?: string; paidDate?: string },
-): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
-  if (to === 'to_issue') return { ok: true, fields: { invoice_status: 'to_issue', invoice_number: '', invoice_date: '', paid_date: '' } };
-  if (to === 'issued') {
-    if (!isValidDate(details.invoiceDate ?? '')) return { ok: false, error: 'Enter the date the invoice was issued.' };
-    const number = (details.invoiceNumber ?? '').trim();
-    if (number.length > 60) return { ok: false, error: 'The invoice number can have at most 60 characters.' };
-    return { ok: true, fields: { invoice_status: 'issued', invoice_date: details.invoiceDate ?? '', invoice_number: number, paid_date: '' } };
-  }
-  if (!isValidDate(details.paidDate ?? '')) return { ok: false, error: 'Enter the date it was paid.' };
-  return { ok: true, fields: { invoice_status: 'paid', paid_date: details.paidDate ?? '' } };
+export function statusChange(sale: Pick<Sale, 'invoiceDate' | 'paidDate' | 'status'>, to: InvoiceStatus, today: string): Record<string, string> {
+  if (to === 'to_issue') return { invoice_status: 'to_issue', invoice_date: '', paid_date: '' };
+  const invoiceDate = sale.status !== 'to_issue' && isValidDate(sale.invoiceDate) ? sale.invoiceDate : today;
+  if (to === 'issued') return { invoice_status: 'issued', invoice_date: invoiceDate, paid_date: '' };
+  const paidDate = sale.status === 'paid' && isValidDate(sale.paidDate) ? sale.paidDate : today;
+  return { invoice_status: 'paid', invoice_date: invoiceDate, paid_date: paidDate };
 }
 
 /**

@@ -1,6 +1,6 @@
 // The Sales screen (owner, 2026-11-19): what went out and the invoices to issue. Either owner adds entries: a sale
 // to a client (the invoice starts "to be issued"), a sample left somewhere, or own use. The list has filters
-// ("Invoice to be issued" first) and buttons to mark an invoice issued or paid. No prices (owner, 2026-11-19): it
+// ("Invoice to be issued" first) and a dropdown for the invoice status (today's date is taken). No prices (owner, 2026-11-19): it
 // records how much went out; the owner takes the prices from the client's offer when issuing the invoice.
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
@@ -12,6 +12,7 @@ import { isClientDeleted, sortClients, type Client, type ClientsRepository } fro
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
   KIND_LABELS,
+  STATUS_LABELS,
   changedSaleFields,
   emptyLine,
   emptySaleForm,
@@ -24,6 +25,7 @@ import {
   validateSale,
   type Sale,
   type SaleForm,
+  type InvoiceStatus,
   type SaleKind,
   type SaleLine,
 } from './model';
@@ -96,7 +98,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   }
 
   /** Writes something about one entry from the list (status, delete, restore), inside the click; reloads after. */
-  function act(slot: HTMLElement, working: string, action: () => Promise<void>, done: string): void {
+  function act(slot: HTMLElement, working: string, action: () => Promise<void>, done: string, afterSave?: () => void): void {
     lockPage();
     slot.replaceChildren(busy(working));
     deps.busy(true);
@@ -104,12 +106,13 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       .withGoogle(action)
       .finally(() => deps.busy(false))
       .then(() => {
+        afterSave?.();
         if (root.isConnected) load(done);
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
-        const show = (e: unknown) => showList(undefined, errorNodes(e, () => act(slot, working, action, done), 'Sign in and try again', show, true));
+        const show = (e: unknown) => showList(undefined, errorNodes(e, () => act(slot, working, action, done, afterSave), 'Sign in and try again', show, true));
         show(error);
       });
   }
@@ -142,59 +145,25 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       };
       const normal = () => {
         extra.hidden = true;
-        const status: Node[] = [];
-        if (sale.kind === 'sale' && sale.status === 'to_issue') status.push(button('Mark issued', markIssued, 'link'));
-        if (sale.kind === 'sale' && sale.status === 'issued') status.push(button('Mark paid', markPaid, 'link'), button('Undo', () => undo('to_issue'), 'link'));
-        if (sale.kind === 'sale' && sale.status === 'paid') status.push(button('Undo', () => undo('issued'), 'link'));
-        actions.replaceChildren(...status, button('Edit', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
+        actions.replaceChildren(button('Edit', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
       };
-      /** A small form under the row: the date, today unless changed. */
-      const dateForm = (label: string, save: (date: string) => void) => {
-        const date = el('input', { type: 'date', class: 'input-short', 'aria-label': label });
-        date.value = today();
-        const errorLine = el('span', { class: 'field-error', role: 'alert' });
-        const form = el(
-          'form',
-          { class: 'inline-form', novalidate: '' },
-          el('span', {}, label),
-          date,
-          el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
-          button('Cancel', normal, 'secondary'),
-          errorLine,
-        );
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          save(date.value);
+      /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
+      const statusCell = el('td', { class: 'nowrap' });
+      if (sale.kind !== 'sale') statusCell.append(el('span', { class: 'muted' }, '—'));
+      else {
+        const select = el('select', { class: `status-select status-${sale.status ?? ''}`, 'aria-label': `Invoice status: ${r.who}` });
+        if (sale.status === null) select.append(el('option', { value: '', selected: '' }, '? (cannot be read)'));
+        for (const [value, label] of Object.entries(STATUS_LABELS)) {
+          const option = el('option', { value }, label);
+          option.selected = value === sale.status;
+          select.append(option);
+        }
+        select.addEventListener('change', () => {
+          const to = select.value as InvoiceStatus;
+          act(statusCell, 'Saving…', () => deps.repo.update(sale, statusChange(sale, to, today()), deps.now()), `${r.who}: ${STATUS_LABELS[to].toLowerCase()}.`, () => (filter = 'all'));
         });
-        return { form, errorLine };
-      };
-      const markIssued = () => {
-        const { form, errorLine } = dateForm('Invoice issued on', (date) => {
-          const change = statusChange('issued', { invoiceDate: date });
-          if (!change.ok) {
-            errorLine.textContent = change.error;
-            return;
-          }
-          act(actions, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: invoice marked as issued.`);
-        });
-        inline(form);
-      };
-      const markPaid = () => {
-        const { form, errorLine } = dateForm('Paid on', (date) => {
-          const change = statusChange('paid', { paidDate: date });
-          if (!change.ok) {
-            errorLine.textContent = change.error;
-            return;
-          }
-          act(actions, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: marked as paid.`);
-        });
-        inline(form);
-      };
-      const undo = (to: 'to_issue' | 'issued') => {
-        const change = to === 'to_issue' ? statusChange('to_issue', {}) : statusChange('issued', { invoiceDate: sale.invoiceDate, invoiceNumber: sale.invoiceNumber });
-        if (!change.ok) return;
-        act(actions, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: back to "${to === 'to_issue' ? 'Invoice to be issued' : 'Invoice issued'}".`);
-      };
+        statusCell.append(select, ...(r.statusDate ? [' ', el('span', { class: 'muted small' }, r.statusDate)] : []));
+      }
       const ask = () => {
         const no = button('No', normal, 'secondary');
         inline(
@@ -215,7 +184,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el('td', {}, r.who || el('span', { class: 'muted' }, '—')),
           el('td', {}, r.items),
           el('td', { class: 'num nowrap' }, r.bags || el('span', { class: 'muted' }, '—')),
-          el('td', { class: 'nowrap' }, r.status ? el('span', { class: `status status-${sale.status ?? ''}` }, r.status) : el('span', { class: 'muted' }, '—')),
+          statusCell,
           actions,
         ),
         extra,
@@ -229,7 +198,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
       ),
-      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, click "Mark issued" and give the date; when it is paid, "Mark paid". Samples and own use have no invoice.')),
+      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid". Today’s date is saved with it. A mistake can be undone the same way. Samples and own use have no invoice.')),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
