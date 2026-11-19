@@ -134,6 +134,57 @@ export interface RecordChange {
   deleted?: boolean;
 }
 
+/** A record that belongs to another one (a product's bean, a sale's line), as loaded. */
+export interface ChildRecord {
+  readonly id: string;
+  readonly source: Fields;
+}
+
+/**
+ * What to write so the stored children (`existing`, in their order) become `wanted`: the child in each position is
+ * updated where anything changed, missing positions are added, and children no longer wanted are soft-deleted.
+ */
+export function childChanges<T extends ChildRecord>(
+  existing: readonly T[],
+  wanted: readonly Fields[],
+): { updates: { child: T; changes: Record<string, string> }[]; adds: Fields[]; removes: T[] } {
+  const updates: { child: T; changes: Record<string, string> }[] = [];
+  const adds: Fields[] = [];
+  wanted.forEach((fields, i) => {
+    const child = existing[i];
+    if (!child) {
+      adds.push(fields);
+      return;
+    }
+    const changes: Record<string, string> = {};
+    for (const [column, value] of Object.entries(fields)) if ((child.source[column] ?? '').trim() !== value) changes[column] = value;
+    if (Object.keys(changes).length > 0) updates.push({ child, changes });
+  });
+  return { updates, adds, removes: existing.slice(wanted.length) };
+}
+
+/**
+ * Saves a record's children (see childChanges) in at most two requests: changes and removals together, then new
+ * children, each with `parentColumn` set to `parentId`. `by` is asked only when something is added.
+ */
+export async function saveChildren(
+  table: RecordTable,
+  parentColumn: string,
+  parentId: string,
+  existing: readonly ChildRecord[],
+  wanted: readonly Fields[],
+  by: () => Promise<string>,
+  now: Date,
+): Promise<void> {
+  const { updates, adds, removes } = childChanges(existing, wanted);
+  const changes: RecordChange[] = [
+    ...updates.map(({ child, changes }) => ({ id: child.id, changes, loaded: child.source })),
+    ...removes.map((child) => ({ id: child.id, changes: {}, loaded: child.source, deleted: true })),
+  ];
+  if (changes.length > 0) await table.updateMany(changes, now);
+  if (adds.length > 0) await table.addMany(adds.map((fields) => ({ ...fields, [parentColumn]: parentId })), await by(), now);
+}
+
 /** What a feature needs from a table. The real one is below; it is tested against an in-memory Google. */
 export interface RecordTable {
   load(): Promise<TableContents>;

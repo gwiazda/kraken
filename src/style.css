@@ -829,6 +829,14 @@ details summary {
   margin: 0;
 }
 
+.sale-facts {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #333;
+  border-radius: 6px;
+  width: fit-content;
+}
+
 .deleted-products {
   margin-top: 1.5rem;
 }
@@ -1729,4 +1737,102 @@ details summary {
   border-radius: 999px;
   padding: 0.1rem 0.6rem;
   text-decoration: none;
+}
+
+/* ---- Sales (owner, 2026-11-19) ---- */
+
+.sales-filters .btn-link[aria-current='true'] {
+  color: var(--black);
+  background: var(--lime);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  text-decoration: none;
+}
+
+.sales-table td {
+  vertical-align: top;
+}
+
+.badge.kind-sale {
+  border-color: var(--lime);
+  color: var(--lime);
+}
+
+.badge.kind-sample {
+  border-color: #4fc3f7;
+  color: #4fc3f7;
+}
+
+.badge.kind-own_use {
+  border-color: #ff8c42;
+  color: #ff8c42;
+}
+
+.status-to_issue {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+.status-issued {
+  color: var(--white);
+}
+
+/* The invoice status dropdown in the Sales list (its text takes the status colour). */
+.status-select {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.status-select option {
+  color: var(--white);
+  font-weight: normal;
+}
+
+.status-paid {
+  color: var(--grey);
+}
+
+.kind-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.kind-choice .btn.chosen {
+  background: var(--lime);
+  color: var(--black);
+}
+
+.sale-lines select,
+.sale-lines input[type='text'] {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.input-xs {
+  width: 4rem;
+}
+
+.free-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.sale-total {
+  font-size: 1.05rem;
+  margin: 0.75rem 0 0;
+}
+
+.field select {
+  max-width: 100%;
 }

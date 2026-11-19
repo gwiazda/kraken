@@ -195,11 +195,30 @@ describe('version 9', () => {
 
   it('updates a version 8 sheet with the Clients tab, keeping the data', async () => {
     const google = sheetAt(8, [{ title: 'Product beans', sheetId: 3, rows: [['id', 'product_id'], ['B1', 'P1']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 8), appVersion: 9 });
     expect(result.toVersion).toBe(9);
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Product beans', 'Clients']);
     expect(tab(google, 'Product beans')?.rows).toEqual([['id', 'product_id'], ['B1', 'P1']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '9']);
+  });
+});
+
+describe('version 10', () => {
+  it('adds the Sales and Sale lines tabs, agreed on 2026-11-19', () => {
+    const safety = ['created_at', 'updated_at', 'created_by', 'deleted_at'];
+    expect(MIGRATIONS[8]?.steps).toEqual([
+      { kind: 'add-tab', tab: 'Sales', headers: ['id', 'date', 'kind', 'client_id', 'place', 'reason', 'invoice_status', 'invoice_number', 'invoice_date', 'paid_date', 'notes', ...safety] },
+      { kind: 'add-tab', tab: 'Sale lines', headers: ['id', 'sale_id', 'position', 'product_id', 'bag_size_g', 'bags', 'unit_price_net_pln', 'free', ...safety] },
+    ]);
+  });
+
+  it('updates a version 9 sheet with the two tabs, keeping the data', async () => {
+    const google = sheetAt(9, [{ title: 'Clients', sheetId: 3, rows: [['id', 'name'], ['C1', 'Café Nowa']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result.toVersion).toBe(10);
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Clients', 'Sales', 'Sale lines']);
+    expect(tab(google, 'Clients')?.rows).toEqual([['id', 'name'], ['C1', 'Café Nowa']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '10']);
   });
 });
 

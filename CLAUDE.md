@@ -62,7 +62,7 @@ test that reads every import line), so CI fails if a rule is broken.
   `picker.ts` file picker, `loadScript.ts`. `dates.ts` local date. `numbers.ts` exact money (grosze) and weight (grams),
   `drive.ts` backup copy and `whoAmI` (signed-in email for `created_by`; works with `drive.file`, checked live 2026-11-15),
   `records.ts` a tab as a table of records (by header name; IDs, times, soft delete; an edit writes only the changed cells
-  and is refused if someone changed the record or those cells meanwhile).
+  and is refused if someone changed the record or those cells meanwhile; `saveChildren` saves a record's children by position, e.g. a product's beans and a sale's lines).
 - `domain/`: shared business rules used by several features, pure (no Google, no screen): `bagSizes.ts` the fixed
   bag sizes (250 g, 500 g, 1 kg) and how a size is written; `prices.ts` VAT, rounding (grosz, whole złoty) and the
   wholesale price (net, whole złoty); `percent.ts` how a percentage is read, stored and shown (VAT, roast loss, discounts); `blend.ts` a product's beans: roasted price per kg, blend by share, cost of
@@ -94,16 +94,18 @@ test that reads every import line), so CI fails if a rule is broken.
   are shared in `priceTable.ts` (also used by a product's page);
   `clients`: Clients page (owner, 2026-11-19): short name, NIP (check digit validated), email, registered name
   (CEIDG), discount chosen from Packaging & discounts; a name or NIP only once;
+  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19),
+  invoice status to be issued → issued (date) → paid from one dropdown (Issued asks the issue date, today unless changed; paid has no date; then the list shows All), filters; no stock change;
   `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file
   name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner, `googleErrors.ts` explains Google errors
-  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Clients (and its form), Offer and Settings (owner's
+  the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Sales and Clients (and their forms), Offer and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Roasts, Products, Product planner, Offer, Clients, Packaging & discounts, Settings; Settings is technical: Sync with RoasTime, sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Lots page with a menu (Lots, Roasts, Products, Product planner, Offer, Sales, Clients, Packaging & discounts, Settings; Settings is technical: Sync with RoasTime, sheet, sign-out); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

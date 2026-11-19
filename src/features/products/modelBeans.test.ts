@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beanChanges, beanFromFields, beansOf, formFromBean, typedBeanLoss, typedBeanPrice, validateBeans, type BeanForm } from './modelBeans';
+import { beanFromFields, beansOf, formFromBean, typedBeanLoss, typedBeanPrice, validateBeans, type BeanForm } from './modelBeans';
 
 const bean = (row: number, o: Record<string, string> = {}) =>
   beanFromFields({ id: `B${row}`, product_id: 'P1', position: String(row - 1), lot_id: 'L1', planned_name: '', planned_price_per_kg_pln: '', planned_roast_loss_percent: '', share_percent: '60', ...o }, row);
@@ -64,17 +64,5 @@ describe('validateBeans', () => {
     expect(validateBeans([lotBean('L1', 60), lotBean('L2', 30)])).toMatchObject({ ok: false, shares: 'The shares must add up to 100 %, each at least 1 %.' });
     expect(validateBeans([lotBean('L1', 100), lotBean('L2', 0)])).toMatchObject({ ok: false, shares: 'The shares must add up to 100 %, each at least 1 %.' });
     expect(validateBeans([lotBean('A', 25), lotBean('B', 25), lotBean('C', 25), lotBean('D', 25)])).toMatchObject({ ok: false, shares: 'A product can be made of at most 3 beans.' });
-  });
-});
-
-describe('beanChanges', () => {
-  it('updates what changed by position, adds new beans and soft-deletes the rest', () => {
-    const first = bean(2, { position: '1', share_percent: '60' });
-    const second = bean(3, { position: '2', lot_id: 'L2', share_percent: '40' });
-    const wanted = [
-      { position: '1', share_percent: '70', lot_id: 'L1', planned_name: '', planned_price_per_kg_pln: '', planned_roast_loss_percent: '' },
-    ];
-    expect(beanChanges([first, second], wanted)).toEqual({ updates: [{ bean: first, changes: { share_percent: '70' } }], adds: [], removes: [second] });
-    expect(beanChanges([], wanted)).toEqual({ updates: [], adds: wanted, removes: [] });
   });
 });

@@ -1,10 +1,10 @@
 // Reads and writes products through the shared record table (IDs, times, soft delete, "changed meanwhile" check).
 // The page depends on the ProductsRepository interface.
 
-import { sheetRecordTable, type RecordTable } from '../../core/records';
+import { saveChildren, sheetRecordTable, type RecordTable } from '../../core/records';
 import type { SheetsClient } from '../../core/sheets';
 import { PRODUCTS_TAB, PRODUCT_COLUMNS, productFromFields, type Product } from './model';
-import { BEAN_COLUMNS, PRODUCT_BEANS_TAB, beanChanges, beanFromFields, type ProductBean } from './modelBeans';
+import { BEAN_COLUMNS, PRODUCT_BEANS_TAB, beanFromFields, type ProductBean } from './modelBeans';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -37,15 +37,7 @@ export function productsRepository(table: RecordTable, beans: RecordTable): Prod
     update: async (product, fields, now) => void (await table.update(product.id, fields, product.source, now)),
     remove: async (product, now) => void (await table.remove(product.id, product.source, now)),
     restore: async (product, now) => void (await table.restore(product.id, product.source, now)),
-    async saveBeans(productId, wanted, existing, by, now) {
-      const { updates, adds, removes } = beanChanges(existing, wanted);
-      const changes = [
-        ...updates.map(({ bean, changes }) => ({ id: bean.id, changes, loaded: bean.source })),
-        ...removes.map((bean) => ({ id: bean.id, changes: {}, loaded: bean.source, deleted: true })),
-      ];
-      if (changes.length > 0) await beans.updateMany(changes, now);
-      if (adds.length > 0) await beans.addMany(adds.map((fields) => ({ ...fields, product_id: productId })), await by(), now);
-    },
+    saveBeans: (productId, wanted, existing, by, now) => saveChildren(beans, 'product_id', productId, existing, wanted, by, now),
   };
 }
 
