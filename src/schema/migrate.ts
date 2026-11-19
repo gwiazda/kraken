@@ -200,6 +200,8 @@ async function applyStep(ops: SheetOps, id: string, step: MigrationStep, notRais
     const header = rows?.[0] ?? [];
     const missing = missingColumns(header, step.columns);
     if (missing.length === 0) return; // a previous attempt added them
+    // Tabs are made 26 columns wide (A to Z): a future step that goes past Z must first widen the tab (not needed
+    // yet: Products ends at Q). If Google refuses, the update stops before raising the version.
     // After the last filled header cell (columnLetters counts from 1: column 17 is Q), so a column someone added by hand is never overwritten.
     let last = header.length;
     while (last > 0 && String(header[last - 1] ?? '').trim() === '') last--;

@@ -100,5 +100,21 @@ describe('sheetProductsRepository (in-memory Google)', () => {
     await repo.add({ name: 'Etiopia' }, 'owner@example.com', later);
     list = await active();
     expect(list.map((p) => p.name)).toEqual(['Peru', 'Burundi', 'Kenia', 'Etiopia']);
+
+    // a deleted product, restored, goes to the end too (its old place 2 now belongs to Burundi)
+    const peru = list[0];
+    if (!peru) throw new Error('setup');
+    await repo.remove(peru, later);
+    list = await active();
+    await repo.savePositions(positionChanges(list, list.filter((p) => p.deletedAt === '').map((p) => p.id)), later);
+    const deleted = (await repo.load()).products.find((p) => p.name === 'Peru');
+    if (!deleted) throw new Error('setup');
+    await repo.restore(deleted, later);
+    expect(await names()).toEqual([
+      ['Burundi', 1],
+      ['Kenia', 2],
+      ['Etiopia', 3],
+      ['Peru', null],
+    ]);
   });
 });

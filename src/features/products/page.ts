@@ -20,7 +20,6 @@ import {
   isDeleted,
   withOrder,
   movedOrder,
-  positionChanges,
   sortProducts,
   validateProductForm,
   type Product,
@@ -30,6 +29,7 @@ import {
 } from './model';
 import { beansOf, formFromBean, validateBeans, type ProductBean } from './modelBeans';
 import { costing, priceRows, productDetails, type Costing } from './present';
+import { orderSaves } from './orderSaves';
 import { MARGIN_TIP, costsBySize, pricesTable } from './priceTable';
 import { beanName, createPlanner, loadPlannerData, type PlannerStart } from './planner';
 import type { ProductsRepository } from './repo';
@@ -97,11 +97,33 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   let products: Product[] = [];
   /** The products as last read from or saved to the sheet (the order shown may be ahead of it while saving). */
   let stored: Product[] = [];
-  /** The order saves, one after another (each waits for the one before, so they never overwrite each other). */
-  let saving: Promise<void> = Promise.resolve();
-  let savesRunning = 0;
   /** The small "Saving the order…" / "Order saved." line on the list (not in the page when the list is not shown). */
   let orderNote: HTMLElement | null = null;
+  /** A failed order save that happened while the list was not shown: told the next time it is. */
+  let orderProblem = '';
+  /** The order saves in the background, one after another (orderSaves.ts). */
+  const saves = orderSaves({
+    stored: () => stored,
+    write: (changes) => deps.repo.savePositions(changes, deps.now()),
+    saved: (fresh) => {
+      const byId = new Map(fresh.map((p) => [p.id, p]));
+      stored = stored.map((p) => byId.get(p.id) ?? p);
+      // The fresh copies, keeping the order shown (a later move may already be on screen).
+      products = products.map((p) => {
+        const f = byId.get(p.id);
+        return f ? { ...f, position: p.position } : p;
+      });
+    },
+  });
+  /**
+   * Back and the menu wait while anything is being saved. Counted, so one save finishing never unlocks them while
+   * another (e.g. the order in the background) is still running.
+   */
+  let busyCount = 0;
+  const setBusy = (on: boolean) => {
+    busyCount += on ? 1 : -1;
+    if (busyCount === (on ? 1 : 0)) deps.busy(on);
+  };
   let problems: string[] = [];
   let settings: CostSettings = DEFAULT_SETTINGS;
   let discounts: Discount[] = activeDiscounts([]).discounts;
@@ -135,6 +157,13 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Loads everything, then shows the list, or the product `openId` (after saving it). */
   function load(note?: string, fromClick = false, openId?: string): void {
     render(el('p', {}, busy('Loading products…')));
+    // Never read the sheet while the order is being saved: the read could miss it and show the old order.
+    if (saves.running > 0) {
+      void saves.idle().then(() => {
+        if (root.isConnected) load(note, false, openId);
+      });
+      return;
+    }
     // The products come first; the planner's data (packaging, discounts, lots) is extra: if it cannot be read, the
     // products are still shown, with the default VAT and discounts and a note.
     const pricing = () => loadPlannerData(deps);
@@ -173,10 +202,10 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Delete or Restore, inside the click (so a sign-in renewal can open Google's window). `progress` shows the spinner. */
   function change(product: Product, kind: 'remove' | 'restore', progress: () => void): void {
     progress();
-    deps.busy(true);
+    setBusy(true);
     deps
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(product, deps.now()) : deps.repo.restore(product, deps.now())))
-      .finally(() => deps.busy(false))
+      .finally(() => setBusy(false))
       .then(() => {
         if (root.isConnected) load(kind === 'remove' ? `Deleted ${product.name}. It can be restored under "Deleted products".` : `Restored ${product.name}.`);
       })
@@ -192,54 +221,45 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   /**
    * A product dragged (or moved with the arrow keys) to place `to` on the list (owner, 2026-11-20: no reload, no
-   * locked page): the new order shows at once and is saved in the background, with a small note. Saves run one
-   * after another, each built on the products as the one before saved them. Started inside the drop, so a sign-in
-   * renewal can open Google's window. If a save fails, the list goes back to the order last saved.
+   * locked page): the new order shows at once and is saved in the background (orderSaves.ts), with a small note.
+   * Started inside the drop or key press, so a sign-in renewal can open Google's window. If a save fails, the list
+   * goes back to the order last saved and says why. `focus`: put the keyboard focus back on the moved product's grip.
    */
-  function move(active: readonly Product[], product: Product, to: number): void {
-    const before = active.map((p) => p.id);
-    const order = movedOrder(before, product.id, to);
+  function move(productId: string, to: number, focus = false): void {
+    const before = sortProducts(products).filter((p) => !isDeleted(p)).map((p) => p.id);
+    const order = movedOrder(before, productId, to);
     if (order.every((id, i) => id === before[i])) return showList();
     products = withOrder(products, order);
     showList();
-    savesRunning++;
-    deps.busy(true);
+    if (focus) root.querySelector<HTMLElement>(`[data-grip="${CSS.escape(productId)}"]`)?.focus();
+    setBusy(true);
     if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
-    const previous = saving;
-    saving = deps
-      .withGoogle(async () => {
-        await previous;
-        const saved = await deps.repo.savePositions(positionChanges(stored, order), deps.now());
-        const fresh = new Map(saved.map((p) => [p.id, p]));
-        stored = stored.map((p) => fresh.get(p.id) ?? p);
-        // The fresh copies, keeping the order shown (a later move may already be on screen).
-        products = products.map((p) => {
-          const f = fresh.get(p.id);
-          return f ? { ...f, position: p.position } : p;
-        });
-      })
-      .then(() => {
-        if (orderNote?.isConnected && savesRunning === 1) orderNote.textContent = 'Order saved.';
-      })
-      .catch((error: unknown) => {
-        products = stored; // back to the order last saved
-        if (!orderNote?.isConnected) return; // not on the list any more: it shows the saved order next time
-        if (deps.isIgnorable(error)) return showList('The order was not saved.');
-        const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Sign in and reload products', show, true, 'Reload products'));
-        show(error);
-      })
-      .finally(() => {
-        savesRunning--;
-        if (savesRunning === 0) deps.busy(false);
-      });
+    void saves.save(order, deps.withGoogle).then((result) => {
+      setBusy(false);
+      if (result.kind === 'saved') {
+        if (orderNote?.isConnected && saves.running === 0) orderNote.textContent = 'Order saved.';
+        return;
+      }
+      if (result.kind === 'skipped') return; // the failed save before it already went back and said why
+      products = stored; // back to the order last saved
+      const error = result.error;
+      if (!orderNote?.isConnected) {
+        orderProblem = deps.isIgnorable(error) ? 'The order was not saved.' : `The order was not saved: ${deps.describeError(error)}`;
+        return;
+      }
+      if (deps.isIgnorable(error)) return showList('The order was not saved.');
+      const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Sign in and reload products', show, true, 'Reload products'));
+      show(error);
+    });
   }
 
   /** Opens a product from the list; while the order is being saved, first waits for it (a second or so). */
   function openFromList(product: Product): void {
-    if (savesRunning === 0) return showProduct(product);
+    if (saves.running === 0) return showProduct(product);
     if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
-    void saving.then(() => {
-      if (orderNote?.isConnected) showProduct(products.find((p) => p.id === product.id) ?? product);
+    void saves.idle().then((ok) => {
+      // Only if it worked and the list is still shown: a failed save shows its message instead.
+      if (ok && orderNote?.isConnected) showProduct(products.find((p) => p.id === product.id) ?? product);
     });
   }
 
@@ -324,6 +344,12 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     };
     const release = (e: PointerEvent) => {
       if (e.pointerId !== pointer) return;
+      if (!tr.isConnected) {
+        // The list was redrawn during the drag (e.g. an earlier save failed and went back): drop nothing.
+        end();
+        ghost.remove();
+        return;
+      }
       end();
       // Settle the copy into the gap, then save (inside the release, so a sign-in window may open).
       const target = tr.getBoundingClientRect();
@@ -357,7 +383,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   function showList(note?: string, error?: Node[]): void {
     deps.formClosed();
-    orderNote = el('span', { class: 'muted small order-note', role: 'status' }, savesRunning > 0 ? busy('Saving the order…') : '');
+    orderNote = el('span', { class: 'muted small order-note', role: 'status' }, saves.running > 0 ? busy('Saving the order…') : '');
+    const shownProblem = orderProblem;
+    orderProblem = '';
     const sorted = sortProducts(products);
     const active = sorted.filter((p) => !isDeleted(p));
     const deleted = sorted.filter(isDeleted);
@@ -371,18 +399,18 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       const actions = el('td', { class: 'row-actions nowrap' });
       /** The grip: drag it (mouse or finger) to another row, or focus it and press ↑ / ↓. */
       const grip = () => {
-        const handle = el('span', { class: 'drag-handle', tabindex: '0', role: 'button', 'aria-label': `Move ${p.name}: drag, or press the up and down arrow keys`, title: 'Drag to change the order' }, '⠿');
+        const handle = el('span', { class: 'drag-handle', 'data-grip': p.id, tabindex: '0', role: 'button', 'aria-label': `Move ${p.name}: drag, or press the up and down arrow keys`, title: 'Drag to change the order' }, '⠿');
         handle.addEventListener('keydown', (event) => {
           if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
           event.preventDefault();
-          move(active, p, index + (event.key === 'ArrowUp' ? -1 : 1));
+          move(p.id, index + (event.key === 'ArrowUp' ? -1 : 1), true);
         });
         handle.addEventListener('pointerdown', (event) => {
           if (event.button !== 0) return;
           event.preventDefault();
           const tr = handle.closest('tr');
           const body = tr?.parentElement;
-          if (tr && body) dragRow(tr, body, event, (to) => move(active, p, to));
+          if (tr && body) dragRow(tr, body, event, (to) => move(p.id, to));
         });
         return el('td', { class: 'order-grip' }, handle);
       };
@@ -447,6 +475,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
+      ...(shownProblem ? [message(shownProblem, 'error')] : []),
       ...problems.map((text) => message(text, 'error')),
       ...active.filter((p) => p.problems.length > 0).map((p) => message(p.problems.join(' '), 'error')),
       active.length === 0 ? el('p', { class: 'muted' }, 'No products yet. Click "Add product".') : table(active, false),
@@ -663,7 +692,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       showErrors({});
       banner.replaceChildren();
       setBusy(true);
-      deps.busy(true);
+      setBusy(true);
       deps
         .withGoogle(async () => {
           // Who is signed in is asked once per save (a new product and new beans both need it).
@@ -686,7 +715,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           await deps.repo.saveBeans(savedId, beanCheck.fields, beansOf(fresh.beans, savedId), by, deps.now());
           return savedId;
         })
-        .finally(() => deps.busy(false))
+        .finally(() => setBusy(false))
         .then((id) => {
           if (root.isConnected) load(`Saved ${result.fields['name'] ?? ''}.`, false, id);
         })

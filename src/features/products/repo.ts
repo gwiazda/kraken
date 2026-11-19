@@ -15,6 +15,7 @@ export interface ProductsRepository {
   add(fields: Fields, by: string, now: Date): Promise<string>;
   update(product: Product, fields: Fields, now: Date): Promise<void>;
   remove(product: Product, now: Date): Promise<void>;
+  /** Clears `deleted_at` and its position: a restored product goes to the end of the order. */
   restore(product: Product, now: Date): Promise<void>;
   /**
    * Makes a product's stored beans (`existing`, in order) become `wanted` (from validateBeans): at most two requests,
@@ -41,7 +42,8 @@ export function productsRepository(table: RecordTable, beans: RecordTable): Prod
     add: async (fields, by, now) => (await table.add(fields, by, now))['id'] ?? '',
     update: async (product, fields, now) => void (await table.update(product.id, fields, product.source, now)),
     remove: async (product, now) => void (await table.remove(product.id, product.source, now)),
-    restore: async (product, now) => void (await table.restore(product.id, product.source, now)),
+    // Back at the end of the order (its old place may belong to another product by now), owner 2026-11-20.
+    restore: async (product, now) => void (await table.updateMany([{ id: product.id, changes: { position: '' }, loaded: product.source, deleted: false }], now)),
     saveBeans: (productId, wanted, existing, by, now) => saveChildren(beans, 'product_id', productId, existing, wanted, by, now),
     async savePositions(changes, now) {
       if (changes.length === 0) return [];
