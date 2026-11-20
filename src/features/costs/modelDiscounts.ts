@@ -70,7 +70,7 @@ export function activeDiscounts(rows: readonly DiscountRow[]): { discounts: Disc
       continue;
     }
     if (row.name.length > DISCOUNT_NAME_MAX) {
-      problems.push(`The discount name "${row.name}" in row ${row.row} of the Discounts tab is longer than ${DISCOUNT_NAME_MAX} characters, so it will not fit on the offer. Edit it here to shorten it.`);
+      problems.push(`The discount name "${row.name}" in row ${row.row} of the Discounts tab is longer than ${DISCOUNT_NAME_MAX} characters, so it will not fit on the offer. Click it here to shorten it.`);
     }
     discounts.push({ row, tenths: row.tenths, name: row.name });
   }

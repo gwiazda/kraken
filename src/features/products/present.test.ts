@@ -150,7 +150,7 @@ describe('costing (what a bag costs and earns)', () => {
   });
 
   it('says in plain words what is missing', () => {
-    expect(costing([lotBean('NOPRICE', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['PERU-26-10 · Cajamarca has no price yet: add it on the Lots page (Edit).']);
+    expect(costing([lotBean('NOPRICE', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['PERU-26-10 · Cajamarca has no price yet: add it on the Lots page (click the lot).']);
     expect(costing([lotBean('', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['Choose a lot for each bean.']);
     expect(costing([lotBean('KEN', 60), lotBean('', 30)], lots, packaging, 230, 150, {}).notes).toEqual(['Choose a lot for each bean.', 'The shares add up to 90 %, not 100 %.']);
     expect(costing([], lots, packaging, 230, 150, {})).toEqual({ madeOf: '', perKg: '', rows: expect.any(Array) as unknown, notes: [], perKgSteps: [] });

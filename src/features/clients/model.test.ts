@@ -29,8 +29,8 @@ describe('reading a client', () => {
 
   it('says which cells it cannot read', () => {
     expect(client(4, { nip: '123', discount_percent: '0.15' }).problems).toEqual([
-      'The NIP "123" of Café Nowa is not a valid Polish tax ID. Edit the client to correct it.',
-      'The discount "0.15" of Café Nowa cannot be read. Edit the client to correct it.',
+      'The NIP "123" of Café Nowa is not a valid Polish tax ID. Click the client to correct it.',
+      'The discount "0.15" of Café Nowa cannot be read. Click the client to correct it.',
     ]);
   });
 

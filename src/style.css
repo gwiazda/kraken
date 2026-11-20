@@ -751,11 +751,8 @@ details summary {
 
 /* ---- Products (owner, 2026-11-18: the one place for prices; keep it neat) ---- */
 
-/* A name in a list that opens its page (Products, Clients): left-aligned and bold, wrapping like text. */
-.btn-link.name-link {
-  padding: 0;
-  text-align: left;
-  font-weight: 600;
+/* A product's name in the list (the whole row opens it). */
+.product-table td strong {
   font-size: 1rem;
 }
 
@@ -1948,4 +1945,44 @@ body.is-dragging * {
 .deal-add .field-error {
   flex-basis: 100%;
   margin: 0;
+}
+
+/* A list row that opens its page when clicked (ui/dom.ts clickableRow): the whole row reacts. */
+tr.row-link {
+  cursor: pointer;
+}
+
+tr.row-link:hover > td,
+tr.row-link:focus-within > td {
+  background: #16180a;
+}
+
+tr.row-link:has(.row-open:focus-visible) {
+  outline: 2px solid var(--lime);
+  outline-offset: -2px;
+}
+
+.saving tr.row-link {
+  cursor: default;
+}
+
+/* The row's own button (keyboard, screen readers): out of sight until it has the focus. */
+.row-open {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
+
+/* While dragging a product: no hover light; the gap keeps its lime tint. */
+body.is-dragging tr.row-link:hover > td {
+  background: none;
+}
+
+body.is-dragging tr.row-link.drag-gap > td {
+  background: rgba(202, 212, 1, 0.06);
 }

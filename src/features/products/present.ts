@@ -176,7 +176,7 @@ export function costing(
         explained.push({ name: 'no lot chosen', lossNote: '' });
         return { greenPerKg: null, loss: 0, sharePercent: bean.sharePercent };
       }
-      if (lot.greenPerKg === null) notes.push(`${lot.label} has no price yet: add it on the Lots page (Edit).`);
+      if (lot.greenPerKg === null) notes.push(`${lot.label} has no price yet: add it on the Lots page (click the lot).`);
       parts.push(`${bean.sharePercent} % ${lot.label}`);
       explained.push({ name: lot.label, lossNote: lot.lossSource ? ` (${lot.lossSource})` : '' });
       return { greenPerKg: lot.greenPerKg, loss: lot.lossTenths / 1000, sharePercent: bean.sharePercent };

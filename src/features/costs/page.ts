@@ -6,7 +6,7 @@
 // The multipliers (2×, 2,5×, 3×) are fixed. Everything from outside comes through CostsPageDeps (main.ts).
 
 import { formatPln } from '../../core/numbers';
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import {
   formFromBagCost,
@@ -146,10 +146,17 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         const row = d.row;
         save(actions, 'Deleting…', row ? () => deps.repo.removeDiscount(row, deps.now()) : writeAll(others), `Discount −${formatPercent(d.tenths)} deleted.`);
       };
-      const normal = () => actions.replaceChildren(button('Edit', edit, 'link'), button('Delete', ask, 'link'));
-      const ask = () => actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Yes', remove), ' ', button('No', normal, 'secondary'));
+      let asking = false;
+      const normal = () => {
+        asking = false;
+        actions.replaceChildren(button('Delete', ask, 'link'));
+      };
+      const ask = () => {
+        asking = true;
+        actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Yes', remove), ' ', button('No', normal, 'secondary'));
+      };
       normal();
-      return tr;
+      return clickableRow(tr, edit, `Change the discount −${formatPercent(d.tenths)}`, { asking: () => asking });
     });
 
     return el(
@@ -347,16 +354,22 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       const editRow: HTMLTableRowElement = el('tr', {}, el('td', { colspan: '3' }, costForm(view, cost, () => editRow.replaceWith(tr))));
       tr.replaceWith(editRow);
     };
-    const normal = () => actions.replaceChildren(button('Edit', edit, 'link'), button('Delete', ask, 'link'));
-    const ask = () =>
+    let asking = false;
+    const normal = () => {
+      asking = false;
+      actions.replaceChildren(button('Delete', ask, 'link'));
+    };
+    const ask = () => {
+      asking = true;
       actions.replaceChildren(
         `Delete ${cost.item}? `,
         button('Yes', () => save(actions, 'Deleting…', () => deps.repo.removeBagCost(cost, deps.now()), `${cost.item} (${view.label}) deleted.`)),
         ' ',
         button('No', normal, 'secondary'),
       );
+    };
     normal();
-    return tr;
+    return clickableRow(tr, edit, `Change ${cost.item} (${view.label})`, { asking: () => asking });
   }
 
   /** Adds a cost item to a size (`cost` null), or edits one. */

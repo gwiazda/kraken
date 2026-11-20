@@ -6,7 +6,7 @@
 
 import { localDate } from '../../core/dates';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
@@ -159,10 +159,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const normal = () => {
         extra.hidden = true;
         resetStatus();
-        actions.replaceChildren(button('Details', () => showForm(sale), 'link'), button('Delete', ask, 'link'));
+        actions.replaceChildren(button('Delete', ask, 'link'));
       };
       /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
-      const statusCell = el('td', { class: 'nowrap' });
+      const statusCell = el('td', { class: 'nowrap no-row-click' });
       if (sale.kind !== 'sale') statusCell.append(el('span', { class: 'muted' }, '—'));
       else {
         const select = el('select', { class: `status-select status-${sale.status ?? ''}`, 'aria-label': `Invoice status: ${r.who}` });
@@ -220,7 +220,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       };
       normal();
       return [
-        el(
+        clickableRow(
+          el(
           'tr',
           {},
           el('td', { class: 'nowrap' }, r.date),
@@ -231,6 +232,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           statusCell,
           el('td', { class: 'nowrap' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
           actions,
+        ),
+          () => showForm(sale),
+          `Open the ${r.kindLabel.toLowerCase()} of ${r.date}${r.who ? ` (${r.who})` : ''}`,
+          { asking: () => !extra.hidden },
         ),
         extra,
       ];
