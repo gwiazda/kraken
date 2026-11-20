@@ -30,7 +30,7 @@ describe('typing a planned bean', () => {
     expect(typedBeanLoss('')).toBeNull();
     expect(typedBeanLoss('16,5')).toBe(165);
     expect(typedBeanLoss('0')).toBeNull(); // 0 % is no real roast loss
-    expect(validateBeans([planned({ plannedLoss: '0', sharePercent: 100 })])).toMatchObject({ ok: false, errors: [{ plannedLoss: 'Enter a percentage from 1 to 99, e.g. 16, or leave it empty.' }] });
+    expect(validateBeans([planned({ plannedLoss: '0', sharePercent: 100 })])).toMatchObject({ ok: false, errors: [{ plannedLoss: 'Wpisz procent od 1 do 99, np. 16, albo zostaw puste.' }] });
   });
 });
 
@@ -52,17 +52,17 @@ describe('validateBeans', () => {
       ok: false,
       shares: '',
       errors: [
-        { lotId: 'Choose a lot.' },
-        { plannedName: 'Give it a name, e.g. Etiopia offer.', plannedPrice: 'Enter the price per kg in zł, with delivery and without VAT, e.g. 52,50.', plannedLoss: 'Enter a percentage from 1 to 99, e.g. 16, or leave it empty.' },
+        { lotId: 'Wybierz dostawę.' },
+        { plannedName: 'Nadaj mu nazwę, np. Etiopia z oferty.', plannedPrice: 'Wpisz cenę za kg w zł, z dostawą i bez VAT, np. 52,50.', plannedLoss: 'Wpisz procent od 1 do 99, np. 16, albo zostaw puste.' },
         {},
       ],
     });
-    expect(validateBeans([lotBean('L1', 50), lotBean('L1', 50)])).toMatchObject({ ok: false, errors: [{}, { lotId: 'This lot is already in the product.' }] });
+    expect(validateBeans([lotBean('L1', 50), lotBean('L1', 50)])).toMatchObject({ ok: false, errors: [{}, { lotId: 'Ta dostawa jest już w produkcie.' }] });
   });
 
   it('needs shares that add up to 100 %, and at most 3 beans', () => {
-    expect(validateBeans([lotBean('L1', 60), lotBean('L2', 30)])).toMatchObject({ ok: false, shares: 'The shares must add up to 100 %, each at least 1 %.' });
-    expect(validateBeans([lotBean('L1', 100), lotBean('L2', 0)])).toMatchObject({ ok: false, shares: 'The shares must add up to 100 %, each at least 1 %.' });
-    expect(validateBeans([lotBean('A', 25), lotBean('B', 25), lotBean('C', 25), lotBean('D', 25)])).toMatchObject({ ok: false, shares: 'A product can be made of at most 3 beans.' });
+    expect(validateBeans([lotBean('L1', 60), lotBean('L2', 30)])).toMatchObject({ ok: false, shares: 'Udziały muszą dawać razem 100 %, każdy co najmniej 1 %.' });
+    expect(validateBeans([lotBean('L1', 100), lotBean('L2', 0)])).toMatchObject({ ok: false, shares: 'Udziały muszą dawać razem 100 %, każdy co najmniej 1 %.' });
+    expect(validateBeans([lotBean('A', 25), lotBean('B', 25), lotBean('C', 25), lotBean('D', 25)])).toMatchObject({ ok: false, shares: 'Produkt może się składać najwyżej z 3 ziaren.' });
   });
 });

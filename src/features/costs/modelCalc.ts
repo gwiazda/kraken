@@ -52,7 +52,7 @@ export function chooseLoss(ownTenths: number | null, average: { loss: number; ro
 export interface BagInput {
   readonly id: string;
   readonly grams: number;
-  /** The net cost items of this size, in grosze. None: the costs are not entered yet ("missing cost"). */
+  /** The net cost items of this size, in grosze. None: the costs are not entered yet ("brak kosztu"). */
   readonly itemsGrosze: readonly number[];
 }
 

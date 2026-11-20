@@ -81,10 +81,10 @@ describe('buildOffer', () => {
       ['Burundi', ['250 g']],
       ['Kenia', ['250 g']],
     ]); // in the order ticked; the deleted product X is left out
-    expect(offer.warnings).toEqual(['Burundi has no price for 500 g, so that size is left out for it.', 'Kenia has no price for 500 g, so that size is left out for it.']);
+    expect(offer.warnings).toEqual(['Burundi nie ma ceny za 500 g, więc ta wielkość jest dla niego pominięta.', 'Kenia nie ma ceny za 500 g, więc ta wielkość jest dla niego pominięta.']);
     const none = buildOffer(products, form({ productIds: ['K'], sizes: [500] }), 230, 14);
     expect(none.cards[0]?.blocks).toEqual([]);
-    expect(none.warnings).toEqual(['Kenia has no price for 500 g, so it is shown without prices. Add them on the Products page.']);
+    expect(none.warnings).toEqual(['Kenia nie ma ceny za 500 g, więc jest pokazany bez cen. Dodaj je w zakładce Produkty.']);
     expect(buildOffer(products, form({ sizes: [] }), 230, 14).warnings).toEqual([]); // no size ticked: the form says so instead
   });
 

@@ -3,6 +3,7 @@
 // (for Polish customers), like Kraken's screens. Pure: no Google, no screen.
 
 import { formatDate, isValidDate } from '../../core/dates';
+import { plural } from '../../core/polish';
 
 export { addDays } from '../../core/dates';
 
@@ -100,19 +101,19 @@ export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]
  */
 export function validateOffer(form: OfferForm, withDeals = false, withoutPrice: readonly string[] = []): OfferErrors {
   const errors: OfferErrors = {};
-  if (cleanName(form.customer) === '') errors.customer = 'Enter who the offer is for.';
-  if (!isValidDate(form.date)) errors.date = 'Enter the offer date.';
-  if (form.productIds.length === 0) errors.products = 'Tick at least one product.';
-  if (form.sizes.length === 0) errors.sizes = 'Tick at least one bag size.';
-  if (form.tiers.length === 0 && !withDeals) errors.tiers = 'Tick at least one discount (they are set under Packaging & discounts).';
+  if (cleanName(form.customer) === '') errors.customer = 'Wpisz, dla kogo jest oferta.';
+  if (!isValidDate(form.date)) errors.date = 'Wybierz datę oferty.';
+  if (form.productIds.length === 0) errors.products = 'Zaznacz co najmniej jeden produkt.';
+  if (form.sizes.length === 0) errors.sizes = 'Zaznacz co najmniej jedną wielkość torebki.';
+  if (form.tiers.length === 0 && !withDeals) errors.tiers = 'Zaznacz co najmniej jeden rabat (ustawiasz je w zakładce Opakowania i rabaty).';
   else if (withoutPrice.length > 0) {
-    errors.tiers = `No price for ${withoutPrice.join(', ')}: there is no special price for it and no discount is ticked. Tick a discount, or untick that product or size.`;
-  } else if (form.tiers.length > MAX_TIERS) errors.tiers = `Tick at most ${MAX_TIERS} discounts, so the offer stays readable.`;
+    errors.tiers = `Brak ceny dla: ${withoutPrice.join(', ')}; nie ma dla nich ceny specjalnej, a żaden rabat nie jest zaznaczony. Zaznacz rabat albo odznacz ten produkt lub wielkość.`;
+  } else if (form.tiers.length > MAX_TIERS) errors.tiers = `Zaznacz najwyżej ${MAX_TIERS} ${plural(MAX_TIERS, 'rabat', 'rabaty', 'rabatów')}, żeby oferta była czytelna.`;
   for (const tier of form.tiers) {
-    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `The name "${tier.label}" is longer than ${TIER_LABEL_MAX} characters, so it does not fit next to the prices. Shorten it under Packaging & discounts.`;
+    if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `Nazwa „${tier.label}” ma więcej niż ${TIER_LABEL_MAX} znaków, więc nie zmieści się przy cenach. Skróć ją w zakładce Opakowania i rabaty.`;
   }
   if (form.banner && [form.banner.title, form.banner.line, form.banner.note].some((part) => part.length > BANNER_MAX)) {
-    errors.banner = `Each part of the banner can have at most ${BANNER_MAX} characters.`;
+    errors.banner = `Każda część baneru może mieć najwyżej ${BANNER_MAX} znaków.`;
   }
   return errors;
 }

@@ -61,8 +61,8 @@ describe('settings', () => {
     const { settings, problems } = readSettings([setting('vat_percent', 'lots'), setting('default_roast_loss_percent', '14', 3), setting('default_roast_loss_percent', '16', 7)]);
     expect(settings).toEqual({ ...DEFAULT_SETTINGS, defaultLossTenths: 140 });
     expect(problems).toEqual([
-      'The setting "vat_percent" has the value "lots", which Kraken cannot read; it uses the default instead.',
-      'The Cost settings tab has 2 rows named "default_roast_loss_percent" (rows 3, 7); Kraken uses the first.',
+      'Ustawienie „vat_percent” ma wartość „lots”, której Kraken nie umie odczytać; używa wartości domyślnej.',
+      'Zakładka „Cost settings” ma 2 wiersze o nazwie „default_roast_loss_percent” (wiersze 3, 7); Kraken używa pierwszego.',
     ]);
   });
 
@@ -74,7 +74,7 @@ describe('settings', () => {
   it('explains what is wrong in the settings form', () => {
     expect(validateSettingsForm({ vat: '', defaultLoss: '120' })).toEqual({
       ok: false,
-      errors: { vat: 'Enter the VAT rate, e.g. 23.', defaultLoss: 'Enter a percentage from 1 to 99, e.g. 15.' },
+      errors: { vat: 'Wpisz stawkę VAT, np. 23.', defaultLoss: 'Wpisz procent od 1 do 99, np. 15.' },
     });
   });
 });
@@ -93,9 +93,9 @@ describe('bag sizes and costs', () => {
     expect(validateBagCostForm({ item: 'Stamp', cost: '0' })).toEqual({ ok: true, fields: { item: 'Stamp', cost_net_pln: '0' } });
     expect(validateBagCostForm({ item: '', cost: 'x' })).toEqual({
       ok: false,
-      errors: { item: 'Enter what it is, e.g. Bag or Label.', cost: 'Enter the net cost per bag in zł, e.g. 0,85.' },
+      errors: { item: 'Wpisz, co to jest, np. Torebka albo Etykieta.', cost: 'Wpisz koszt netto na torebkę w zł, np. 0,85.' },
     });
-    expect(validateBagCostForm({ item: 'Bag', cost: '1500' })).toEqual({ ok: false, errors: { cost: 'That is more than 1 000 zł per bag; please check.' } });
+    expect(validateBagCostForm({ item: 'Bag', cost: '1500' })).toEqual({ ok: false, errors: { cost: 'To ponad 1 000 zł na torebkę; sprawdź, proszę.' } });
   });
 });
 

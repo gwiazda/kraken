@@ -32,7 +32,7 @@ describe('loadPlannerData', () => {
     );
     expect(data.beanLots).toEqual([]);
     expect(data.settings.vatTenths).toBe(230);
-    expect(data.problems).toEqual(['The packaging, discounts and lots could not be read (Google is busy); the default VAT and discounts are used.']);
+    expect(data.problems).toEqual(['Nie udało się wczytać opakowań, rabatów i dostaw (Google is busy); używane są domyślne VAT i rabaty.']);
   });
 
   it('passes on a signed-out or superseded sign-in (so the page can ask to sign in)', async () => {

@@ -7,6 +7,7 @@
 import { moneyText, parseMoney, toDecimalText } from '../../core/numbers';
 import { MARKUPS } from '../../domain/blend';
 import { percentFromCell, percentText } from '../../domain/percent';
+import { plural } from '../../core/polish';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -73,7 +74,7 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
   const active = rows.filter((r) => r.deletedAt === '');
   const valueOf = (name: string): string | null => {
     const found = active.filter((r) => r.name === name);
-    if (found.length > 1) problems.push(`The Cost settings tab has ${found.length} rows named "${name}" (rows ${found.map((r) => r.row).join(', ')}); Kraken uses the first.`);
+    if (found.length > 1) problems.push(`Zakładka „Cost settings” ma ${found.length} ${plural(found.length, 'wiersz', 'wiersze', 'wierszy')} o nazwie „${name}” (wiersze ${found.map((r) => r.row).join(', ')}); Kraken używa pierwszego.`);
     return found[0]?.value ?? null;
   };
   const read = <T>(name: string, parse: (v: string) => T | null | undefined, fallback: T): T => {
@@ -81,7 +82,7 @@ export function readSettings(rows: readonly SettingRow[]): { settings: CostSetti
     if (value === null || value === '') return fallback;
     const parsed = parse(value);
     if (parsed === null || parsed === undefined) {
-      problems.push(`The setting "${name}" has the value "${value}", which Kraken cannot read; it uses the default instead.`);
+      problems.push(`Ustawienie „${name}” ma wartość „${value}”, której Kraken nie umie odczytać; używa wartości domyślnej.`);
       return fallback;
     }
     return parsed;
@@ -112,9 +113,9 @@ export type SettingsErrors = Partial<Record<keyof SettingsForm, string>>;
 export function validateSettingsForm(form: SettingsForm): { ok: true; values: Record<string, string> } | { ok: false; errors: SettingsErrors } {
   const errors: SettingsErrors = {};
   const vat = percentFromCell(form.vat);
-  if (typeof vat !== 'number') errors.vat = 'Enter the VAT rate, e.g. 23.';
+  if (typeof vat !== 'number') errors.vat = 'Wpisz stawkę VAT, np. 23.';
   const loss = percentFromCell(form.defaultLoss);
-  if (typeof loss !== 'number') errors.defaultLoss = 'Enter a percentage from 1 to 99, e.g. 15.';
+  if (typeof loss !== 'number') errors.defaultLoss = 'Wpisz procent od 1 do 99, np. 15.';
   if (typeof vat !== 'number' || typeof loss !== 'number') return { ok: false, errors };
   return { ok: true, values: { [SETTING_NAMES.vat]: percentText(vat), [SETTING_NAMES.defaultLoss]: percentText(loss) } };
 }
@@ -165,11 +166,11 @@ export const formFromBagCost = (cost: BagCost): BagCostForm => ({
 export function validateBagCostForm(form: BagCostForm): { ok: true; fields: Record<string, string> } | { ok: false; errors: BagCostErrors } {
   const errors: BagCostErrors = {};
   const item = form.item.trim();
-  if (item === '') errors.item = 'Enter what it is, e.g. Bag or Label.';
-  else if (item.length > 100) errors.item = 'At most 100 characters.';
+  if (item === '') errors.item = 'Wpisz, co to jest, np. Torebka albo Etykieta.';
+  else if (item.length > 100) errors.item = 'Najwyżej 100 znaków.';
   const cost = parseMoney(form.cost);
-  if (typeof cost !== 'number') errors.cost = 'Enter the net cost per bag in zł, e.g. 0,85.';
-  else if (cost > 100000) errors.cost = 'That is more than 1 000 zł per bag; please check.';
+  if (typeof cost !== 'number') errors.cost = 'Wpisz koszt netto na torebkę w zł, np. 0,85.';
+  else if (cost > 100000) errors.cost = 'To ponad 1 000 zł na torebkę; sprawdź, proszę.';
   if (Object.keys(errors).length > 0 || typeof cost !== 'number') return { ok: false, errors };
   return { ok: true, fields: { item, cost_net_pln: moneyText(cost) } };
 }
@@ -204,6 +205,6 @@ export const lotCostFromFields = (fields: Fields, row: number): LotCost => {
 export function validateLoss(value: string): { ok: true; value: string } | { ok: false; error: string } {
   if (value.trim() === '') return { ok: true, value: '' };
   const tenths = percentFromCell(value);
-  if (typeof tenths !== 'number') return { ok: false, error: 'Enter a percentage from 1 to 99, e.g. 15,5 (or leave empty to use the average).' };
+  if (typeof tenths !== 'number') return { ok: false, error: 'Wpisz procent od 1 do 99, np. 15,5 (albo zostaw puste, aby użyć średniej).' };
   return { ok: true, value: percentText(tenths) };
 }

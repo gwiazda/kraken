@@ -3,6 +3,7 @@
 // invoice). The rules are in domain/prices.ts, shared with the Offer.
 
 import { formatPln, formatWholePln } from '../../core/numbers';
+import { plural } from '../../core/polish';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { BASE_GRAMS, bagCost, blendPerKg, earningsAt, marginAt, roastedPerKg, scaledPrice, suggestionsFor, type BeanCost } from '../../domain/blend';
 import { marginText } from '../../domain/percent';
@@ -50,8 +51,8 @@ function earnText(net: number | null, cost: number | null | undefined): { earned
   const margin = grossMarginPercent(net, cost);
   return {
     earned,
-    earn: earned < 0 && amount > 0 ? `loses ${formatPln(amount)}` : `earns ${formatPln(amount)}`,
-    margin: margin === null ? '' : `margin ${marginText(margin)}`,
+    earn: earned < 0 && amount > 0 ? `strata ${formatPln(amount)}` : `zarabiasz ${formatPln(amount)}`,
+    margin: margin === null ? '' : `marża ${marginText(margin)}`,
     losing: earned < 0 && amount > 0,
     marginLosing: margin !== null && margin < 0,
   };
@@ -83,10 +84,10 @@ export function priceRows(
     const cost = costs[grams];
     return {
       size: formatBagSize(grams),
-      retail: { main: formatWholePln(gross), other: `${money(netOf(gross, vatTenths))} net`, ...earnCell(netOf(gross, vatTenths), cost) },
+      retail: { main: formatWholePln(gross), other: `${money(netOf(gross, vatTenths))} netto`, ...earnCell(netOf(gross, vatTenths), cost) },
       wholesale: discountTenths.map((d) => {
         const price = wholesalePrice(gross, d, vatTenths);
-        return { main: formatWholePln(price.net), other: `${money(price.gross)} gross`, ...earnCell(price.net, cost) };
+        return { main: formatWholePln(price.net), other: `${money(price.gross)} brutto`, ...earnCell(price.net, cost) };
       }),
     };
   });
@@ -95,12 +96,12 @@ export function priceRows(
 /** The details shown on the offer, with their offer labels; only the ones filled in. */
 export function productDetails(product: Product): { label: string; value: string }[] {
   const all: [string, string][] = [
-    ['Country (Kraj)', product.country],
+    ['Kraj', product.country],
     ['Region', product.region],
-    ['Altitude (Wysokość uprawy)', product.altitude],
-    ['Processing (Obróbka)', product.processing],
-    ['Variety (Odmiana)', product.variety],
-    ['Flavour profile (Profil smakowy)', product.flavourProfile],
+    ['Wysokość uprawy', product.altitude],
+    ['Obróbka', product.processing],
+    ['Odmiana', product.variety],
+    ['Profil smakowy', product.flavourProfile],
   ];
   return all.filter(([, value]) => value).map(([label, value]) => ({ label, value }));
 }
@@ -137,10 +138,12 @@ export interface CostingRow {
 }
 
 export interface Costing {
-  /** "Made of 60 % KENYA-26-09 · Kegwa and 40 % Etiopia offer (planned)"; '' without beans. */
+  /** "Skład: 60 % KENYA-26-09 · Kegwa i 40 % Etiopia z oferty (planowane)"; '' without beans. */
   readonly madeOf: string;
-  /** "79,35 zł per kg of roasted coffee"; '' when it cannot be worked out. */
+  /** "79,35 zł za kg palonej kawy"; '' when it cannot be worked out. */
   readonly perKg: string;
+  /** The same, short: "79,35 zł za kg" (the title "Skąd 79,35 zł za kg?"); '' when it cannot be worked out. */
+  readonly perKgPrice: string;
   readonly rows: readonly CostingRow[];
   /** Why something cannot be worked out, in plain words (missing price, packaging, …). */
   readonly notes: readonly string[];
@@ -149,7 +152,9 @@ export interface Costing {
 }
 
 const percentText = (tenths: number) => `${String(tenths / 10).replace('.', ',')} %`;
-const MARKUP_WORDS: Readonly<Record<number, string>> = { 200: 'Twice', 250: 'Two and a half times', 300: 'Three times' };
+/** "4 razy", "1 raz", "3,5 raza" (a markup without its own words in MARKUP_WORDS). */
+const timesWord = (n: number) => `${String(n).replace('.', ',')} ${Number.isInteger(n) ? (n === 1 ? 'raz' : 'razy') : 'raza'}`;
+const MARKUP_WORDS: Readonly<Record<number, string>> = { 200: 'Dwa razy', 250: 'Dwa i pół raza', 300: 'Trzy razy' };
 
 /**
  * What one bag of each size costs and earns, from the product's beans (as in the form), every lot, the packaging
@@ -171,28 +176,28 @@ export function costing(
     if (bean.kind === 'lot') {
       const lot = lots.find((l) => l.lotId === bean.lotId);
       if (!lot) {
-        notes.push(bean.lotId ? 'One of the lots is no longer on the Lots page: choose another.' : 'Choose a lot for each bean.');
-        parts.push(`${bean.sharePercent} % (no lot chosen)`);
-        explained.push({ name: 'no lot chosen', lossNote: '' });
+        notes.push(bean.lotId ? 'Jednej z dostaw nie ma już w zakładce Dostawy: wybierz inną.' : 'Wybierz dostawę dla każdego ziarna.');
+        parts.push(`${bean.sharePercent} % (nie wybrano dostawy)`);
+        explained.push({ name: 'nie wybrano dostawy', lossNote: '' });
         return { greenPerKg: null, loss: 0, sharePercent: bean.sharePercent };
       }
-      if (lot.greenPerKg === null) notes.push(`${lot.label} has no price yet: add it on the Lots page (click the lot).`);
+      if (lot.greenPerKg === null) notes.push(`${lot.label} nie ma jeszcze ceny: dodaj ją w zakładce Dostawy (kliknij dostawę).`);
       parts.push(`${bean.sharePercent} % ${lot.label}`);
       explained.push({ name: lot.label, lossNote: lot.lossSource ? ` (${lot.lossSource})` : '' });
       return { greenPerKg: lot.greenPerKg, loss: lot.lossTenths / 1000, sharePercent: bean.sharePercent };
     }
     const price = typedBeanPrice(bean.plannedPrice);
     const loss = typedBeanLoss(bean.plannedLoss);
-    const name = bean.plannedName.trim() || 'planned bean';
-    if (price === null) notes.push(`Enter the price per kg of ${name}.`);
-    parts.push(`${bean.sharePercent} % ${name} (planned)`);
-    explained.push({ name, lossNote: loss === null ? ' (your usual loss)' : ' (your number)' });
+    const name = bean.plannedName.trim() || 'planowane ziarno';
+    if (price === null) notes.push(`Wpisz cenę za kg: ${name}.`);
+    parts.push(`${bean.sharePercent} % ${name} (planowane)`);
+    explained.push({ name, lossNote: loss === null ? ' (Twój zwykły ubytek)' : ' (Twoja liczba)' });
     return { greenPerKg: price, loss: (loss ?? defaultLossTenths) / 1000, sharePercent: bean.sharePercent };
   });
   const total = beans.reduce((sum, b) => sum + b.sharePercent, 0);
-  if (beans.length > 0 && total !== 100) notes.push(`The shares add up to ${total} %, not 100 %.`);
+  if (beans.length > 0 && total !== 100) notes.push(`Udziały dają razem ${total} %, a nie 100 %.`);
   const perKg = beans.length > 0 ? blendPerKg(costs) : null;
-  const madeOf = parts.length === 0 ? '' : `Made of ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`}`;
+  const madeOf = parts.length === 0 ? '' : `Skład: ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} i ${parts[parts.length - 1]}`}`;
   const money = (grosze: number) => formatPln(roundGrosze(grosze));
   const perKgSteps: string[] = [];
   if (perKg !== null) {
@@ -200,12 +205,12 @@ export function costing(
     costs.forEach((c, i) => {
       const lossTenths = Math.round(c.loss * 1000);
       perKgSteps.push(
-        `${explained[i]?.name ?? 'Bean'}: the green coffee costs ${money(c.greenPerKg ?? 0)} per kg. Roasting takes away ${percentText(lossTenths)} of the weight${explained[i]?.lossNote ?? ''}, so 1 kg of roasted coffee costs ${money(roasted[i] ?? 0)}.`,
+        `${explained[i]?.name ?? 'Ziarno'}: zielona kawa kosztuje ${money(c.greenPerKg ?? 0)} za kg. Palenie zabiera ${percentText(lossTenths)} wagi${explained[i]?.lossNote ?? ''}, więc 1 kg palonej kawy kosztuje ${money(roasted[i] ?? 0)}.`,
       );
     });
     if (costs.length > 1) {
-      const mix = costs.map((c, i) => `${c.sharePercent} % of ${money(roasted[i] ?? 0)}`);
-      perKgSteps.push(`In the bag: ${mix.slice(0, -1).join(', ')} and ${mix[mix.length - 1]}, which comes to ${money(perKg)} per kg of roasted coffee.`);
+      const mix = costs.map((c, i) => `${c.sharePercent} % z ${money(roasted[i] ?? 0)}`);
+      perKgSteps.push(`W torebce: ${mix.slice(0, -1).join(', ')} i ${mix[mix.length - 1]}, co daje ${money(perKg)} za kg palonej kawy.`);
     }
   }
   const vatText = percentText(vatTenths);
@@ -215,9 +220,9 @@ export function costing(
     const empty = { grams, costGrosze: null, size, cost: '', parts: '', suggestions: [], earnings: '', margin: '', marginLosing: false, losing: false, steps: [] };
     if (perKg === null) return empty;
     const bag = bagCost(perKg, grams, pack);
-    const coffeeStep = `Coffee: ${size} of roasted coffee at ${money(perKg)} per kg costs ${money(bag.coffee)}.`;
+    const coffeeStep = `Kawa: ${size} palonej kawy po ${money(perKg)} za kg kosztuje ${money(bag.coffee)}.`;
     if (bag.total === null) {
-      return { ...empty, parts: `coffee ${money(bag.coffee)}, packaging not entered`, steps: [coffeeStep, `Packaging for ${size} is not entered yet: add it under Packaging & discounts to see the full cost.`] };
+      return { ...empty, parts: `kawa ${money(bag.coffee)}, opakowanie niewpisane`, steps: [coffeeStep, `Opakowanie dla ${size} nie jest jeszcze wpisane: dodaj je w zakładce Opakowania i rabaty, aby zobaczyć pełny koszt.`] };
     }
     const cost = bag.total;
     const price = prices[grams];
@@ -228,30 +233,30 @@ export function costing(
     // 250 g: the cost × 2 / 2,5 / 3. Bigger bags follow the 250 g price (owner, 2026-11-19).
     const scaled = !base && basePrice !== undefined && basePack !== null ? scaledPrice(basePrice, basePack, grams, pack ?? 0, vatTenths) : null;
     const bags = grams / BASE_GRAMS;
-    const bagsText = bags === 2 ? 'Two' : bags === 4 ? 'Four' : String(bags);
+    const bagsText = `${bags === 2 ? 'dwie' : bags === 4 ? 'cztery' : String(bags)} ${plural(bags, 'torebka', 'torebki', 'torebek')}`;
     const baseSuggestions = base ? suggestionsFor(cost, vatTenths) : [];
     const suggestionSteps = base
       ? baseSuggestions.map((sug) => {
           const net = (cost * sug.markupHundredths) / 100;
-          return `${MARKUP_WORDS[sug.markupHundredths] ?? `${sug.markupHundredths / 100} times`} the cost is ${money(net)}; with VAT ${money(grossOf(net, vatTenths))}, rounded to ${formatWholePln(sug.gross)}. At that price you earn ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} per bag, a gross margin of ${marginText(marginAt(sug.gross, cost, vatTenths))}.`;
+          return `${MARKUP_WORDS[sug.markupHundredths] ?? timesWord(sug.markupHundredths / 100)} koszt to ${money(net)}; z VAT ${money(grossOf(net, vatTenths))}, po zaokrągleniu ${formatWholePln(sug.gross)}. Przy tej cenie zarabiasz ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} na torebce, marża brutto ${marginText(marginAt(sug.gross, cost, vatTenths))}.`;
         })
       : scaled && basePrice !== undefined && basePack !== null
         ? [
-            `Suggested price, from your ${formatBagSize(BASE_GRAMS)} price: ${bagsText.toLowerCase()} ${formatBagSize(BASE_GRAMS)} bags at ${formatWholePln(basePrice)} are ${money(bags * basePrice)}. Take away the packaging of those ${bagsText.toLowerCase()} small bags (${money(bags * grossOf(basePack, vatTenths))} with VAT) and add the packaging of one ${size} bag (${money(grossOf(pack ?? 0, vatTenths))} with VAT): ${money(scaled.exact)}, rounded to ${formatWholePln(scaled.gross)}. At that price you earn ${signedMoney(earningsAt(scaled.gross, cost, vatTenths))} per bag, a gross margin of ${marginText(marginAt(scaled.gross, cost, vatTenths))}.`,
+            `Proponowana cena, od Twojej ceny za ${formatBagSize(BASE_GRAMS)}: ${bagsText} ${formatBagSize(BASE_GRAMS)} po ${formatWholePln(basePrice)} to ${money(bags * basePrice)}. Odejmij opakowania tych małych torebek (${money(bags * grossOf(basePack, vatTenths))} z VAT) i dodaj opakowanie jednej torebki ${size} (${money(grossOf(pack ?? 0, vatTenths))} z VAT): ${money(scaled.exact)}, po zaokrągleniu ${formatWholePln(scaled.gross)}. Przy tej cenie zarabiasz ${signedMoney(earningsAt(scaled.gross, cost, vatTenths))} na torebce, marża brutto ${marginText(marginAt(scaled.gross, cost, vatTenths))}.`,
           ]
         : basePrice === undefined
-          ? [`Set the ${formatBagSize(BASE_GRAMS)} price first: the suggested ${size} price is worked out from it.`]
-          : [`Add the packaging for ${formatBagSize(BASE_GRAMS)} under Packaging & discounts: the suggested ${size} price is worked out from the ${formatBagSize(BASE_GRAMS)} bag.`];
+          ? [`Najpierw ustaw cenę za ${formatBagSize(BASE_GRAMS)}: proponowana cena za ${size} jest liczona od niej.`]
+          : [`Dodaj opakowanie dla ${formatBagSize(BASE_GRAMS)} w zakładce Opakowania i rabaty: proponowana cena za ${size} jest liczona od torebki ${formatBagSize(BASE_GRAMS)}.`];
     const steps = [
       coffeeStep,
-      `Packaging: ${formatPln(bag.packaging ?? 0)} (the bag, label and the rest, from Packaging & discounts).`,
-      `So one bag costs you ${money(cost)}, without VAT.`,
+      `Opakowanie: ${formatPln(bag.packaging ?? 0)} (torebka, etykieta i reszta, z zakładki Opakowania i rabaty).`,
+      `Czyli jedna torebka kosztuje Cię ${money(cost)} netto.`,
       ...(price !== undefined && earned !== null
         ? [
-            `Your price ${formatWholePln(price)} includes ${vatText} VAT; without VAT it is ${money(netOf(price, vatTenths))}. Take away the ${money(cost)} the bag costs: you ${roundGrosze(earned) < 0 ? 'lose' : 'earn'} ${formatPln(roundGrosze(Math.abs(earned)))} per bag.`,
+            `Twoja cena ${formatWholePln(price)} zawiera ${vatText} VAT; netto to ${money(netOf(price, vatTenths))}. Odejmij ${money(cost)}, ile kosztuje torebka: ${roundGrosze(earned) < 0 ? 'tracisz' : 'zarabiasz'} ${formatPln(roundGrosze(Math.abs(earned)))} na torebce.`,
             roundGrosze(earned) < 0 // as shown: a loss under a grosz is "earn 0,00 zł", never "does not cover"
-              ? `Gross margin ${marginText(marginAt(price, cost, vatTenths))}: the price without VAT does not cover what the bag costs.`
-              : `Gross margin ${marginText(marginAt(price, cost, vatTenths))}: that is the part of the ${money(netOf(price, vatTenths))} without VAT that stays with you (${formatPln(roundGrosze(Math.abs(earned)))}).`,
+              ? `Marża brutto ${marginText(marginAt(price, cost, vatTenths))}: cena netto nie pokrywa kosztu torebki.`
+              : `Marża brutto ${marginText(marginAt(price, cost, vatTenths))}: to część z ${money(netOf(price, vatTenths))} netto, która zostaje Tobie (${formatPln(roundGrosze(Math.abs(earned)))}).`,
           ]
         : []),
       ...suggestionSteps,
@@ -261,12 +266,12 @@ export function costing(
       costGrosze: cost,
       size,
       cost: formatPln(roundGrosze(cost)),
-      parts: `coffee ${money(bag.coffee)} and packaging ${formatPln(bag.packaging ?? 0)}`,
+      parts: `kawa ${money(bag.coffee)} i opakowanie ${formatPln(bag.packaging ?? 0)}`,
       steps,
       suggestions: base
         ? baseSuggestions.map((s) => ({ grosze: s.gross, text: formatWholePln(s.gross), markup: `${String(s.markupHundredths / 100).replace('.', ',')}×`, earnings: signedMoney(s.earnings), margin: marginText(marginAt(s.gross, cost, vatTenths)) }))
         : scaled
-          ? [{ grosze: scaled.gross, text: formatWholePln(scaled.gross), markup: `like ${bags} × ${formatBagSize(BASE_GRAMS)}`, earnings: signedMoney(earningsAt(scaled.gross, cost, vatTenths)), margin: marginText(marginAt(scaled.gross, cost, vatTenths)) }]
+          ? [{ grosze: scaled.gross, text: formatWholePln(scaled.gross), markup: `jak ${bags} × ${formatBagSize(BASE_GRAMS)}`, earnings: signedMoney(earningsAt(scaled.gross, cost, vatTenths)), margin: marginText(marginAt(scaled.gross, cost, vatTenths)) }]
           : [],
       earnings: earned === null ? '' : signedMoney(earned),
       margin: price === undefined ? '' : marginText(marginAt(price, cost, vatTenths)),
@@ -275,8 +280,9 @@ export function costing(
     };
   });
   const missingPackaging = perKg !== null && BAG_SIZES_G.filter((g) => (packaging.get(g) ?? null) === null);
-  if (missingPackaging && missingPackaging.length > 0) notes.push(`No packaging entered for ${missingPackaging.map(formatBagSize).join(', ')}: add it under Packaging & discounts.`);
-  return { madeOf, perKg: perKg === null ? '' : `${formatPln(roundGrosze(perKg))} per kg of roasted coffee`, rows, notes: [...new Set(notes)], perKgSteps };
+  if (missingPackaging && missingPackaging.length > 0) notes.push(`Nie wpisano opakowania dla ${missingPackaging.map(formatBagSize).join(', ')}: dodaj je w zakładce Opakowania i rabaty.`);
+  const perKgPrice = perKg === null ? '' : `${formatPln(roundGrosze(perKg))} za kg`;
+  return { madeOf, perKg: perKgPrice && `${perKgPrice} palonej kawy`, perKgPrice, rows, notes: [...new Set(notes)], perKgSteps };
 }
 
 // ---- Comparing a plan with the products ----
@@ -354,8 +360,8 @@ export function compareRow(
     const net = price === undefined ? null : wholesalePrice(price, d, vatTenths).net;
     return { price: net === null ? '' : formatWholePln(net), ...earnCell(net, cost) };
   });
-  const noPrice = price === undefined ? `no ${formatBagSize(grams)} price` : '';
-  const note = entry.beans.length === 0 ? 'no beans chosen' : cost === null ? ['cost not known yet', noPrice].filter((t) => t).join(', ') : noPrice;
+  const noPrice = price === undefined ? `brak ceny za ${formatBagSize(grams)}` : '';
+  const note = entry.beans.length === 0 ? 'nie wybrano ziaren' : cost === null ? ['koszt jeszcze nieznany', noPrice].filter((t) => t).join(', ') : noPrice;
   return {
     sortBy: earned === null ? Number.NEGATIVE_INFINITY : earned,
     name: entry.name,
