@@ -284,7 +284,7 @@ migration 005 cannot be changed.
 **[R] Special prices per client (owner, 2026-11-20).** A deal agreed with one client: a fixed **net** price (the
 offers are wholesale) for one product and one bag size, e.g. "Café Nowa pays 38 zł for KENIA 250 g". Kraken
 remembers it and uses it on that client's offers.
-- **Where it is set: the client's page** (Clients → Edit). A **Special prices** section, one row per deal: product,
+- **Where it is set: the client's page** (Clients → click the client). A **Special prices** section, one row per deal: product,
   size, their net price, and next to it what they would pay otherwise (their discount, as on the client: "instead of
   41 zł at their −15 %"; a client without a discount: "instead of 48 zł", the retail price without VAT) and what you
   earn on one bag with the gross margin, so the cost of the deal is visible. Add a row by choosing the product and
