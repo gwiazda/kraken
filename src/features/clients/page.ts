@@ -39,10 +39,10 @@ export interface ClientsPageDeps {
 }
 
 const FIELDS: readonly { key: Exclude<keyof ClientForm, 'discount'>; label: string; hint?: string; tip?: string; required?: boolean }[] = [
-  { key: 'name', label: 'Name', hint: 'The name you use, e.g. Café Nowa.', required: true },
-  { key: 'registeredName', label: 'Registered name (CEIDG)', hint: 'The official name, for the invoice.' },
-  { key: 'nip', label: 'NIP', hint: 'e.g. 123-456-32-18. Kraken checks it is a real NIP.', tip: 'The Polish tax ID: 10 digits. The last digit is a check digit, so a typo is caught straight away.' },
-  { key: 'email', label: 'Email' },
+  { key: 'name', label: 'Nazwa', hint: 'Nazwa, której używasz, np. Café Nowa.', required: true },
+  { key: 'registeredName', label: 'Nazwa w CEIDG', hint: 'Oficjalna nazwa, do faktury.' },
+  { key: 'nip', label: 'NIP', hint: 'np. 123-456-32-18. Kraken sprawdza, czy to prawdziwy NIP.', tip: 'NIP ma 10 cyfr. Ostatnia to cyfra kontrolna, więc literówka od razu wychodzi.' },
+  { key: 'email', label: 'E-mail' },
 ];
 
 
@@ -68,7 +68,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
   }
 
   function load(note?: string, fromClick = false): void {
-    render(el('p', {}, busy('Loading clients…')));
+    render(el('p', {}, busy('Wczytuję klientów…')));
     // The discounts are only for the form's list: if they cannot be read, the clients are still shown.
     const discountsNow = () =>
       discountsLoaded
@@ -77,7 +77,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
             (costs) => ({ ...activeDiscounts(costs.discounts), known: true }),
             (error: unknown) => {
               if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-              return { discounts: [] as Discount[], known: false, problems: [`The discounts could not be read (${deps.describeError(error)}), so a client's discount cannot be changed now.`] };
+              return { discounts: [] as Discount[], known: false, problems: [`Nie udało się wczytać rabatów (${deps.describeError(error)}), więc nie można teraz zmienić rabatu klienta.`] };
             },
           );
     const all = () => Promise.all([deps.repo.load(), discountsNow()]);
@@ -110,12 +110,12 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(client, deps.now()) : deps.repo.restore(client, deps.now())))
       .finally(() => deps.busy(false))
       .then(() => {
-        if (root.isConnected) load(kind === 'remove' ? `Deleted ${client.name}. It can be restored under "Deleted clients".` : `Restored ${client.name}.`);
+        if (root.isConnected) load(kind === 'remove' ? `Usunięto ${client.name}. Można go przywrócić w „Usunięci klienci”.` : `Przywrócono ${client.name}.`);
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
-        const working = kind === 'remove' ? `Deleting ${client.name}…` : `Restoring ${client.name}…`;
+        const working = kind === 'remove' ? `Usuwam ${client.name}…` : `Przywracam ${client.name}…`;
         const label = kind === 'remove' ? `Zaloguj się i usuń ${client.name}` : `Zaloguj się i przywróć ${client.name}`;
         const show = (e: unknown) => showList(undefined, errorNodes(e, () => change(client, kind, () => render(el('p', {}, busy(working)))), label, show, true));
         show(error);
@@ -127,7 +127,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     if (c.discountTenths === null) return c.discountText ? `"${c.discountText}"` : '—';
     if (!discountsKnown) return formatPercent(c.discountTenths);
     const known = discounts.find((d) => d.tenths === c.discountTenths);
-    return known ? `${formatPercent(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${formatPercent(c.discountTenths)} (not in your discounts)`;
+    return known ? `${formatPercent(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${formatPercent(c.discountTenths)} (spoza Twoich rabatów)`;
   };
 
   // ---- The list ----
@@ -150,15 +150,15 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         confirmRow.hidden = true;
         actions.replaceChildren(
           ...(restorable
-            ? [button('Restore', () => change(c, 'restore', inRow('Restoring…')), 'link')]
-            : [button('Delete', ask, 'link')]),
+            ? [button('Przywróć', () => change(c, 'restore', inRow('Przywracam…')), 'link')]
+            : [button('Usuń', ask, 'link')]),
         );
       };
       const ask = () => {
         actions.replaceChildren();
         const no = button('No', normal, 'secondary');
         confirmRow.replaceChildren(
-          el('td', { colspan: '6' }, el('span', {}, `Delete ${c.name}? It can be restored later. `), button('Yes, delete', () => change(c, 'remove', inRow('Deleting…')), 'primary'), ' ', no),
+          el('td', { colspan: '6' }, el('span', {}, `Usunąć ${c.name}? Można go później przywrócić. `), button('Tak, usuń', () => change(c, 'remove', inRow('Usuwam…')), 'primary'), ' ', no),
         );
         confirmRow.hidden = false;
         no.focus();
@@ -167,14 +167,14 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       const tr = el(
           'tr',
           restorable ? { class: 'row-deleted' } : {},
-          el('td', {}, el('strong', {}, c.name), ...(c.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: c.problems.join(' ') }, 'Check')] : [])),
+          el('td', {}, el('strong', {}, c.name), ...(c.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: c.problems.join(' ') }, 'Sprawdź')] : [])),
           el('td', {}, c.registeredName || el('span', { class: 'muted' }, '—')),
           el('td', { class: 'nowrap' }, c.nip ? formatNip(c.nip) : el('span', { class: 'muted' }, '—')),
           el('td', {}, c.email || el('span', { class: 'muted' }, '—')),
           el('td', { class: 'nowrap' }, discountLabel(c)),
           actions,
         );
-      if (!restorable) clickableRow(tr, () => showForm(c), `Open ${c.name}`, { asking: () => !confirmRow.hidden });
+      if (!restorable) clickableRow(tr, () => showForm(c), `Otwórz ${c.name}`, { asking: () => !confirmRow.hidden });
       return [tr, confirmRow];
     };
 
@@ -185,20 +185,20 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         el(
           'table',
           { class: 'data-table' },
-          el('thead', {}, el('tr', {}, ...['Name', 'Registered name', 'NIP', 'Email', 'Discount', ''].map((h) => el('th', { scope: 'col' }, h)))),
+          el('thead', {}, el('tr', {}, ...['Nazwa', 'Nazwa w CEIDG', 'NIP', 'E-mail', 'Rabat', ''].map((h) => el('th', { scope: 'col' }, h)))),
           el('tbody', {}, ...list.flatMap((c) => row(c, restorable))),
         ),
       );
 
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Clients'), el('div', { class: 'head-actions' }, button('Add client', () => showForm(null)))),
-      el('p', { class: 'muted small' }, 'The businesses you work with, and the wholesale discount each one gets. Click a client to see or change their details and special prices.'),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Klienci'), el('div', { class: 'head-actions' }, button('Dodaj klienta', () => showForm(null)))),
+      el('p', { class: 'muted small' }, 'Firmy, z którymi współpracujesz, i rabat hurtowy każdej z nich. Kliknij klienta, aby zobaczyć lub zmienić jego dane i ceny specjalne.'),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
       ...active.filter((c) => c.problems.length > 0).map((c) => message(c.problems.join(' '), 'error')),
-      active.length === 0 ? el('p', { class: 'muted' }, 'No clients yet. Click "Add client".') : table(active, false),
-      ...(deleted.length > 0 ? [el('details', { class: 'small deleted-products' }, el('summary', {}, `Deleted clients (${deleted.length})`), table(deleted, true))] : []),
+      active.length === 0 ? el('p', { class: 'muted' }, 'Nie ma jeszcze klientów. Kliknij „Dodaj klienta”.') : table(active, false),
+      ...(deleted.length > 0 ? [el('details', { class: 'small deleted-products' }, el('summary', {}, `Usunięci klienci (${deleted.length})`), table(deleted, true))] : []),
     );
   }
 
@@ -230,12 +230,12 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     // The discount: one of those set under Packaging & discounts. A stored one that is not there any more, or that
     // cannot be read, is offered as it is, so saving another change never alters it by accident.
     const discount = el('select', { id: 'client-discount' });
-    discount.append(el('option', { value: '' }, 'No discount'));
+    discount.append(el('option', { value: '' }, 'Bez rabatu'));
     for (const d of discounts) discount.append(el('option', { value: String(d.tenths) }, `${formatPercent(d.tenths)}${d.name ? ` (${d.name})` : ''}`));
     if (initial.discount === KEEP_DISCOUNT) {
-      discount.append(el('option', { value: KEEP_DISCOUNT }, `Keep "${client?.discountText ?? ''}" (cannot be read: choose one to correct it)`));
+      discount.append(el('option', { value: KEEP_DISCOUNT }, `Zostaw „${client?.discountText ?? ''}” (nie da się odczytać: wybierz rabat, aby poprawić)`));
     } else if (initial.discount !== '' && !discounts.some((d) => String(d.tenths) === initial.discount)) {
-      discount.append(el('option', { value: initial.discount }, `${formatPercent(Number(initial.discount))}${discountsKnown ? ' (not in your discounts)' : ''}`));
+      discount.append(el('option', { value: initial.discount }, `${formatPercent(Number(initial.discount))}${discountsKnown ? ' (spoza Twoich rabatów)' : ''}`));
     }
     discount.value = initial.discount;
     discount.disabled = !discountsKnown; // the discounts could not be read: the client keeps its discount
@@ -243,16 +243,16 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     const discountField = el(
       'div',
       { class: 'field' },
-      el('div', { class: 'label-row' }, el('label', { for: discount.id }, 'Wholesale discount'), infoTip('How much cheaper this client gets your coffee. The list comes from Packaging & discounts.')),
+      el('div', { class: 'label-row' }, el('label', { for: discount.id }, 'Rabat hurtowy'), infoTip('O ile taniej ten klient kupuje Twoją kawę. Lista pochodzi z zakładki Opakowania i rabaty.')),
       discount,
-      ...(discountsKnown ? [] : [el('p', { class: 'field-hint' }, 'The discounts could not be read, so this stays as it is for now.')]),
+      ...(discountsKnown ? [] : [el('p', { class: 'field-hint' }, 'Nie udało się wczytać rabatów, więc na razie zostaje bez zmian.')]),
       errorLines.discount,
     );
 
     const banner = el('div', { class: 'form-banner' });
-    const label = client ? 'Save changes' : 'Save client';
+    const label = client ? 'Zapisz zmiany' : 'Zapisz klienta';
     const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
-    const cancelButton = button('Cancel', () => showList(), 'secondary');
+    const cancelButton = button('Anuluj', () => showList(), 'secondary');
     const readForm = (): ClientForm => ({ name: inputs.name.value, nip: inputs.nip.value, email: inputs.email.value, registeredName: inputs.registeredName.value, discount: discount.value });
     const showErrors = (errors: ClientFormErrors) => {
       for (const key of Object.keys(errorLines) as (keyof ClientForm)[]) errorLines[key].textContent = errors[key] ?? '';
@@ -263,14 +263,14 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
       cancelButton.disabled = working;
-      saveButton.replaceChildren(working ? busy('Saving…') : label);
+      saveButton.replaceChildren(working ? busy('Zapisuję…') : label);
     };
 
     function save(): void {
       const result = validateClientForm(readForm(), others);
       if (!result.ok) {
         showErrors(result.errors);
-        banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
+        banner.replaceChildren(message('Popraw pola zaznaczone poniżej.', 'error'));
         return;
       }
       showErrors({});
@@ -283,7 +283,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         )
         .finally(() => deps.busy(false))
         .then(() => {
-          if (root.isConnected) load(`Saved ${result.fields['name'] ?? ''}.`);
+          if (root.isConnected) load(`Zapisano ${result.fields['name'] ?? ''}.`);
         })
         .catch((error: unknown) => {
           setBusy(false);
@@ -299,7 +299,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     const formNode = el(
       'form',
       { class: 'lot-form', novalidate: '' },
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Client'), el('div', { class: 'fields' }, ...fieldNodes, discountField)),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Klient'), el('div', { class: 'fields' }, ...fieldNodes, discountField)),
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     formNode.addEventListener('submit', (event) => {
@@ -308,12 +308,12 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     });
     const prices = client
       ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show, mayHaveSaved) => errorNodes(error, retry, label, show, mayHaveSaved, 'Odśwież klientów (bez tego formularza)') })
-      : el('p', { class: 'muted small' }, 'Save the client first; then click it in the list to add special prices.');
+      : el('p', { class: 'muted small' }, 'Najpierw zapisz klienta; potem kliknij go na liście, aby dodać ceny specjalne.');
 
     render(
-      el('p', { class: 'small back-link' }, button('← All clients', () => showList(), 'link')),
-      el('h2', {}, client ? client.name : 'Add client'),
-      el('p', { class: 'muted small' }, 'Fields marked * are required.'),
+      el('p', { class: 'small back-link' }, button('← Wszyscy klienci', () => showList(), 'link')),
+      el('h2', {}, client ? client.name : 'Dodaj klienta'),
+      el('p', { class: 'muted small' }, 'Pola oznaczone * są wymagane.'),
       ...(client ? client.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,

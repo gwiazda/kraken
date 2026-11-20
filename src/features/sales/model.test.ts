@@ -39,8 +39,8 @@ describe('reading sales and lines', () => {
     expect(line(4, { free: 'yes' })).toMatchObject({ free: true, problems: [] });
     expect(line(6, { bag_size_g: '150' })).toMatchObject({ grams: 150, problems: [] }); // a sample of 150 g
     expect(line(5, { bags: '2.5', bag_size_g: '0.5' }).problems).toEqual([
-      'Row 5 of the Sale lines tab has the amount "0.5", which is not a weight in grams (1 to 5000).',
-      'Row 5 of the Sale lines tab has "2.5" bags, which is not a whole number; it is not counted.',
+      'Wiersz 5 zakładki „Sale lines” ma gramaturę „0.5”, która nie jest wagą w gramach (od 1 do 5000).',
+      'Wiersz 5 zakładki „Sale lines” ma liczbę torebek „2.5”, która nie jest liczbą całkowitą; nie jest liczona.',
     ]);
   });
 
@@ -51,10 +51,10 @@ describe('reading sales and lines', () => {
 
   it('says which cells it cannot read', () => {
     expect(sale(5, { kind: 'gift', date: '19.11.2026' }).problems).toEqual([
-      'Row 5 of the Sales tab has the kind "gift", which is not sale, sample or own_use.',
-      'Row 5 of the Sales tab has the date "19.11.2026", which is not a date (YYYY-MM-DD).',
+      'Wiersz 5 zakładki „Sales” ma rodzaj „gift”, a powinien być sale, sample albo own_use.',
+      'Wiersz 5 zakładki „Sales” ma datę „19.11.2026”, która nie jest datą (RRRR-MM-DD).',
     ]);
-    expect(sale(6, { invoice_status: 'done' }).problems).toEqual(['Row 6 of the Sales tab has the invoice status "done", which Kraken cannot read.']);
+    expect(sale(6, { invoice_status: 'done' }).problems).toEqual(['Wiersz 6 zakładki „Sales” ma stan faktury „done”, którego Kraken nie umie odczytać.']);
   });
 
   it("lists a sale's active lines in order, and sales newest first", () => {
@@ -100,34 +100,34 @@ describe('validateSale', () => {
     expect(result).toEqual({
       ok: false,
       errors: {
-        date: 'Enter the date, e.g. 2026-11-19.',
-        client: 'Choose the client (add new ones on the Clients page).',
+        date: 'Wpisz datę, np. 19.11.2026.',
+        client: 'Wybierz klienta (nowych dodasz w zakładce Klienci).',
         line: [
-          'Line 1: choose the product, choose the bag size, enter the number of bags (1 to 999).',
-          'Line 2: choose the product.',
+          'Pozycja 1: wybierz produkt, wybierz wielkość torebki, wpisz liczbę torebek (od 1 do 999).',
+          'Pozycja 2: wybierz produkt.',
         ],
       },
     });
-    expect(validateSale(form({ kind: 'sample', clientId: '' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { place: 'Choose a client or type where the sample was left, e.g. Café Nowa, Kazimierz.' } });
-    expect(validateSale(form({ kind: 'own_use' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { reason: 'Say why, e.g. for a tasting at home.' } });
-    expect(validateSale(form({ lines: [] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { lines: 'Add at least one product.' } });
+    expect(validateSale(form({ kind: 'sample', clientId: '' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { place: 'Wybierz klienta albo wpisz, gdzie została próbka, np. Café Nowa, Kazimierz.' } });
+    expect(validateSale(form({ kind: 'own_use' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { reason: 'Napisz, po co, np. na degustację w domu.' } });
+    expect(validateSale(form({ lines: [] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { lines: 'Dodaj co najmniej jeden produkt.' } });
   });
 
   it('names lines of a sale or own use that are not a bag size (only samples can be any amount)', () => {
     const sales = [sale(2), sale(3, { kind: 'sample', invoice_status: '' })];
     const lines = [line(4, { sale_id: 'S2', bag_size_g: '300' }), line(5, { sale_id: 'S3', bag_size_g: '150' }), line(6, { sale_id: 'S2', bag_size_g: '250' }), line(7, { sale_id: 'S9', bag_size_g: '300' })];
-    expect(lineSizeProblems(sales, lines)).toEqual(['Row 4 of the Sale lines tab has 300 g, but only samples can be any amount: open the entry and choose a bag size.']);
+    expect(lineSizeProblems(sales, lines)).toEqual(['Wiersz 4 zakładki „Sale lines” ma 300 g, a dowolną gramaturę mogą mieć tylko próbki: otwórz wpis i wybierz wielkość torebki.']);
   });
 
   it('takes any amount in grams for a sample (e.g. 150 g), but only the bag sizes for a sale or own use', () => {
     const lines = [{ productId: 'P1', grams: '150', bags: '1', free: false }];
     expect(validateSale(form({ kind: 'sample', lines }), ['C1'], ['P1'])).toMatchObject({ ok: true, lines: [{ bag_size_g: '150', bags: '1' }] });
-    expect(validateSale(form({ kind: 'sale', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Line 1: choose the bag size.'] } });
-    expect(validateSale(form({ kind: 'own_use', reason: 'Tasting', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Line 1: choose the bag size.'] } });
+    expect(validateSale(form({ kind: 'sale', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wybierz wielkość torebki.'] } });
+    expect(validateSale(form({ kind: 'own_use', reason: 'Tasting', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wybierz wielkość torebki.'] } });
     for (const grams of ['0', '12.5', '6000', '']) {
-      expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, grams }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Line 1: enter the amount in grams (1 to 5000).'] } });
+      expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, grams }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wpisz gramaturę w gramach (od 1 do 5000).'] } });
     }
-    expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, bags: '' }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Line 1: enter the number of packs (1 to 999).'] } });
+    expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, bags: '' }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wpisz liczbę opakowań (od 1 do 999).'] } });
   });
 });
 
@@ -169,8 +169,8 @@ describe('the invoice status', () => {
   });
 
   it('refuses an empty or wrong issue date', () => {
-    expect(statusChange(toIssue, 'issued', '')).toEqual({ ok: false, error: 'Enter the date the invoice was issued.' });
-    expect(statusChange(toIssue, 'paid', '2026-02-30')).toEqual({ ok: false, error: 'Enter the date the invoice was issued.' });
+    expect(statusChange(toIssue, 'issued', '')).toEqual({ ok: false, error: 'Wpisz datę wystawienia faktury.' });
+    expect(statusChange(toIssue, 'paid', '2026-02-30')).toEqual({ ok: false, error: 'Wpisz datę wystawienia faktury.' });
   });
 
   it('going back to "to be issued" clears the issue date (a mistake can be undone)', () => {

@@ -26,8 +26,8 @@ describe('reading special prices', () => {
 
   it('says which cells cannot be read', () => {
     expect(deal(4, { bag_size_g: '300', price_net_pln: 'cheap' }).problems).toEqual([
-      'Row 4 of the Special prices tab has the bag size "300", which is not 250, 500 or 1000 g.',
-      'Row 4 of the Special prices tab has the price "cheap", which cannot be read, so that deal is not used.',
+      'Wiersz 4 zakładki „Special prices” ma wielkość torebki „300”, a powinno być 250, 500 albo 1000 g.',
+      'Wiersz 4 zakładki „Special prices” ma cenę „cheap”, której nie da się odczytać, więc ta cena nie jest używana.',
     ]);
   });
 
@@ -40,10 +40,10 @@ describe('reading special prices', () => {
 describe('using deals on an offer', () => {
   it('uses a deal only while its product is there, not deleted, and has a price for that size', () => {
     expect(dealUnusable(deal(2), kenia)).toBe('');
-    expect(dealUnusable(deal(2), undefined)).toBe('the product is not in the list any more');
-    expect(dealUnusable(deal(2), { ...kenia, deletedAt: '2026-11-20T10:00:00.000Z' })).toBe('the product is deleted');
-    expect(dealUnusable(deal(2, { bag_size_g: '500' }), kenia)).toBe('the product has no 500 g price now');
-    expect(dealUnusable(deal(2, { price_net_pln: '' }), kenia)).toBe('a cell cannot be read');
+    expect(dealUnusable(deal(2), undefined)).toBe('produktu nie ma już na liście');
+    expect(dealUnusable(deal(2), { ...kenia, deletedAt: '2026-11-20T10:00:00.000Z' })).toBe('produkt jest usunięty');
+    expect(dealUnusable(deal(2, { bag_size_g: '500' }), kenia)).toBe('produkt nie ma teraz ceny za 500 g');
+    expect(dealUnusable(deal(2, { price_net_pln: '' }), kenia)).toBe('nie da się odczytać komórki');
   });
 
   it("gives the client's usable deals by product and size", () => {
@@ -69,15 +69,15 @@ describe('adding a deal', () => {
   it('asks for a product, a size the product has a price for, and a price', () => {
     expect(validateDeal(form({ productId: '', grams: '', price: '' }), 'C1', [kenia], [])).toEqual({
       ok: false,
-      errors: { productId: 'Choose a product.', grams: 'Choose a bag size.', price: 'Enter the price without VAT, e.g. 38 or 38,50.' },
+      errors: { productId: 'Wybierz produkt.', grams: 'Wybierz wielkość torebki.', price: 'Wpisz cenę netto (bez VAT), np. 38 albo 38,50.' },
     });
-    expect(validateDeal(form({ grams: '500' }), 'C1', [kenia], [])).toMatchObject({ ok: false, errors: { grams: 'KENIA has no 500 g price yet: set it on the Products page first.' } });
-    expect(validateDeal(form({ price: '-5' }), 'C1', [kenia], [])).toMatchObject({ ok: false, errors: { price: 'Enter the price without VAT, e.g. 38 or 38,50.' } });
-    expect(validateDeal(form(), 'C1', [{ ...kenia, deletedAt: '2026-11-20T10:00:00.000Z' }], [])).toMatchObject({ ok: false, errors: { productId: 'Choose a product.' } });
+    expect(validateDeal(form({ grams: '500' }), 'C1', [kenia], [])).toMatchObject({ ok: false, errors: { grams: 'KENIA nie ma jeszcze ceny za 500 g: najpierw ustaw ją w zakładce Produkty.' } });
+    expect(validateDeal(form({ price: '-5' }), 'C1', [kenia], [])).toMatchObject({ ok: false, errors: { price: 'Wpisz cenę netto (bez VAT), np. 38 albo 38,50.' } });
+    expect(validateDeal(form(), 'C1', [{ ...kenia, deletedAt: '2026-11-20T10:00:00.000Z' }], [])).toMatchObject({ ok: false, errors: { productId: 'Wybierz produkt.' } });
   });
 
   it('allows one deal per client, product and size', () => {
-    expect(validateDeal(form(), 'C1', [kenia], [deal(2)])).toMatchObject({ ok: false, errors: { productId: 'There is already a price for KENIA 250 g: change that one.' } });
+    expect(validateDeal(form(), 'C1', [kenia], [deal(2)])).toMatchObject({ ok: false, errors: { productId: 'Jest już cena dla KENIA 250 g: zmień tamtą.' } });
     expect(validateDeal(form({ grams: '1000' }), 'C1', [kenia], [deal(2)])).toMatchObject({ ok: true });
   });
 
@@ -93,7 +93,7 @@ describe('adding a deal', () => {
     // a product that is deleted, or has no price for that size now: the price can still be changed
     expect(dealPriceChange(deal(2), '36', { ...kenia, deletedAt: '2026-11-20T10:00:00.000Z' })).toEqual({ ok: true, fields: { price_net_pln: '36' } });
     expect(dealPriceChange(deal(2, { bag_size_g: '500' }), '36', kenia)).toEqual({ ok: true, fields: { price_net_pln: '36' } });
-    expect(dealPriceChange(deal(2), 'free', kenia)).toEqual({ ok: false, error: 'Enter the price without VAT, e.g. 38 or 38,50.' });
+    expect(dealPriceChange(deal(2), 'free', kenia)).toEqual({ ok: false, error: 'Wpisz cenę netto (bez VAT), np. 38 albo 38,50.' });
   });
 
   it('an edit writes only what changed', () => {

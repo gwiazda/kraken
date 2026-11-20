@@ -22,10 +22,10 @@ describe('saleRows', () => {
   it('sums up each entry: who, what, how many bags and the invoice status', () => {
     const { rows } = saleRows(sales, lines, 'all', (id) => clients[id], (id) => products[id]);
     expect(rows.map((r) => [r.sale.id, r.kindLabel, r.who, r.items, r.bags, r.invoiceDate])).toEqual([
-      ['S5', 'Own use', 'Tasting at home', '—', '', ''],
-      ['S4', 'Sample', 'Café X, Kazimierz (not a client)', 'GWATEMALA 1 kg × 3', '3 bags', ''],
-      ['S2', 'Sale', 'Café Nowa', 'GWATEMALA 1 kg × 3, KENIA 250 g × 1 (free)', '4 bags (1 free)', ''],
-      ['S3', 'Sale', 'Café Nowa', '—', '', '2026-11-20'],
+      ['S5', 'Na własny użytek', 'Tasting at home', '—', '', ''],
+      ['S4', 'Próbka', 'Café X, Kazimierz (nie jest klientem)', 'GWATEMALA 1 kg × 3', '3 opakowania', ''],
+      ['S2', 'Sprzedaż', 'Café Nowa', 'GWATEMALA 1 kg × 3, KENIA 250 g × 1 (gratis)', '4 torebki (1 gratis)', ''],
+      ['S3', 'Sprzedaż', 'Café Nowa', '—', '', '20.11.2026'],
     ]);
   });
 
@@ -36,8 +36,11 @@ describe('saleRows', () => {
   });
 
   it('counts bags, one or many, and the free ones', () => {
-    expect(bagsText([{ bags: 1, free: false }])).toBe('1 bag');
-    expect(bagsText([{ bags: 3, free: false }, { bags: 1, free: true }])).toBe('4 bags (1 free)');
+    expect(bagsText([{ bags: 1, free: false }])).toBe('1 torebka');
+    expect(bagsText([{ bags: 3, free: false }, { bags: 1, free: true }])).toBe('4 torebki (1 gratis)');
+    expect(bagsText([{ bags: 5, free: false }])).toBe('5 torebek');
+    expect(bagsText([{ bags: 22, free: false }])).toBe('22 torebki');
+    expect(bagsText([{ bags: 8, free: false }], true)).toBe('8 opakowań'); // a sample: any amount, so packs
     expect(bagsText([])).toBe('');
   });
 });
@@ -46,20 +49,20 @@ describe('saleFacts', () => {
   it('shows the date of the sale, when it was added and by whom, and when the invoice was issued', () => {
     const s = sale(2, { date: '2026-11-10', created_at: '2026-11-11T10:00:00.000Z', invoice_status: 'paid', invoice_date: '2026-11-12' });
     expect(saleFacts(s)).toEqual([
-      { label: 'Date of the sale', value: '2026-11-10' },
-      { label: 'Added to Kraken', value: '2026-11-11 by partner@example.com' },
-      { label: 'Invoice', value: 'Paid' },
-      { label: 'Invoice issued on', value: '2026-11-12' },
+      { label: 'Data sprzedaży', value: '10.11.2026' },
+      { label: 'Dodano do Krakena', value: '11.11.2026 (partner@example.com)' },
+      { label: 'Stan faktury', value: 'Opłacona' },
+      { label: 'Data wystawienia faktury', value: '12.11.2026' },
     ]);
   });
 
   it('says "Not yet" before the invoice is issued, and samples have no invoice', () => {
     expect(saleFacts(sale(2, { created_at: '' }))).toEqual([
-      { label: 'Date of the sale', value: '2026-11-19' },
-      { label: 'Added to Kraken', value: '—' },
-      { label: 'Invoice', value: 'Invoice to be issued' },
-      { label: 'Invoice issued on', value: 'Not yet' },
+      { label: 'Data sprzedaży', value: '19.11.2026' },
+      { label: 'Dodano do Krakena', value: '—' },
+      { label: 'Stan faktury', value: 'Faktura do wystawienia' },
+      { label: 'Data wystawienia faktury', value: 'Jeszcze nie' },
     ]);
-    expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Date of the sample', 'Added to Kraken']);
+    expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
   });
 });

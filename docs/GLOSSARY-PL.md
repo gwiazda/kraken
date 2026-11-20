@@ -20,10 +20,13 @@ The code, the sheet's tab and column names and the docs stay in English.
 | Settings (Kraken settings) | Ustawienia (Ustawienia Krakena) |
 | Sync with RoasTime | Synchronizuj z RoasTime |
 | Bag (of coffee) / bags | torebka / torebki, torebek |
+| Packs (of a sample, any amount) | opakowanie / opakowania, opakowań |
+| Amount (grams of a sample) | gramatura |
 | Free (bag) | gratis |
 | Invoice to be issued / issued / paid | Faktura do wystawienia / wystawiona / opłacona |
 | Special prices | Ceny specjalne |
 | Follow-up notes | Notatki |
+| Notes (of an entry) | Uwagi |
 | Gross margin | Marża brutto |
 | Net / gross | netto / brutto |
 | Wholesale / retail | hurt (hurtowa) / detal (detaliczna) |

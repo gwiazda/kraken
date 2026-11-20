@@ -48,8 +48,8 @@ export function dealRows(
         retail === undefined
           ? ''
           : discountTenths !== null
-            ? `instead of ${formatWholePln(wholesalePrice(retail, discountTenths, vatTenths).net)} at their −${formatPercent(discountTenths)}`
-            : `instead of ${formatPln(roundGrosze(netOf(retail, vatTenths)))} (retail without VAT)`;
+            ? `zamiast ${formatWholePln(wholesalePrice(retail, discountTenths, vatTenths).net)} przy ich rabacie −${formatPercent(discountTenths)}`
+            : `zamiast ${formatPln(roundGrosze(netOf(retail, vatTenths)))} (cena detaliczna netto)`;
       const cost = deal.grams === null ? undefined : bagCosts.get(deal.productId)?.[deal.grams];
       let earn = '';
       let losing = false;
@@ -57,11 +57,11 @@ export function dealRows(
         const earned = deal.netGrosze - cost;
         const amount = roundGrosze(Math.abs(earned));
         losing = earned < 0 && amount > 0;
-        earn = `${losing ? 'loses' : 'earns'} ${formatPln(amount)} · margin ${marginText(grossMarginPercent(deal.netGrosze, cost))}`;
+        earn = `${losing ? 'strata' : 'zarabiasz'} ${formatPln(amount)} · marża ${marginText(grossMarginPercent(deal.netGrosze, cost))}`;
       }
       const retailChanged =
         retail !== undefined && deal.retailAtDeal !== null && retail !== deal.retailAtDeal
-          ? `Retail was ${formatWholePln(deal.retailAtDeal)} when this deal was set, now ${formatWholePln(retail)}.`
+          ? `Cena detaliczna przy ustalaniu tej ceny: ${formatWholePln(deal.retailAtDeal)}, teraz ${formatWholePln(retail)}.`
           : '';
       return {
         deal,

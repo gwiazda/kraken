@@ -1,7 +1,7 @@
 // Follow-up notes on a sample (owner, 2026-11-20): a dated log, e.g. "2026-11-25: called, they liked the Kenia".
 // Add new ones, delete old ones (soft delete, can be restored). Pure: no Google, no screen.
 
-import { isValidDate } from '../../core/dates';
+import { formatDate, isValidDate } from '../../core/dates';
 import { text, type Fields } from './model';
 
 export const SALE_NOTES_TAB = 'Sale notes';
@@ -45,7 +45,7 @@ export function notesOf(notes: readonly SaleNote[], saleId: string, deleted = fa
 /** A note as one short line for the Sales list: "2026-11-25: called, they liked the Kenia" (at most 80 characters). */
 function shortNote(note: SaleNote): string {
   const chars = Array.from(note.text.replace(/\s+/g, ' ').trim()); // by character, so an emoji is never cut in half
-  return `${note.date}: ${chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : chars.join('')}`;
+  return `${formatDate(note.date)}: ${chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : chars.join('')}`;
 }
 
 /** The newest note of a sample, for the Sales list; '' without one. */
@@ -73,8 +73,8 @@ export interface NoteForm {
 /** Checks a new note; on success gives the cells to store. */
 export function validateNote(form: NoteForm, saleId: string): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
   const body = form.text.trim();
-  if (!isValidDate(form.date)) return { ok: false, error: 'Enter the date of the note, e.g. 2026-11-25.' };
-  if (body === '') return { ok: false, error: 'Write the note, e.g. "Called, they liked the Kenia".' };
-  if (body.length > NOTE_MAX) return { ok: false, error: `At most ${NOTE_MAX} characters.` };
+  if (!isValidDate(form.date)) return { ok: false, error: 'Wpisz datę notatki, np. 25.11.2026.' };
+  if (body === '') return { ok: false, error: 'Wpisz notatkę, np. „Dzwoniłem, smakowała im Kenia”.' };
+  if (body.length > NOTE_MAX) return { ok: false, error: `Najwyżej ${NOTE_MAX} znaków.` };
   return { ok: true, fields: { sale_id: saleId, date: form.date, text: body } };
 }

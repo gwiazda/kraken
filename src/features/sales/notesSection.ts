@@ -2,6 +2,7 @@
 // "2026-11-25: called, they liked the Kenia". Add a note, delete an old one (it can be restored). Each change is
 // saved at once, apart from the form above.
 
+import { formatDate } from '../../core/dates';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { NOTE_MAX, isNoteDeleted, notesOf, validateNote, type SaleNote } from './modelNotes';
 import type { SaleNotesRepository } from './repoNotes';
@@ -33,7 +34,7 @@ export function notesSection(saleId: string, all: readonly SaleNote[], deps: Not
   const section = el(
     'fieldset',
     { class: 'form-section sample-notes' },
-    el('legend', {}, 'Follow-up notes ', infoTip('A dated log for this sample: what they said, when you called, what to do next. The newest one is shown in the Sales list. Each note is saved straight away.')),
+    el('legend', {}, 'Notatki ', infoTip('Notatki z datą do tej próbki: co powiedzieli, kiedy dzwoniłeś, co dalej. Najnowszą widać na liście sprzedaży. Każda notatka zapisuje się od razu.')),
     body,
   );
 
@@ -52,12 +53,12 @@ export function notesSection(saleId: string, all: readonly SaleNote[], deps: Not
 
   function save(action: () => Promise<void>, done: string, slot: HTMLElement, retry: () => void): void {
     if (!deps.canSave()) {
-      show(undefined, [message('Wait a moment: the form above is being saved.', 'error')]);
+      show(undefined, [message('Chwila: zapisuje się formularz powyżej.', 'error')]);
       return;
     }
     deps.saving(true);
     for (const node of body.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>('button, input, textarea')) node.disabled = true;
-    slot.replaceChildren(busy('Saving…'));
+    slot.replaceChildren(busy('Zapisuję…'));
     deps.busy(true);
     deps
       .withGoogle(async () => {
@@ -81,14 +82,14 @@ export function notesSection(saleId: string, all: readonly SaleNote[], deps: Not
     const current = notesOf(notes, saleId);
     const deleted = notesOf(notes, saleId, true);
 
-    const date = el('input', { type: 'date', class: 'input-short', 'aria-label': 'Date of the note' });
+    const date = el('input', { type: 'date', class: 'input-short', 'aria-label': 'Data notatki' });
     date.value = draft.date;
     date.addEventListener('input', () => (draft.date = date.value));
-    const text = el('textarea', { rows: '2', maxlength: String(NOTE_MAX), 'aria-label': 'Note', placeholder: 'e.g. Called, they liked the Kenia; send an offer' });
+    const text = el('textarea', { rows: '2', maxlength: String(NOTE_MAX), 'aria-label': 'Notatka', placeholder: 'np. Dzwoniłem, smakowała im Kenia; wysłać ofertę' });
     text.value = draft.text;
     text.addEventListener('input', () => (draft.text = text.value));
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
-    const addButton = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Add note');
+    const addButton = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Dodaj notatkę');
     const form = el('form', { class: 'note-add', novalidate: '' }, date, text, addButton, errorLine);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -102,7 +103,7 @@ export function notesSection(saleId: string, all: readonly SaleNote[], deps: Not
         draft.text = ''; // saved: the next note starts empty
         draft.date = deps.today();
       });
-      const go = () => save(add, 'Note added.', addButton, go);
+      const go = () => save(add, 'Dodano notatkę.', addButton, go);
       go();
     });
 
@@ -110,22 +111,22 @@ export function notesSection(saleId: string, all: readonly SaleNote[], deps: Not
       const actions = el('span', { class: 'row-actions' });
       if (isNoteDeleted(n)) {
         const restore = once(() => deps.notes.restore(n, deps.now()));
-        const go = () => save(restore, 'Note restored.', actions, go);
-        actions.append(button('Restore', go, 'link'));
+        const go = () => save(restore, 'Przywrócono notatkę.', actions, go);
+        actions.append(button('Przywróć', go, 'link'));
       } else {
         const remove = once(() => deps.notes.remove(n, deps.now()));
-        const go = () => save(remove, 'Note deleted. It can be restored below.', actions, go);
-        actions.append(button('Delete', go, 'link'));
+        const go = () => save(remove, 'Usunięto notatkę. Można ją przywrócić poniżej.', actions, go);
+        actions.append(button('Usuń', go, 'link'));
       }
-      return el('li', { class: isNoteDeleted(n) ? 'row-deleted' : '' }, el('strong', { class: 'note-date' }, n.date), ' ', el('span', { class: 'note-text' }, n.text), ' ', actions);
+      return el('li', { class: isNoteDeleted(n) ? 'row-deleted' : '' }, el('strong', { class: 'note-date' }, formatDate(n.date)), ' ', el('span', { class: 'note-text' }, n.text), ' ', actions);
     };
 
     body.replaceChildren(
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       form,
-      current.length === 0 ? el('p', { class: 'muted small' }, 'No notes yet.') : el('ul', { class: 'note-list' }, ...current.map(item)),
-      ...(deleted.length > 0 ? [el('details', { class: 'small deleted-notes' }, el('summary', {}, `Deleted notes (${deleted.length})`), el('ul', { class: 'note-list' }, ...deleted.map(item)))] : []),
+      current.length === 0 ? el('p', { class: 'muted small' }, 'Nie ma jeszcze notatek.') : el('ul', { class: 'note-list' }, ...current.map(item)),
+      ...(deleted.length > 0 ? [el('details', { class: 'small deleted-notes' }, el('summary', {}, `Usunięte notatki (${deleted.length})`), el('ul', { class: 'note-list' }, ...deleted.map(item)))] : []),
     );
   }
 
