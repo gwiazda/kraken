@@ -96,7 +96,7 @@ test that reads every import line), so CI fails if a rule is broken.
   (CEIDG), discount chosen from Packaging & discounts (information only); a name or NIP only once; **special prices**
   (owner, 2026-11-20; "Special prices" tab, migration 12): net price per client, product and size, set on the client's
   page (`pricesSection.ts`, costs from `loadProductsWithCosts` in products), used by the Offer;
-  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19),
+  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19; a sample any grams), follow-up notes on samples (`notesSection.ts`, "Sale notes" tab, migration 13),
   invoice status to be issued → issued (date) → paid from one dropdown (Issued asks the issue date, today unless changed; paid has no date; then the list shows All), filters; no stock change;
   `offers`: Offer page in Polish (customer typed or picked from Clients, date, valid 14 days, ticked products / sizes / discounts,
   "Use their special prices": a size with a deal shows only that price, no label; live preview of

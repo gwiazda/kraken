@@ -57,7 +57,7 @@ export interface SaleLine {
   readonly saleId: string;
   readonly position: number;
   readonly productId: string;
-  /** null when the cell is not one of the bag sizes. */
+  /** Grams (a bag size, or any amount for a sample); null when the cell cannot be read. */
   readonly grams: number | null;
   /** Whole bags; null when the cell cannot be read. */
   readonly bags: number | null;
@@ -100,11 +100,20 @@ export function saleFromFields(fields: Fields, row: number): Sale {
   };
 }
 
+/**
+ * The most a sample line can weigh, in grams. Samples are any amount (owner, 2026-11-20: "our samples are sometimes
+ * 150 g or 100 g"); sales and own use are in the bag sizes.
+ */
+export const MAX_SAMPLE_GRAMS = 5000;
+
+/** A whole number of grams a line can have: 1 to MAX_SAMPLE_GRAMS (the bag sizes are among them). */
+export const isLineWeight = (grams: number) => Number.isInteger(grams) && grams >= 1 && grams <= MAX_SAMPLE_GRAMS;
+
 export function lineFromFields(fields: Fields, row: number): SaleLine {
   const grams = Number(text(fields, 'bag_size_g'));
   const bags = Number(text(fields, 'bags'));
   const problems: string[] = [];
-  if (!isBagSize(grams)) problems.push(`Row ${row} of the Sale lines tab has the bag size "${text(fields, 'bag_size_g')}", which is not 250, 500 or 1000 g.`);
+  if (!isLineWeight(grams)) problems.push(`Row ${row} of the Sale lines tab has the amount "${text(fields, 'bag_size_g')}", which is not a weight in grams (1 to ${MAX_SAMPLE_GRAMS}).`);
   if (!(Number.isInteger(bags) && bags > 0)) problems.push(`Row ${row} of the Sale lines tab has "${text(fields, 'bags')}" bags, which is not a whole number; it is not counted.`);
   return {
     id: text(fields, 'id'),
@@ -112,7 +121,7 @@ export function lineFromFields(fields: Fields, row: number): SaleLine {
     saleId: text(fields, 'sale_id'),
     position: Number(text(fields, 'position')) || 0,
     productId: text(fields, 'product_id'),
-    grams: isBagSize(grams) ? grams : null,
+    grams: isLineWeight(grams) ? grams : null,
     bags: Number.isInteger(bags) && bags > 0 ? bags : null,
     free: text(fields, 'free') === 'yes',
     problems,
@@ -142,7 +151,7 @@ export const bagCount = (lines: readonly { bags: number | null; free: boolean }[
 
 export interface LineForm {
   productId: string;
-  /** Bag size in grams, as text ("250"). */
+  /** Bag size in grams, as text ("250"); for a sample any amount ("150"). */
   grams: string;
   bags: string;
   /** Free bags (gratis): not to be invoiced. */
@@ -223,7 +232,7 @@ export function validateSale(
     const grams = Number(line.grams);
     const problems: string[] = [];
     if (!productIds.includes(line.productId)) problems.push('choose the product');
-    if (!isBagSize(grams)) problems.push('choose the bag size');
+    if (form.kind === 'sample' ? !isLineWeight(grams) : !isBagSize(grams)) problems.push(form.kind === 'sample' ? `enter the amount in grams (1 to ${MAX_SAMPLE_GRAMS})` : 'choose the bag size');
     if (bags === null) problems.push('enter the number of bags (1 to 999)');
     if (problems.length > 0) errors.line[i] = `Line ${i + 1}: ${problems.join(', ')}.`;
     return {

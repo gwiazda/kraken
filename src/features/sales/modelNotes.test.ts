@@ -1,0 +1,26 @@
+import { describe, expect, it } from 'vitest';
+import { lastNoteText, noteFromFields, notesOf, validateNote } from './modelNotes';
+
+// Made-up notes.
+const note = (row: number, o: Record<string, string> = {}) => noteFromFields({ id: `N${row}`, sale_id: 'S1', date: '2026-11-25', text: 'Called, they liked the Kenia', deleted_at: '', ...o }, row);
+
+describe('sample notes', () => {
+  it("lists a sample's notes newest first; deleted ones separately", () => {
+    const list = [note(2, { date: '2026-11-21' }), note(3), note(4, { date: '2026-11-25', text: 'Second call' }), note(5, { sale_id: 'S2' }), note(6, { deleted_at: '2026-11-26T10:00:00.000Z' })];
+    expect(notesOf(list, 'S1').map((n) => n.id)).toEqual(['N4', 'N3', 'N2']);
+    expect(notesOf(list, 'S1', true).map((n) => n.id)).toEqual(['N6']);
+  });
+
+  it('gives the newest note for the list, shortened', () => {
+    expect(lastNoteText([note(2, { date: '2026-11-21' }), note(3)], 'S1')).toBe('2026-11-25: Called, they liked the Kenia');
+    expect(lastNoteText([note(2, { text: 'x'.repeat(100) })], 'S1')).toBe(`2026-11-25: ${'x'.repeat(79)}…`);
+    expect(lastNoteText([], 'S1')).toBe('');
+  });
+
+  it('needs a date and some text', () => {
+    expect(validateNote({ date: '2026-11-25', text: '  Called  ' }, 'S1')).toEqual({ ok: true, fields: { sale_id: 'S1', date: '2026-11-25', text: 'Called' } });
+    expect(validateNote({ date: '', text: 'Called' }, 'S1')).toEqual({ ok: false, error: 'Enter the date of the note, e.g. 2026-11-25.' });
+    expect(validateNote({ date: '2026-11-25', text: ' ' }, 'S1')).toEqual({ ok: false, error: 'Write the note, e.g. "Called, they liked the Kenia".' });
+    expect(validateNote({ date: '2026-11-25', text: 'x'.repeat(1001) }, 'S1')).toEqual({ ok: false, error: 'At most 1000 characters.' });
+  });
+});

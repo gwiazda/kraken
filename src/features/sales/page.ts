@@ -34,10 +34,15 @@ import {
   type SaleLine,
 } from './model';
 import { FILTERS, bagsText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
+import { lastNoteText, type SaleNote } from './modelNotes';
+import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
+import type { SaleNotesRepository } from './repoNotes';
 
 export interface SalesPageDeps {
   repo: SalesRepository;
+  /** Follow-up notes on samples (owner, 2026-11-20). */
+  notes: SaleNotesRepository;
   clients: ClientsRepository;
   products: ProductsRepository;
   whoAmI: () => Promise<string>;
@@ -58,6 +63,8 @@ export interface SalesPageDeps {
 export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: string, fromClick = false): void {
   let sales: Sale[] = [];
   let lines: SaleLine[] = [];
+  /** Follow-up notes of samples (all, deleted ones included). */
+  let sampleNotes: SaleNote[] = [];
   let clients: Client[] = [];
   let products: Product[] = [];
   let problems: string[] = [];
@@ -79,12 +86,13 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function load(note?: string, fromClick = false): void {
     render(el('p', {}, busy('Loading sales…')));
-    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load()]);
+    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), deps.notes.load()]);
     (fromClick ? deps.withGoogle(all) : all())
-      .then(([s, c, p]) => {
+      .then(([s, c, p, n]) => {
         if (!root.isConnected) return;
         sales = s.sales;
         lines = s.lines;
+        sampleNotes = n.notes;
         clients = c.clients;
         products = p.products;
         const active = s.sales.filter((x) => !isDeleted(x));
@@ -93,6 +101,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ...s.problems,
           ...c.problems,
           ...p.problems,
+          ...n.problems,
           ...active.flatMap((x) => x.problems),
           ...s.lines.filter((l) => l.deletedAt === '' && activeIds.has(l.saleId)).flatMap((l) => l.problems),
         ];
@@ -226,7 +235,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           {},
           el('td', { class: 'nowrap' }, r.date),
           el('td', { class: 'nowrap' }, el('span', { class: `badge kind-${r.kind ?? 'unknown'}` }, r.kindLabel)),
-          el('td', {}, r.who || el('span', { class: 'muted' }, '—')),
+          el(
+            'td',
+            {},
+            r.who || el('span', { class: 'muted' }, '—'),
+            ...(sale.kind === 'sample' && lastNoteText(sampleNotes, sale.id) ? [el('span', { class: 'last-note' }, lastNoteText(sampleNotes, sale.id))] : []),
+          ),
           el('td', {}, r.items),
           el('td', { class: 'num nowrap' }, r.bags || el('span', { class: 'muted' }, '—')),
           statusCell,
@@ -372,14 +386,17 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
     const renderLines = () => {
       const sale_ = form.kind === 'sale'; // free bags only matter for a sale (not invoiced)
+      const sample = form.kind === 'sample';
       const rows = form.lines.map((line, i) => {
         const product = el('select', { 'aria-label': `Line ${i + 1}: product` });
         product.append(el('option', { value: '' }, 'Choose a product…'));
         for (const p of activeProducts) product.append(el('option', { value: p.id }, p.name));
         if (line.productId && !activeProducts.some((p) => p.id === line.productId)) product.append(el('option', { value: line.productId }, `${productName(line.productId) ?? '?'} (deleted)`));
         product.value = line.productId;
-        const size = el('select', { 'aria-label': `Line ${i + 1}: bag size` });
-        for (const g of BAG_SIZES_G) size.append(el('option', { value: String(g) }, formatBagSize(g)));
+        // A sample is any amount in grams (e.g. 150 g); a sale or own use is one of the bag sizes.
+        const size: HTMLInputElement | HTMLSelectElement = sample
+          ? el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Line ${i + 1}: grams`, autocomplete: 'off' })
+          : el('select', { 'aria-label': `Line ${i + 1}: bag size` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
         size.value = line.grams;
         const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Line ${i + 1}: number of bags`, autocomplete: 'off' });
         bags.value = line.bags;
@@ -388,8 +405,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         product.addEventListener('change', () => {
           line.productId = product.value;
         });
-        size.addEventListener('change', () => {
-          line.grams = size.value;
+        size.addEventListener(sample ? 'input' : 'change', () => {
+          line.grams = size.value.trim();
         });
         bags.addEventListener('input', () => {
           line.bags = bags.value;
@@ -411,7 +428,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           'tr',
           {},
           el('td', {}, product),
-          el('td', {}, size),
+          el('td', { class: 'nowrap' }, size, ...(sample ? [' g'] : [])),
           el('td', {}, bags),
           ...(sale_ ? [el('td', { class: 'nowrap' }, el('label', { class: 'free-label' }, free, ' free'))] : []),
           el('td', {}, form.lines.length > 1 ? remove : ''),
@@ -431,8 +448,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                 'tr',
                 {},
                 el('th', { scope: 'col' }, 'Product'),
-                el('th', { scope: 'col' }, 'Size'),
-                el('th', { scope: 'col' }, 'Bags'),
+                el('th', { scope: 'col' }, sample ? 'Amount ' : 'Size', ...(sample ? [infoTip('Samples can be any amount, e.g. 100 or 150 grams. Sales and own use are in the bag sizes.')] : [])),
+                el('th', { scope: 'col' }, sample ? 'Packs' : 'Bags'),
                 ...(sale_
                   ? [el('th', { scope: 'col' }, 'Free ', infoTip('Tick it for bags given for free (gratis): they are not invoiced.'))]
                   : []),
@@ -549,6 +566,16 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('The invoice for this sale is already issued: if you change the products, correct the invoice in Fakturownia too.', 'error')] : []),
       banner,
       formNode,
+      ...(sale?.kind === 'sample'
+        ? [
+            notesSection(sale.id, sampleNotes, {
+              ...deps,
+              today,
+              changed: (stored) => (sampleNotes = stored),
+              errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Reload sales (drops this form)'),
+            }),
+          ]
+        : []),
     );
   }
 

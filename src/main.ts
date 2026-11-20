@@ -21,7 +21,7 @@ import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roas
 import { lotLosses, sheetCostsRepository, showPackagingPage, validateLoss } from './features/costs';
 import { sheetClientsRepository, sheetSpecialPricesRepository, showClientsPage } from './features/clients';
 import { showOfferPage } from './features/offers';
-import { sheetSalesRepository, showSalesPage } from './features/sales';
+import { sheetSaleNotesRepository, sheetSalesRepository, showSalesPage } from './features/sales';
 import { sheetProductsRepository, showPlannerPage, showProductsPage, type PlannerStart } from './features/products';
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
@@ -479,6 +479,7 @@ function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
     {
       ...googleDeps(),
       repo: sheetSalesRepository(client, info.id),
+      notes: sheetSaleNotesRepository(client, info.id),
       clients: sheetClientsRepository(client, info.id),
       products: sheetProductsRepository(client, info.id),
       formOpened: () => record('sale-form', currentScreen === 'sale-form' ? 'replace' : 'push'),
