@@ -23,3 +23,6 @@ export function percentFromCell(value: string): number | null | undefined {
 export const percentText = (tenths: number) => toDecimalText(tenths, 1);
 /** For the screen: "23 %", "15,5 %". */
 export const formatPercent = (tenths: number) => `${percentText(tenths).replace('.', ',')} %`;
+
+/** A gross margin (whole percent, may be below 0) for the screen: "56 %", "−5 %"; '' when it cannot be worked out. */
+export const marginText = (margin: number | null): string => (margin === null ? '' : `${margin < 0 ? '−' : ''}${formatPercent(Math.abs(margin) * 10)}`);

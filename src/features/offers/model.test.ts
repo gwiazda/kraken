@@ -71,4 +71,9 @@ describe('validateOffer', () => {
     expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(301), note: '' } })).toEqual({ banner: 'Each part of the banner can have at most 300 characters.' });
     expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(300), note: '' } })).toEqual({});
   });
+
+  it("needs no standard discount when a client's special prices are used (only their prices on the offer)", () => {
+    expect(validateOffer({ ...ok, tiers: [] }, true)).toEqual({});
+    expect(validateOffer({ ...ok, tiers: [] }, false)).toEqual({ tiers: 'Tick at least one discount (they are set under Packaging & discounts).' });
+  });
 });

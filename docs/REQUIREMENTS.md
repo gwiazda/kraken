@@ -253,7 +253,7 @@ Flexible enough to generate prices for any discount.
 - **Price list view (computed, not stored):** pick a contractor (or type any discount %) and see
   the full price list with discounted net and gross prices, ready to copy or print.
 - **Discount presets:** a short list (for example 10%, 15%, 20%) as quick buttons. B2B 15% is the current standard.
-- **Special prices (optional):** replaced by the proposal "Special prices per client" below (2026-11-20).
+- **Special prices (optional):** replaced by "Special prices per client" below (2026-11-20).
 - **Price history:** when prices change, the old ones are kept, so past invoice requests still show the price that applied then.
 - **[R]** Discounts are taken off the **retail price**.
   (A percentage discount gives the same result whether it is applied to net or gross; only rounding can differ.)
@@ -278,43 +278,38 @@ migration 005 cannot be changed.
   discount, rounded (74 zł gross → 60,16 net → −15 % = 51,14 → **51 zł net**; gross for the invoice = 51 × 1,23).
   This replaces the "no rounding" rule above for wholesale.
 - **Discounts:** 15 %, 25 % and 30 % from the start (a setting the owner can extend), plus any % typed once.
-- Later (2026-11-20: customers are built as Clients, the offer PDF as the Offer page): special prices (proposal
-  below), hand overrides of a discounted price.
+- Later (2026-11-20: customers are built as Clients, the offer PDF as the Offer page): special prices (below),
+  hand overrides of a discounted price.
 
-**[P] Special prices per client (owner, 2026-11-20: "I will get back to that as one of the next steps"; not built,
-not decided).** A deal agreed with one client: a fixed price for one product and one bag size, e.g. "Café Nowa
-pays 38 zł for KENIA 250 g". Kraken remembers it and uses it on that client's offers.
-- **Where it is set: on the client.** A client's page gets a **Special prices** section, one row per deal:
-  product, size, their price, and next to it what they would pay otherwise (with their discount: "instead of 41 zł
-  at their −15 %"; a client without a discount: "instead of 48 zł", the retail price without VAT) and what you earn
-  on one bag with the gross margin, so the cost of the deal is visible. Add a row by choosing the product and size
-  and typing the price.
+**[R] Special prices per client (owner, 2026-11-20).** A deal agreed with one client: a fixed **net** price (the
+offers are wholesale) for one product and one bag size, e.g. "Café Nowa pays 38 zł for KENIA 250 g". Kraken
+remembers it and uses it on that client's offers.
+- **Where it is set: the client's page** (Clients → Edit). A **Special prices** section, one row per deal: product,
+  size, their net price, and next to it what they would pay otherwise (their discount, as on the client: "instead of
+  41 zł at their −15 %"; a client without a discount: "instead of 48 zł", the retail price without VAT) and what you
+  earn on one bag with the gross margin, so the cost of the deal is visible. Add a row by choosing the product and
+  size and typing the price; change or delete a row there. **No end date**: a deal stays until changed or deleted.
+- The client's own discount stays **information only** on the client's page; it is not applied to offers by itself.
 - **One deal per client, product and size.** Adding a second one is refused ("Café Nowa already has a price for
   KENIA 250 g: change that one"); so is restoring a deleted deal while another one exists.
-- **Where it is used: the Offer.** On the Offer page the customer can be **picked from Clients**; typing a name stays
-  possible (an offer for a café that is not a client yet). For a picked client, wherever they have a deal the
-  special price is shown (how it sits next to the discount lines: question 4). On the PDF it looks like any other
-  price (the client does not see it is special). Whether the client's own discount is used: question 3.
+- **Where it is used: the Offer.** The customer can be **picked from Clients**; typing a name stays possible (an
+  offer for a café that is not a client yet). The standard discounts are still **ticked by hand**, as before. For a
+  picked client with deals, a tick box **"Use their special prices"**: then a product and size with a deal shows
+  **only the deal price**, net, with no label (no "Cena specjalna"), instead of the discount lines; a size without a
+  deal shows the ticked discount lines as usual ("next to"). The owner may untick every discount and keep only the
+  special prices ("instead"): sizes without a deal then show no wholesale price, and the owner unticks the products
+  without a deal by hand. The offer keeps its "valid until" date (14 days).
 - **Safety:**
   - A special price **does not change** when the product's retail price changes (it is an agreed deal). Each deal
     stores the retail price of that product and size **at the time it was set**; when today's retail price differs,
     the client's page marks the deal ("retail was 59 zł when this deal was set, now 64 zł") so the owner can decide
     to update it.
   - A deal that loses money is shown in red (as everywhere: below 0 % gross margin).
-  - A deal whose client or product is deleted, or whose product no longer has a price for that size, is **not used**
-    on offers; the client's page shows it greyed with the reason. It comes back into use when the product (or the
-    size's price) comes back.
+  - A deal whose product is deleted, or no longer has a price for that size, is **not used** on offers; the client's
+    page shows it greyed with the reason. It comes back into use when the product (or the size's price) comes back.
   - Deleting a deal is a soft delete (can be restored), as everywhere.
-- **Sheet:** a new **Special prices** tab: `client_id`, `product_id`, `bag_size_g`, the price, `retail_gross_pln_at_deal`
-  (the retail price when the deal was set), plus the usual id / times / deleted; added by a data-version update with
-  a backup first.
-- **[Q] Before building, the owner decides:**
-  1. Is the special price **net** (like the wholesale prices) or gross?
-  2. Does a deal have an **end date** (e.g. "until 31.12"), or does it stay until deleted?
-  3. When a client is picked on the Offer, is **their discount always used**, or can the discounts still be ticked
-     by hand?
-  4. An offer can show up to 4 discount lines per product. Where there is a deal: does the product show **only the
-     deal price**, or the deal price **as an extra line** next to the discount lines?
+- **Sheet:** a **Special prices** tab (data version 12): `client_id`, `product_id`, `bag_size_g`, `price_net_pln`,
+  `retail_gross_pln_at_deal` (the retail price when the deal was set), plus the usual id / times / deleted.
 
 ---
 
@@ -531,5 +526,5 @@ migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
 is built. Today (data version 11): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
-read), Products, Discounts, Product beans, Clients, Sales, Sale lines. Planned: Special prices (section 5, proposal).
+read), Products, Discounts, Product beans, Clients, Sales, Sale lines. Data version 12 adds Special prices (section 5).
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.

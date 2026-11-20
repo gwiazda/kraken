@@ -17,15 +17,14 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- Nothing. Last merged: Clients (#31), Sales (#32), gross margin (#33), product order with drag and drop (#34,
-  data version 11).
+- **Special prices per client** (branch `claude/special-prices`, data version **12**: "Special prices" tab): set
+  on the client's page, used on the Offer (pick the client). Owner to test locally.
+- Last merged: Clients (#31), Sales (#32), gross margin (#33), product order (#34, data version 11), #35 (docs).
 
 ## Next steps
 1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
 2. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
-3. **Special prices per client** (owner, 2026-11-20: one of the next steps): written down as a proposal in
-   `docs/REQUIREMENTS.md` section 5, with 4 open questions (net or gross, end date, discount on the Offer, deal
-   price next to the discount lines). Also still open there: hand overrides of a discounted price.
+3. Hand overrides of a discounted price (requirements section 5, later).
 4. Roasts filters and paging (later).
 5. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
 

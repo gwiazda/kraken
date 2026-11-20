@@ -1,0 +1,81 @@
+// What a client's Special prices section shows, as plain text, so it is tested without a browser: each deal with
+// what the client would pay otherwise, what one bag earns and the gross margin, and a note when the retail price
+// has changed since the deal was set or the deal is not used.
+
+import { formatPln, formatWholePln } from '../../core/numbers';
+import { formatBagSize } from '../../domain/bagSizes';
+import { formatPercent, marginText } from '../../domain/percent';
+import { grossMarginPercent, netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
+import { dealUnusable, dealsOf, type DealProduct, type SpecialPrice } from './modelPrices';
+
+export interface DealRow {
+  readonly deal: SpecialPrice;
+  /** "KENIA" ('?' when the product is not in the list) */
+  readonly product: string;
+  /** "250 g" ('?' when the cell cannot be read) */
+  readonly size: string;
+  /** "38 zł", "38,50 zł" */
+  readonly price: string;
+  /** "instead of 41 zł at their −15 %", "instead of 47,97 zł (retail without VAT)"; '' when unknown. */
+  readonly insteadOf: string;
+  /** "earns 13,85 zł · margin 36 %" / "loses 2,10 zł · margin −6 %"; '' when the cost of a bag is not known. */
+  readonly earn: string;
+  readonly losing: boolean;
+  /** "Retail was 59 zł when this deal was set, now 64 zł."; '' when unchanged. */
+  readonly retailChanged: string;
+  /** Why it is not used on offers ('' when it is). */
+  readonly unusable: string;
+}
+
+const money = (grosze: number) => (grosze % 100 === 0 ? formatWholePln(grosze) : formatPln(grosze));
+
+/**
+ * A client's deals (not deleted), by product name and size. `discountTenths`: the client's discount (null for
+ * none); `bagCosts`: the cost of one bag per product and size (grosze).
+ */
+export function dealRows(
+  deals: readonly SpecialPrice[],
+  clientId: string,
+  products: readonly DealProduct[],
+  discountTenths: number | null,
+  vatTenths: number,
+  bagCosts: ReadonlyMap<string, Partial<Record<number, number>>>,
+): DealRow[] {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return dealsOf(deals, clientId)
+    .map((deal): DealRow => {
+      const product = byId.get(deal.productId);
+      const retail = product && deal.grams !== null ? product.prices[deal.grams] : undefined;
+      const insteadOf =
+        retail === undefined
+          ? ''
+          : discountTenths !== null
+            ? `instead of ${formatWholePln(wholesalePrice(retail, discountTenths, vatTenths).net)} at their −${formatPercent(discountTenths)}`
+            : `instead of ${formatPln(roundGrosze(netOf(retail, vatTenths)))} (retail without VAT)`;
+      const cost = deal.grams === null ? undefined : bagCosts.get(deal.productId)?.[deal.grams];
+      let earn = '';
+      let losing = false;
+      if (cost !== undefined && deal.netGrosze !== null) {
+        const earned = deal.netGrosze - cost;
+        const amount = roundGrosze(Math.abs(earned));
+        losing = earned < 0 && amount > 0;
+        earn = `${losing ? 'loses' : 'earns'} ${formatPln(amount)} · margin ${marginText(grossMarginPercent(deal.netGrosze, cost))}`;
+      }
+      const retailChanged =
+        retail !== undefined && deal.retailAtDeal !== null && retail !== deal.retailAtDeal
+          ? `Retail was ${money(deal.retailAtDeal)} when this deal was set, now ${money(retail)}.`
+          : '';
+      return {
+        deal,
+        product: product?.name ?? '?',
+        size: deal.grams === null ? '?' : formatBagSize(deal.grams),
+        price: deal.netGrosze === null ? '?' : money(deal.netGrosze),
+        insteadOf,
+        earn,
+        losing,
+        retailChanged,
+        unusable: dealUnusable(deal, product),
+      };
+    })
+    .sort((a, b) => a.product.localeCompare(b.product, 'pl') || (a.deal.grams ?? 0) - (b.deal.grams ?? 0));
+}

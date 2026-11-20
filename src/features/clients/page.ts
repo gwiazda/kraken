@@ -6,13 +6,23 @@ import { formatPercent } from '../../domain/percent';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
+import type { LotsRepository } from '../lots';
+import type { ProductsRepository } from '../products';
+import type { RoastsRepository } from '../roasts';
 import { KEEP_DISCOUNT, changedClientFields, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
+import { pricesSection } from './pricesSection';
 import type { ClientsRepository } from './repo';
+import type { SpecialPricesRepository } from './repoPrices';
 
 export interface ClientsPageDeps {
   repo: ClientsRepository;
-  /** For the wholesale discounts (Packaging & discounts). */
+  /** For the wholesale discounts (Packaging & discounts), and with the next three, what a bag costs. */
   costs: CostsRepository;
+  /** A client's special prices (owner, 2026-11-20). */
+  prices: SpecialPricesRepository;
+  products: ProductsRepository;
+  lots: LotsRepository;
+  roasts: RoastsRepository;
   whoAmI: () => Promise<string>;
   /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
@@ -297,6 +307,9 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       event.preventDefault();
       if (!saveButton.disabled) save();
     });
+    const prices = client
+      ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true) })
+      : el('p', { class: 'muted small' }, 'Save the client first; then open it again (Edit) to add special prices.');
 
     render(
       el('p', { class: 'small back-link' }, button('← All clients', () => showList(), 'link')),
@@ -305,6 +318,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       ...(client ? client.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,
+      prices,
     );
     inputs.name.focus();
   }

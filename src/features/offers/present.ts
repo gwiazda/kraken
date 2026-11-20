@@ -2,9 +2,10 @@
 // per ticked bag size with the wholesale net price at each ticked discount, the suggested retail price under 250 g,
 // and the banner. Wholesale = the product's main gross ÷ (1 + VAT) − discount, net rounded to whole złoty.
 
-import { formatWholePln } from '../../core/numbers';
+import { formatPln, formatWholePln } from '../../core/numbers';
 import { wholesalePrice } from '../../domain/prices';
 import { formatBagSize, isBagSize } from '../../domain/bagSizes';
+import { dealKey } from '../clients';
 import { isProductDeleted, type Product } from '../products';
 import { addDays, bannerText, offerFileName, polishDate, tierText, type Banner, type OfferForm } from './model';
 
@@ -40,7 +41,15 @@ export interface OfferDocument {
 
 const RETAIL_SIZE = 250;
 
-export function buildOffer(products: readonly Product[], form: OfferForm, vatTenths: number, validDays: number): OfferDocument {
+/** A special price as its only line: no label (owner: no "Cena specjalna"); "38 zł" or "38,50 zł". */
+const dealRow = (net: number | undefined) => (net === undefined ? undefined : [{ label: '', price: net % 100 === 0 ? formatWholePln(net) : formatPln(net) }]);
+
+/**
+ * `deals`: a picked client's special prices (owner, 2026-11-20), product id and size (dealKey) → net grosze, when
+ * "Use their special prices" is ticked. A size with a deal shows only that price, without a label; the others show
+ * the ticked discounts.
+ */
+export function buildOffer(products: readonly Product[], form: OfferForm, vatTenths: number, validDays: number, deals: ReadonlyMap<string, number> = new Map()): OfferDocument {
   const sizes = form.sizes.filter(isBagSize).sort((a, b) => a - b);
   const tiers = [...form.tiers].sort((a, b) => a.tenths - b.tenths);
   const byId = new Map(products.filter((p) => !isProductDeleted(p)).map((p) => [p.id, p]));
@@ -68,7 +77,7 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
       return [
         {
           size: formatBagSize(grams),
-          rows: tiers.map((tier) => ({ label: tierText(tier), price: formatWholePln(wholesalePrice(gross, tier.tenths, vatTenths).net) })),
+          rows: dealRow(deals.get(dealKey(p.id, grams))) ?? tiers.map((tier) => ({ label: tierText(tier), price: formatWholePln(wholesalePrice(gross, tier.tenths, vatTenths).net) })),
           retail: grams === RETAIL_SIZE ? `Sugerowana cena detaliczna brutto: ${formatWholePln(gross)}` : '',
         },
       ];

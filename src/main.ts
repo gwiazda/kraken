@@ -19,7 +19,7 @@ import { browserStore, forgetSpreadsheetId, loadSpreadsheetId, saveSpreadsheetId
 import { showLotsPage, sheetLotsRepository, type LotsPageDeps } from './features/lots';
 import { allocate, sheetRoastsRepository, showRoastsPage } from './features/roasts';
 import { lotLosses, sheetCostsRepository, showPackagingPage, validateLoss } from './features/costs';
-import { sheetClientsRepository, showClientsPage } from './features/clients';
+import { sheetClientsRepository, sheetSpecialPricesRepository, showClientsPage } from './features/clients';
 import { showOfferPage } from './features/offers';
 import { sheetSalesRepository, showSalesPage } from './features/sales';
 import { sheetProductsRepository, showPlannerPage, showProductsPage, type PlannerStart } from './features/products';
@@ -501,6 +501,10 @@ function showClients(info: SpreadsheetInfo, fromClick = false, move: HistoryMove
       ...googleDeps(),
       repo: sheetClientsRepository(client, info.id),
       costs: sheetCostsRepository(client, info.id),
+      prices: sheetSpecialPricesRepository(client, info.id),
+      products: sheetProductsRepository(client, info.id),
+      lots: sheetLotsRepository(client, info.id),
+      roasts: sheetRoastsRepository(client, info.id),
       formOpened: () => record('client-form', currentScreen === 'client-form' ? 'replace' : 'push'),
       formClosed: () => {
         currentScreen = 'clients';
@@ -542,6 +546,8 @@ function showOffer(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
       ...googleDeps(),
       products: sheetProductsRepository(client, info.id),
       costs: sheetCostsRepository(client, info.id),
+      clients: sheetClientsRepository(client, info.id),
+      prices: sheetSpecialPricesRepository(client, info.id),
       openProducts: () => showProducts(info, true),
     },
     fromClick,

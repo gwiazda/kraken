@@ -1908,3 +1908,41 @@ body.is-dragging * {
 .field select {
   max-width: 100%;
 }
+
+/* ---- Clients: special prices (owner, 2026-11-20) ---- */
+.special-prices h3 {
+  margin-top: 0;
+}
+
+.deal-note {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--yellow);
+  font-weight: normal;
+}
+
+.deal-add {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.deal-add select,
+.deal-add input,
+.deal-table .inline-form input {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.deal-add input {
+  width: 6.5rem;
+}
+
+.deal-add .field-error {
+  flex-basis: 100%;
+  margin: 0;
+}
