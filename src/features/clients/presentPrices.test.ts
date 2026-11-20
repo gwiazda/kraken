@@ -13,15 +13,15 @@ describe('dealRows', () => {
   it('shows the deal next to what they would pay at their discount, and what one bag earns with the margin', () => {
     // 59 zł is 47,97 zł without VAT; −15 % = 40,77 → 41 zł. At 38 zł a 24,15 zł bag earns 13,85 zł: 36,4 % → 36 %.
     expect(dealRows([deal(2)], 'C1', [kenia], 150, 230, costs)).toMatchObject([
-      { product: 'KENIA', size: '250 g', price: '38 zł', insteadOf: 'instead of 41 zł at their −15 %', earn: 'earns 13,85 zł · margin 36 %', losing: false, retailChanged: '', unusable: '' },
+      { product: 'KENIA', size: '250 g', price: '38 zł', insteadOf: 'zamiast 41 zł przy ich rabacie −15 %', earn: 'zarabiasz 13,85 zł · marża 36 %', losing: false, retailChanged: '', unusable: '' },
     ]);
   });
 
   it('compares with the retail price without VAT for a client without a discount, and shows a loss', () => {
     // 20 zł on a 24,15 zł bag: loses 4,15 zł, −20,75 % → −21 %
     expect(dealRows([deal(2, { price_net_pln: '20' })], 'C1', [kenia], null, 230, costs)[0]).toMatchObject({
-      insteadOf: 'instead of 47,97 zł (retail without VAT)',
-      earn: 'loses 4,15 zł · margin −21 %',
+      insteadOf: 'zamiast 47,97 zł (cena detaliczna netto)',
+      earn: 'strata 4,15 zł · marża −21 %',
       losing: true,
     });
   });
@@ -36,8 +36,8 @@ describe('dealRows', () => {
       costs,
     );
     expect(rows.map((r) => [r.product, r.size, r.price, r.retailChanged, r.unusable, r.earn, r.insteadOf])).toEqual([
-      ['BURUNDI', '1 kg', '120,50 zł', '', 'the product has no 1 kg price now', '', ''],
-      ['KENIA', '250 g', '38 zł', 'Retail was 55 zł when this deal was set, now 59 zł.', '', 'earns 13,85 zł · margin 36 %', 'instead of 41 zł at their −15 %'],
+      ['BURUNDI', '1 kg', '120,50 zł', '', 'produkt nie ma teraz ceny za 1 kg', '', ''],
+      ['KENIA', '250 g', '38 zł', 'Cena detaliczna przy ustalaniu tej ceny: 55 zł, teraz 59 zł.', '', 'zarabiasz 13,85 zł · marża 36 %', 'zamiast 41 zł przy ich rabacie −15 %'],
     ]);
   });
 });

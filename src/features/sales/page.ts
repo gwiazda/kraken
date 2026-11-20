@@ -4,13 +4,15 @@
 // records how much went out; the owner takes the prices from the client's offer when issuing the invoice.
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
-import { localDate } from '../../core/dates';
+import { formatDate, localDate } from '../../core/dates';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
+  DATE_LABELS,
+  HEADING_LABELS,
   KIND_LABELS,
   STATUS_LABELS,
   changedSaleFields,
@@ -98,7 +100,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   }
 
   function load(note?: string, fromClick = false): void {
-    render(el('p', {}, busy('Loading sales…')));
+    render(el('p', {}, busy('Wczytuję sprzedaż…')));
     const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), deps.notes.load()]);
     (fromClick ? deps.withGoogle(all) : all())
       .then(([s, c, p, n]) => {
@@ -183,14 +185,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const normal = () => {
         extra.hidden = true;
         resetStatus();
-        actions.replaceChildren(button('Delete', ask, 'link'));
+        actions.replaceChildren(button('Usuń', ask, 'link'));
       };
       /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
       const statusCell = el('td', { class: `nowrap no-row-click c-status${sale.kind === 'sale' ? '' : ' c-empty'}` });
       if (sale.kind !== 'sale') statusCell.append(el('span', { class: 'muted' }, '—'));
       else {
-        const select = el('select', { class: `status-select status-${sale.status ?? ''}`, 'aria-label': `Invoice status: ${r.who}` });
-        if (sale.status === null) select.append(el('option', { value: '', selected: '' }, '? (cannot be read)'));
+        const select = el('select', { class: `status-select status-${sale.status ?? ''}`, 'aria-label': `Stan faktury: ${r.who}` });
+        if (sale.status === null) select.append(el('option', { value: '', selected: '' }, '? (nie da się odczytać)'));
         for (const [value, label] of Object.entries(STATUS_LABELS)) {
           const option = el('option', { value }, label);
           option.selected = value === sale.status;
@@ -202,7 +204,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             if (errorLine) errorLine.textContent = change.error;
             return;
           }
-          act(statusCell, 'Saving…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: ${STATUS_LABELS[to].toLowerCase()}.`, () => (filter = 'all'));
+          act(statusCell, 'Zapisuję…', () => deps.repo.update(sale, change.fields, deps.now()), `${r.who}: ${STATUS_LABELS[to].toLowerCase()}.`, () => (filter = 'all'));
         };
         resetStatus = () => (select.value = sale.status ?? '');
         const cancel = normal;
@@ -210,7 +212,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           const to = select.value as InvoiceStatus;
           if (!needsInvoiceDate(sale, to)) return save(to, '');
           // A small date box under the row: when the invoice was issued (the date it already has, or today).
-          const label = 'Invoice issued on';
+          const label = 'Faktura wystawiona dnia';
           const date = el('input', { type: 'date', class: 'input-short', 'aria-label': label });
           date.value = suggestedInvoiceDate(sale, today());
           const errorLine = el('span', { class: 'field-error', role: 'alert' });
@@ -219,8 +221,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             { class: 'inline-form', novalidate: '' },
             el('span', {}, label),
             date,
-            el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'),
-            button('Cancel', cancel, 'secondary'),
+            el('button', { type: 'submit', class: 'btn btn-primary' }, 'Zapisz'),
+            button('Anuluj', cancel, 'secondary'),
             errorLine,
           );
           form.addEventListener('submit', (event) => {
@@ -233,10 +235,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         statusCell.append(select);
       }
       const ask = () => {
-        const no = button('No', normal, 'secondary');
+        const no = button('Nie', normal, 'secondary');
         inline(
-          el('span', {}, `Delete this ${r.kindLabel.toLowerCase()} (${r.date})? It can be restored later. `),
-          button('Yes, delete', () => act(actions, 'Deleting…', () => deps.repo.remove(sale, deps.now()), 'Deleted. It can be restored under "Deleted entries".'), 'primary'),
+          el('span', {}, `Usunąć ten wpis (${r.kindLabel.toLowerCase()}, ${r.date})? Można go później przywrócić. `),
+          button('Tak, usuń', () => act(actions, 'Usuwam…', () => deps.repo.remove(sale, deps.now()), 'Usunięto. Można to przywrócić w „Usunięte wpisy”.'), 'primary'),
           ' ',
           no,
         );
@@ -259,11 +261,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el('td', { class: 'c-items' }, r.items),
           el('td', { class: 'num nowrap c-bags' }, r.bags || el('span', { class: 'muted' }, '—')),
           statusCell,
-          el('td', { class: `nowrap c-issued${r.invoiceDate ? '' : ' c-empty'}`, 'data-label': 'Issued on' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
+          el('td', { class: `nowrap c-issued${r.invoiceDate ? '' : ' c-empty'}`, 'data-label': 'Wystawiona' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
           actions,
         ),
           () => showForm(sale),
-          `Open the ${r.kindLabel.toLowerCase()} of ${r.date}${r.who ? ` (${r.who})` : ''}`,
+          `Otwórz: ${r.kindLabel.toLowerCase()}, ${r.date}${r.who ? ` (${r.who})` : ''}`,
           { asking: () => !extra.hidden },
         ),
         extra,
@@ -274,30 +276,30 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       el(
         'div',
         { class: 'page-head sales-head' },
-        el('h2', {}, 'Sales'),
-        el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
+        el('h2', {}, 'Sprzedaż'),
+        el('div', { class: 'head-actions' }, button('Dodaj', () => showForm(null))),
         // On a phone: always at hand in the corner, also after scrolling (owner, 2026-11-20: used at the cafés).
         (() => {
-          const fab = button('+ Add', () => showForm(null));
+          const fab = button('+ Dodaj', () => showForm(null));
           fab.classList.add('fab-add');
-          fab.title = 'Add a sale, sample or own use';
+          fab.title = 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek';
           return fab;
         })(),
       ),
-      el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid". Choosing "Invoice issued" asks for the date it was issued (today unless you change it); it shows under "Issued on". A mistake can be undone the same way. Samples and own use have no invoice.')),
+      el('p', { class: 'muted small' }, 'Co wyszło: sprzedaż klientom (z fakturą do wystawienia), zostawione próbki i torebki wzięte na własny użytek. ', infoTip('Sprzedaż zaczyna jako „Faktura do wystawienia”. Gdy faktura jest wystawiona w Fakturowni, wybierz „Faktura wystawiona” w kolumnie Faktura; gdy zostanie opłacona, wybierz „Opłacona”. Wybór „Faktura wystawiona” pyta o datę wystawienia (dziś, chyba że ją zmienisz); widać ją w kolumnie „Wystawiona”. Pomyłkę cofniesz tak samo. Próbki i wydania na własny użytek nie mają faktury.')),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
       el('p', { class: 'compare-sizes sales-filters small' }, ...FILTERS.flatMap(({ filter: f, label }) => [chip(f, label), ' '])),
       rows.length === 0
-        ? el('p', { class: 'muted' }, filter === 'to_issue' ? 'No invoices to issue.' : 'Nothing here yet.')
+        ? el('p', { class: 'muted' }, filter === 'to_issue' ? 'Brak faktur do wystawienia.' : 'Na razie nic tu nie ma.')
         : el(
             'div',
             { class: 'table-wrap' },
             el(
               'table',
               { class: 'data-table sales-table' },
-              el('thead', {}, el('tr', {}, ...['Date', 'What', 'Client / place', 'Products', 'Bags', 'Invoice', 'Issued on', ''].map((h) => el('th', { scope: 'col' }, h)))),
+              el('thead', {}, el('tr', {}, ...['Data', 'Rodzaj', 'Klient / miejsce', 'Produkty', 'Ilość', 'Faktura', 'Wystawiona', ''].map((h) => el('th', { scope: 'col' }, h)))),
               el('tbody', {}, ...rows.flatMap(row)),
             ),
           ),
@@ -309,14 +311,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     return el(
       'details',
       { class: 'small deleted-products' },
-      el('summary', {}, `Deleted entries (${deleted.length})`),
+      el('summary', {}, `Usunięte wpisy (${deleted.length})`),
       el(
         'ul',
         {},
         ...deleted.map((s) => {
           const slot = el('span', {});
-          slot.append(button('Restore', () => act(slot, 'Restoring…', () => deps.repo.restore(s, deps.now()), 'Restored.'), 'link'));
-          return el('li', {}, `${s.date} · ${s.kind ? KIND_LABELS[s.kind] : '?'} · ${s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason} `, slot);
+          slot.append(button('Przywróć', () => act(slot, 'Przywracam…', () => deps.repo.restore(s, deps.now()), 'Przywrócono.'), 'link'));
+          return el('li', {}, `${formatDate(s.date)} · ${s.kind ? KIND_LABELS[s.kind] : '?'} · ${s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason} `, slot);
         }),
       ),
     );
@@ -336,7 +338,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const banner = el('div', { class: 'form-banner' });
 
     // Who and why: a sale needs a client; a sample a client or a place; own use a reason.
-    const kindHolder = el('div', { class: 'kind-choice', role: 'radiogroup', 'aria-label': 'What it was' });
+    const kindHolder = el('div', { class: 'kind-choice', role: 'radiogroup', 'aria-label': 'Rodzaj wpisu' });
     const whoHolder = el('div', { class: 'fields' });
     const linesHolder = el('div', {});
     const totalLine = el('p', { class: 'sale-total' });
@@ -371,9 +373,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const fields: Node[] = [];
       if (form.kind !== 'own_use') {
         const select = el('select', { id: 'sale-client' });
-        select.append(el('option', { value: '' }, form.kind === 'sale' ? 'Choose a client…' : 'Not a client (type the place)'));
+        select.append(el('option', { value: '' }, form.kind === 'sale' ? 'Wybierz klienta…' : 'Nie klient (wpisz miejsce)'));
         for (const c of activeClients) select.append(el('option', { value: c.id }, c.name));
-        if (form.clientId && !activeClients.some((c) => c.id === form.clientId)) select.append(el('option', { value: form.clientId }, `${clientName(form.clientId) ?? '?'} (deleted)`));
+        if (form.clientId && !activeClients.some((c) => c.id === form.clientId)) select.append(el('option', { value: form.clientId }, `${clientName(form.clientId) ?? '?'} (usunięty)`));
         select.value = form.clientId;
         select.addEventListener('change', () => {
           form.clientId = select.value;
@@ -383,48 +385,48 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el(
             'div',
             { class: 'field' },
-            el('div', { class: 'label-row' }, el('label', { for: select.id }, form.kind === 'sale' ? 'Client *' : 'Client')),
+            el('div', { class: 'label-row' }, el('label', { for: select.id }, form.kind === 'sale' ? 'Klient *' : 'Klient')),
             select,
           ),
         );
       }
       if (form.kind === 'sample' && form.clientId === '') {
-        const place = el('input', { id: 'sale-place', type: 'text', autocomplete: 'off', placeholder: 'e.g. Café Nowa, Kazimierz' });
+        const place = el('input', { id: 'sale-place', type: 'text', autocomplete: 'off', placeholder: 'np. Café Nowa, Kazimierz' });
         place.value = form.place;
         place.addEventListener('input', () => (form.place = place.value));
-        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: place.id }, 'Where was it left? *')), place));
+        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: place.id }, 'Gdzie została? *')), place));
       }
       if (form.kind === 'own_use') {
-        const reason = el('input', { id: 'sale-reason', type: 'text', autocomplete: 'off', placeholder: 'e.g. tasting at home' });
+        const reason = el('input', { id: 'sale-reason', type: 'text', autocomplete: 'off', placeholder: 'np. degustacja w domu' });
         reason.value = form.reason;
         reason.addEventListener('input', () => (form.reason = reason.value));
-        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: reason.id }, 'Why? *')), reason));
+        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: reason.id }, 'Po co? *')), reason));
       }
-      whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, `Date of the ${KIND_LABELS[form.kind].toLowerCase()} *`)), date), ...fields);
+      whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, `${DATE_LABELS[form.kind]} *`)), date), ...fields);
     };
 
     const showTotal = () => {
-      const text = bagsText(form.lines.map((l) => ({ bags: typedBags(l.bags), free: form.kind === 'sale' && l.free })));
-      totalLine.replaceChildren(...(text ? ['Together: ', el('strong', {}, text)] : []));
+      const text = bagsText(form.lines.map((l) => ({ bags: typedBags(l.bags), free: l.free })), form.kind);
+      totalLine.replaceChildren(...(text ? ['Razem: ', el('strong', {}, text)] : []));
     };
 
     const renderLines = () => {
       const sale_ = form.kind === 'sale'; // free bags only matter for a sale (not invoiced)
       const sample = form.kind === 'sample';
       const rows = form.lines.map((line, i) => {
-        const product = el('select', { 'aria-label': `Line ${i + 1}: product` });
-        product.append(el('option', { value: '' }, 'Choose a product…'));
+        const product = el('select', { 'aria-label': `Pozycja ${i + 1}: produkt` });
+        product.append(el('option', { value: '' }, 'Wybierz produkt…'));
         for (const p of activeProducts) product.append(el('option', { value: p.id }, p.name));
-        if (line.productId && !activeProducts.some((p) => p.id === line.productId)) product.append(el('option', { value: line.productId }, `${productName(line.productId) ?? '?'} (deleted)`));
+        if (line.productId && !activeProducts.some((p) => p.id === line.productId)) product.append(el('option', { value: line.productId }, `${productName(line.productId) ?? '?'} (usunięty)`));
         product.value = line.productId;
         // A sample is any amount in grams (e.g. 150 g); a sale or own use is one of the bag sizes.
         const size: HTMLInputElement | HTMLSelectElement = sample
-          ? el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Line ${i + 1}: grams`, autocomplete: 'off' })
-          : el('select', { 'aria-label': `Line ${i + 1}: bag size` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
+          ? el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: gramy`, autocomplete: 'off' })
+          : el('select', { 'aria-label': `Pozycja ${i + 1}: wielkość torebki` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
         size.value = line.grams;
-        const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Line ${i + 1}: number of bags`, autocomplete: 'off' });
+        const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: ${sample ? 'liczba opakowań' : 'liczba torebek'}`, autocomplete: 'off' });
         bags.value = line.bags;
-        const free = el('input', { type: 'checkbox', 'aria-label': `Line ${i + 1}: free` });
+        const free = el('input', { type: 'checkbox', 'aria-label': `Pozycja ${i + 1}: gratis` });
         free.checked = line.free;
         product.addEventListener('change', () => {
           line.productId = product.value;
@@ -441,7 +443,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           showTotal();
         });
         const remove = button(
-          'Remove',
+          'Usuń',
           () => {
             form.lines.splice(i, 1);
             renderLines();
@@ -452,9 +454,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           'tr',
           {},
           el('td', { class: 'l-product' }, product),
-          el('td', { class: 'nowrap l-size', 'data-label': sample ? 'Amount' : 'Size' }, size, ...(sample ? [' g'] : [])),
-          el('td', { class: 'l-bags', 'data-label': sample ? 'Packs' : 'Bags' }, bags),
-          ...(sale_ ? [el('td', { class: 'nowrap l-free' }, el('label', { class: 'free-label' }, free, ' free'))] : []),
+          el('td', { class: 'nowrap l-size', 'data-label': sample ? 'Gramatura' : 'Wielkość' }, size, ...(sample ? [' g'] : [])),
+          el('td', { class: 'l-bags', 'data-label': sample ? 'Opakowania' : 'Torebki' }, bags),
+          ...(sale_ ? [el('td', { class: 'nowrap l-free' }, el('label', { class: 'free-label' }, free, ' gratis'))] : []),
           el('td', { class: 'l-remove' }, form.lines.length > 1 ? remove : ''),
         );
       });
@@ -471,11 +473,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
               el(
                 'tr',
                 {},
-                el('th', { scope: 'col' }, 'Product'),
-                el('th', { scope: 'col' }, sample ? 'Amount ' : 'Size', ...(sample ? [infoTip('Samples can be any amount, e.g. 100 or 150 grams. Sales and own use are in the bag sizes.')] : [])),
-                el('th', { scope: 'col' }, sample ? 'Packs' : 'Bags'),
+                el('th', { scope: 'col' }, 'Produkt'),
+                el('th', { scope: 'col' }, sample ? 'Gramatura ' : 'Wielkość', ...(sample ? [infoTip('Próbka może mieć dowolną gramaturę, np. 100 albo 150 g. Sprzedaż i wydania na własny użytek są w standardowych torebkach.')] : [])),
+                el('th', { scope: 'col' }, sample ? 'Opakowania' : 'Torebki'),
                 ...(sale_
-                  ? [el('th', { scope: 'col' }, 'Free ', infoTip('Tick it for bags given for free (gratis): they are not invoiced.'))]
+                  ? [el('th', { scope: 'col' }, 'Gratis ', infoTip('Zaznacz dla torebek wydanych gratis: nie trafiają na fakturę.'))]
                   : []),
                 el('th', { scope: 'col' }, ''),
               ),
@@ -484,7 +486,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ),
         ),
         button(
-          'Add another product',
+          'Dodaj kolejny produkt',
           () => {
             form.lines.push(emptyLine());
             renderLines();
@@ -495,20 +497,20 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       showTotal();
     };
 
-    const label = sale ? 'Save changes' : 'Save';
+    const label = sale ? 'Zapisz zmiany' : 'Zapisz';
     const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
-    const cancelButton = button('Cancel', () => showList(), 'secondary');
+    const cancelButton = button('Anuluj', () => showList(), 'secondary');
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
       cancelButton.disabled = working;
-      saveButton.replaceChildren(working ? busy('Saving…') : label);
+      saveButton.replaceChildren(working ? busy('Zapisuję…') : label);
     };
     /** The entry once saved: if the lines then fail, a retry saves only the lines (never a second entry). */
     let savedId: string | null = null;
 
     function save(): void {
       if (noteSaving) {
-        banner.replaceChildren(message('Wait a moment: a follow-up note is being saved.', 'error'));
+        banner.replaceChildren(message('Chwila: zapisuje się notatka.', 'error'));
         return;
       }
       const { clientIds, productIds } = choosableIds(
@@ -521,7 +523,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       if (!result.ok) {
         const e = result.errors;
         errorBox.replaceChildren(...[e.date, e.client, e.place, e.reason, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
-        banner.replaceChildren(message('Please fix what is listed below.', 'error'));
+        banner.replaceChildren(message('Popraw to, co jest wymienione poniżej.', 'error'));
         return;
       }
       errorBox.replaceChildren();
@@ -560,7 +562,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           formSaving = false;
         })
         .then(() => {
-          if (root.isConnected) load('Saved.');
+          if (root.isConnected) load('Zapisano.');
         })
         .catch((error: unknown) => {
           setBusy(false);
@@ -576,10 +578,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const formNode = el(
       'form',
       { class: 'lot-form', novalidate: '' },
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'What was it?'), kindHolder),
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'When and who'), whoHolder),
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Products'), linesHolder, totalLine),
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Notes'), el('div', { class: 'field field-wide' }, el('label', { for: notes.id, class: 'visually-hidden' }, 'Notes'), notes)),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Co to było?'), kindHolder),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Kiedy i kto'), whoHolder),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Produkty'), linesHolder, totalLine),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Uwagi'), el('div', { class: 'field field-wide' }, el('label', { for: notes.id, class: 'visually-hidden' }, 'Uwagi'), notes)),
       errorBox,
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );
@@ -604,10 +606,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     renderWho();
     renderLines();
     render(
-      el('p', { class: 'small back-link' }, button('← All sales', () => showList(), 'link')),
-      el('h2', {}, sale ? `Edit ${sale.kind ? KIND_LABELS[sale.kind].toLowerCase() : 'entry'} of ${sale.date}` : 'Add a sale, sample or own use'),
+      el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
+      el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
       ...(sale ? [el('dl', { class: 'product-details sale-facts' }, ...saleFacts(sale).flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]))] : []),
-      ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('The invoice for this sale is already issued: if you change the products, correct the invoice in Fakturownia too.', 'error')] : []),
+      ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),
       banner,
       formNode,
       ...(notesBox ? [notesBox] : []),

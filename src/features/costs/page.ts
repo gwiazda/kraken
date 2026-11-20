@@ -153,7 +153,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       };
       const ask = () => {
         asking = true;
-        actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Yes', remove), ' ', button('No', normal, 'secondary'));
+        actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Tak', remove), ' ', button('Nie', normal, 'secondary'));
       };
       normal();
       return clickableRow(tr, edit, `Change the discount −${formatPercent(d.tenths)}`, { asking: () => asking });
@@ -365,7 +365,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         `Delete ${cost.item}? `,
         button('Yes', () => save(actions, 'Deleting…', () => deps.repo.removeBagCost(cost, deps.now()), `${cost.item} (${view.label}) deleted.`)),
         ' ',
-        button('No', normal, 'secondary'),
+        button('Nie', normal, 'secondary'),
       );
     };
     normal();

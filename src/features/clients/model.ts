@@ -61,10 +61,10 @@ export function clientFromFields(fields: Fields, row: number): Client {
   const name = text(fields, 'name');
   const problems: string[] = [];
   const nip = text(fields, 'nip');
-  if (nip !== '' && !isValidNip(nip)) problems.push(`The NIP "${nip}" of ${name || `row ${row}`} is not a valid Polish tax ID. Click the client to correct it.`);
+  if (nip !== '' && !isValidNip(nip)) problems.push(`NIP „${nip}” (${name || `wiersz ${row}`}) nie jest prawidłowym numerem NIP. Kliknij klienta, aby go poprawić.`);
   const discountText = text(fields, 'discount_percent');
   const discount = discountText === '' ? null : discountTenths(discountText);
-  if (discountText !== '' && discount === null) problems.push(`The discount "${discountText}" of ${name || `row ${row}`} cannot be read. Click the client to correct it.`);
+  if (discountText !== '' && discount === null) problems.push(`Nie da się odczytać rabatu „${discountText}” (${name || `wiersz ${row}`}). Kliknij klienta, aby go poprawić.`);
   return {
     id: text(fields, 'id'),
     row,
@@ -128,19 +128,19 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function validateClientForm(form: ClientForm, others: readonly Client[]): { ok: true; fields: Record<string, string> } | { ok: false; errors: ClientFormErrors } {
   const errors: ClientFormErrors = {};
   const name = form.name.trim().replace(/\s+/g, ' ');
-  if (name === '') errors.name = 'Enter the name you use for this client, e.g. Café Nowa.';
-  else if (name.length > 100) errors.name = 'At most 100 characters.';
-  else if (others.some((c) => sameName(c.name) === sameName(name))) errors.name = 'Another client already has this name.';
+  if (name === '') errors.name = 'Wpisz nazwę, której używasz dla tego klienta, np. Café Nowa.';
+  else if (name.length > 100) errors.name = 'Najwyżej 100 znaków.';
+  else if (others.some((c) => sameName(c.name) === sameName(name))) errors.name = 'Inny klient ma już taką nazwę.';
   const nip = cleanNip(form.nip);
-  if (nip !== '' && !isValidNip(nip)) errors.nip = 'This is not a valid NIP: 10 digits, e.g. 123-456-32-18. Check it, or leave it empty.';
-  else if (nip !== '' && others.some((c) => cleanNip(c.nip) === nip)) errors.nip = 'Another client already has this NIP.';
+  if (nip !== '' && !isValidNip(nip)) errors.nip = 'To nie jest prawidłowy NIP: 10 cyfr, np. 123-456-32-18. Sprawdź go albo zostaw puste.';
+  else if (nip !== '' && others.some((c) => cleanNip(c.nip) === nip)) errors.nip = 'Inny klient ma już ten NIP.';
   const email = form.email.trim();
-  if (email !== '' && !EMAIL.test(email)) errors.email = 'Enter an email address, e.g. kawiarnia@example.com, or leave it empty.';
+  if (email !== '' && !EMAIL.test(email)) errors.email = 'Wpisz adres e-mail, np. kawiarnia@example.com, albo zostaw puste.';
   const registeredName = form.registeredName.trim().replace(/\s+/g, ' ');
-  if (registeredName.length > 200) errors.registeredName = 'At most 200 characters.';
+  if (registeredName.length > 200) errors.registeredName = 'Najwyżej 200 znaków.';
   const keep = form.discount === KEEP_DISCOUNT;
   const discount = form.discount === '' || keep ? null : Number(form.discount);
-  if (discount !== null && !(Number.isInteger(discount) && discount >= 10 && discount < 1000)) errors.discount = 'Choose a discount from the list.';
+  if (discount !== null && !(Number.isInteger(discount) && discount >= 10 && discount < 1000)) errors.discount = 'Wybierz rabat z listy.';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   const fields: Record<string, string> = { name, nip, email, registered_name: registeredName };
   if (!keep) fields['discount_percent'] = discount === null ? '' : percentText(discount); // "keep": the cell is not written

@@ -47,10 +47,10 @@ export function specialPriceFromFields(fields: Fields, row: number): SpecialPric
   const problems: string[] = [];
   const gramsCell = text(fields, 'bag_size_g');
   const grams = Number(gramsCell);
-  if (!isBagSize(grams)) problems.push(`Row ${row} of the Special prices tab has the bag size "${gramsCell}", which is not 250, 500 or 1000 g.`);
+  if (!isBagSize(grams)) problems.push(`Wiersz ${row} zakładki „Special prices” ma wielkość torebki „${gramsCell}”, a powinno być 250, 500 albo 1000 g.`);
   const priceCell = text(fields, 'price_net_pln');
   const netGrosze = money(priceCell);
-  if (netGrosze === null) problems.push(`Row ${row} of the Special prices tab has the price "${priceCell}", which cannot be read, so that deal is not used.`);
+  if (netGrosze === null) problems.push(`Wiersz ${row} zakładki „Special prices” ma cenę „${priceCell}”, której nie da się odczytać, więc ta cena nie jest używana.`);
   return {
     id: text(fields, 'id'),
     row,
@@ -75,10 +75,10 @@ export const dealsOf = (deals: readonly SpecialPrice[], clientId: string) => dea
  * more, or a cell cannot be read. It comes back into use when the product (or the size's price) comes back.
  */
 export function dealUnusable(deal: SpecialPrice, product: DealProduct | undefined): string {
-  if (deal.netGrosze === null || deal.grams === null) return 'a cell cannot be read';
-  if (!product) return 'the product is not in the list any more';
-  if (product.deletedAt !== '') return 'the product is deleted';
-  if (product.prices[deal.grams] === undefined) return `the product has no ${formatBagSize(deal.grams)} price now`;
+  if (deal.netGrosze === null || deal.grams === null) return 'nie da się odczytać komórki';
+  if (!product) return 'produktu nie ma już na liście';
+  if (product.deletedAt !== '') return 'produkt jest usunięty';
+  if (product.prices[deal.grams] === undefined) return `produkt nie ma teraz ceny za ${formatBagSize(deal.grams)}`;
   return '';
 }
 
@@ -120,15 +120,15 @@ export function validateDeal(
 ): { ok: true; fields: Record<string, string> } | { ok: false; errors: DealErrors } {
   const errors: DealErrors = {};
   const product = products.find((p) => p.id === form.productId && p.deletedAt === '');
-  if (!product) errors.productId = 'Choose a product.';
+  if (!product) errors.productId = 'Wybierz produkt.';
   const grams = Number(form.grams);
   const size = isBagSize(grams) ? grams : null;
-  if (size === null) errors.grams = 'Choose a bag size.';
-  else if (product && product.prices[size] === undefined) errors.grams = `${product.name} has no ${formatBagSize(size)} price yet: set it on the Products page first.`;
+  if (size === null) errors.grams = 'Wybierz wielkość torebki.';
+  else if (product && product.prices[size] === undefined) errors.grams = `${product.name} nie ma jeszcze ceny za ${formatBagSize(size)}: najpierw ustaw ją w zakładce Produkty.`;
   const price = parseMoney(form.price.trim());
-  if (typeof price !== 'number' || price <= 0) errors.price = 'Enter the price without VAT, e.g. 38 or 38,50.';
+  if (typeof price !== 'number' || price <= 0) errors.price = 'Wpisz cenę netto (bez VAT), np. 38 albo 38,50.';
   if (product && size !== null && others.some((d) => d.productId === product.id && d.grams === size)) {
-    errors.productId = `There is already a price for ${product.name} ${formatBagSize(size)}: change that one.`;
+    errors.productId = `Jest już cena dla ${product.name} ${formatBagSize(size)}: zmień tamtą.`;
   }
   if (Object.keys(errors).length > 0 || !product || size === null || typeof price !== 'number') return { ok: false, errors };
   return {
@@ -150,7 +150,7 @@ export function validateDeal(
  */
 export function dealPriceChange(deal: SpecialPrice, price: string, product: DealProduct | undefined): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
   const grosze = parseMoney(price.trim());
-  if (typeof grosze !== 'number' || grosze <= 0) return { ok: false, error: 'Enter the price without VAT, e.g. 38 or 38,50.' };
+  if (typeof grosze !== 'number' || grosze <= 0) return { ok: false, error: 'Wpisz cenę netto (bez VAT), np. 38 albo 38,50.' };
   const retail = product && product.deletedAt === '' && deal.grams !== null ? product.prices[deal.grams] : undefined;
   return { ok: true, fields: { price_net_pln: moneyText(grosze), ...(retail === undefined ? {} : { retail_gross_pln_at_deal: moneyText(retail) }) } };
 }

@@ -25,8 +25,14 @@ export const SALE_KINDS: readonly SaleKind[] = ['sale', 'sample', 'own_use'];
 export type InvoiceStatus = 'to_issue' | 'issued' | 'paid';
 
 /** For the screen. */
-export const KIND_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Sale', sample: 'Sample', own_use: 'Own use' };
-export const STATUS_LABELS: Readonly<Record<InvoiceStatus, string>> = { to_issue: 'Invoice to be issued', issued: 'Invoice issued', paid: 'Paid' };
+export const KIND_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Sprzedaż', sample: 'Próbka', own_use: 'Na własny użytek' };
+/** "Data sprzedaży", "Data próbki": the label of an entry's date (Polish needs the right form of the word). */
+export const DATE_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Data sprzedaży', sample: 'Data próbki', own_use: 'Data wydania' };
+
+/** The heading of an entry's page: "Sprzedaż z 20.11.2026", "Wydanie na własny użytek z 20.11.2026". */
+export const HEADING_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Sprzedaż', sample: 'Próbka', own_use: 'Wydanie na własny użytek' };
+
+export const STATUS_LABELS: Readonly<Record<InvoiceStatus, string>> = { to_issue: 'Faktura do wystawienia', issued: 'Faktura wystawiona', paid: 'Opłacona' };
 
 export interface Sale {
   readonly id: string;
@@ -76,12 +82,12 @@ export function saleFromFields(fields: Fields, row: number): Sale {
   const problems: string[] = [];
   const kindText = text(fields, 'kind');
   const kind = (SALE_KINDS as readonly string[]).includes(kindText) ? (kindText as SaleKind) : null;
-  if (kind === null) problems.push(`Row ${row} of the Sales tab has the kind "${kindText}", which is not sale, sample or own_use.`);
+  if (kind === null) problems.push(`Wiersz ${row} zakładki „Sales” ma rodzaj „${kindText}”, a powinien być sale, sample albo own_use.`);
   const statusText = text(fields, 'invoice_status');
   const status = statusText === 'to_issue' || statusText === 'issued' || statusText === 'paid' ? statusText : null;
-  if (kind === 'sale' && status === null) problems.push(`Row ${row} of the Sales tab has the invoice status "${statusText}", which Kraken cannot read.`);
+  if (kind === 'sale' && status === null) problems.push(`Wiersz ${row} zakładki „Sales” ma stan faktury „${statusText}”, którego Kraken nie umie odczytać.`);
   const date = text(fields, 'date');
-  if (!isValidDate(date)) problems.push(`Row ${row} of the Sales tab has the date "${date}", which is not a date (YYYY-MM-DD).`);
+  if (!isValidDate(date)) problems.push(`Wiersz ${row} zakładki „Sales” ma datę „${date}”, która nie jest datą (RRRR-MM-DD).`);
   return {
     id: text(fields, 'id'),
     row,
@@ -115,8 +121,8 @@ export function lineFromFields(fields: Fields, row: number): SaleLine {
   const grams = Number(text(fields, 'bag_size_g'));
   const bags = Number(text(fields, 'bags'));
   const problems: string[] = [];
-  if (!isLineWeight(grams)) problems.push(`Row ${row} of the Sale lines tab has the amount "${text(fields, 'bag_size_g')}", which is not a weight in grams (1 to ${MAX_SAMPLE_GRAMS}).`);
-  if (!(Number.isInteger(bags) && bags > 0)) problems.push(`Row ${row} of the Sale lines tab has "${text(fields, 'bags')}" bags, which is not a whole number; it is not counted.`);
+  if (!isLineWeight(grams)) problems.push(`Wiersz ${row} zakładki „Sale lines” ma gramaturę „${text(fields, 'bag_size_g')}”, która nie jest wagą w gramach (od 1 do ${MAX_SAMPLE_GRAMS}).`);
+  if (!(Number.isInteger(bags) && bags > 0)) problems.push(`Wiersz ${row} zakładki „Sale lines” ma liczbę torebek „${text(fields, 'bags')}”, która nie jest liczbą całkowitą; nie jest liczona.`);
   return {
     id: text(fields, 'id'),
     row,
@@ -142,7 +148,7 @@ export function lineSizeProblems(sales: readonly Sale[], lines: readonly SaleLin
   const kindOf = new Map(sales.map((s) => [s.id, s.kind]));
   return lines
     .filter((l) => l.deletedAt === '' && l.grams !== null && !isBagSize(l.grams) && kindOf.has(l.saleId) && kindOf.get(l.saleId) !== 'sample')
-    .map((l) => `Row ${l.row} of the Sale lines tab has ${l.grams} g, but only samples can be any amount: open the entry and choose a bag size.`);
+    .map((l) => `Wiersz ${l.row} zakładki „Sale lines” ma ${l.grams} g, a dowolną gramaturę mogą mieć tylko próbki: otwórz wpis i wybierz wielkość torebki.`);
 }
 
 /** A sale's active lines, in their order. */
@@ -229,25 +235,25 @@ export function validateSale(
   productIds: readonly string[],
 ): { ok: true; fields: Record<string, string>; lines: Record<string, string>[] } | { ok: false; errors: SaleErrors } {
   const errors: SaleErrors = { line: form.lines.map(() => undefined) };
-  if (!isValidDate(form.date)) errors.date = 'Enter the date, e.g. 2026-11-19.';
+  if (!isValidDate(form.date)) errors.date = 'Wybierz datę.';
   const place = form.place.trim().replace(/\s+/g, ' ');
   const reason = form.reason.trim().replace(/\s+/g, ' ');
-  if (form.kind === 'sale' && !clientIds.includes(form.clientId)) errors.client = 'Choose the client (add new ones on the Clients page).';
-  if (form.kind === 'sample' && form.clientId === '' && place === '') errors.place = 'Choose a client or type where the sample was left, e.g. Café Nowa, Kazimierz.';
-  if (form.kind === 'sample' && form.clientId !== '' && !clientIds.includes(form.clientId)) errors.client = 'Choose a client from the list.';
-  if (form.kind === 'own_use' && reason === '') errors.reason = 'Say why, e.g. for a tasting at home.';
-  if (place.length > 200) errors.place = 'At most 200 characters.';
-  if (reason.length > 200) errors.reason = 'At most 200 characters.';
-  if (form.notes.length > 2000) errors.notes = 'At most 2000 characters.';
-  if (form.lines.length === 0) errors.lines = 'Add at least one product.';
+  if (form.kind === 'sale' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta (nowych dodasz w zakładce Klienci).';
+  if (form.kind === 'sample' && form.clientId === '' && place === '') errors.place = 'Wybierz klienta albo wpisz, gdzie została próbka, np. Café Nowa, Kazimierz.';
+  if (form.kind === 'sample' && form.clientId !== '' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta z listy.';
+  if (form.kind === 'own_use' && reason === '') errors.reason = 'Napisz, po co, np. na degustację w domu.';
+  if (place.length > 200) errors.place = 'Najwyżej 200 znaków.';
+  if (reason.length > 200) errors.reason = 'Najwyżej 200 znaków.';
+  if (form.notes.length > 2000) errors.notes = 'Najwyżej 2000 znaków.';
+  if (form.lines.length === 0) errors.lines = 'Dodaj co najmniej jeden produkt.';
   const lines = form.lines.map((line, i) => {
     const bags = typedBags(line.bags);
     const grams = Number(line.grams);
     const problems: string[] = [];
-    if (!productIds.includes(line.productId)) problems.push('choose the product');
-    if (form.kind === 'sample' ? !isLineWeight(grams) : !isBagSize(grams)) problems.push(form.kind === 'sample' ? `enter the amount in grams (1 to ${MAX_SAMPLE_GRAMS})` : 'choose the bag size');
-    if (bags === null) problems.push(form.kind === 'sample' ? 'enter the number of packs (1 to 999)' : 'enter the number of bags (1 to 999)');
-    if (problems.length > 0) errors.line[i] = `Line ${i + 1}: ${problems.join(', ')}.`;
+    if (!productIds.includes(line.productId)) problems.push('wybierz produkt');
+    if (form.kind === 'sample' ? !isLineWeight(grams) : !isBagSize(grams)) problems.push(form.kind === 'sample' ? `wpisz gramaturę w gramach (od 1 do ${MAX_SAMPLE_GRAMS})` : 'wybierz wielkość torebki');
+    if (bags === null) problems.push(form.kind === 'sample' ? 'wpisz liczbę opakowań (od 1 do 999)' : 'wpisz liczbę torebek (od 1 do 999)');
+    if (problems.length > 0) errors.line[i] = `Pozycja ${i + 1}: ${problems.join(', ')}.`;
     return {
       position: String(i + 1),
       product_id: line.productId,
@@ -326,7 +332,7 @@ export const needsInvoiceDate = (sale: StatusOf, to: InvoiceStatus): boolean => 
 export function statusChange(sale: StatusOf, to: InvoiceStatus, date: string): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
   if (to === 'to_issue') return { ok: true, fields: { invoice_status: 'to_issue', invoice_date: '' } };
   const invoiceDate = to === 'paid' ? knownInvoiceDate(sale) || date : date;
-  if (!isValidDate(invoiceDate)) return { ok: false, error: 'Enter the date the invoice was issued.' };
+  if (!isValidDate(invoiceDate)) return { ok: false, error: 'Wpisz datę wystawienia faktury.' };
   return { ok: true, fields: { invoice_status: to, invoice_date: invoiceDate } };
 }
 

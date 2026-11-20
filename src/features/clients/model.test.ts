@@ -29,8 +29,8 @@ describe('reading a client', () => {
 
   it('says which cells it cannot read', () => {
     expect(client(4, { nip: '123', discount_percent: '0.15' }).problems).toEqual([
-      'The NIP "123" of Café Nowa is not a valid Polish tax ID. Click the client to correct it.',
-      'The discount "0.15" of Café Nowa cannot be read. Click the client to correct it.',
+      'NIP „123” (Café Nowa) nie jest prawidłowym numerem NIP. Kliknij klienta, aby go poprawić.',
+      'Nie da się odczytać rabatu „0.15” (Café Nowa). Kliknij klienta, aby go poprawić.',
     ]);
   });
 
@@ -54,18 +54,18 @@ describe('the client form', () => {
     expect(validateClientForm({ name: '', nip: '1234567890', email: 'not an email', registeredName: '', discount: '7' }, [])).toEqual({
       ok: false,
       errors: {
-        name: 'Enter the name you use for this client, e.g. Café Nowa.',
-        nip: 'This is not a valid NIP: 10 digits, e.g. 123-456-32-18. Check it, or leave it empty.',
-        email: 'Enter an email address, e.g. kawiarnia@example.com, or leave it empty.',
-        discount: 'Choose a discount from the list.',
+        name: 'Wpisz nazwę, której używasz dla tego klienta, np. Café Nowa.',
+        nip: 'To nie jest prawidłowy NIP: 10 cyfr, np. 123-456-32-18. Sprawdź go albo zostaw puste.',
+        email: 'Wpisz adres e-mail, np. kawiarnia@example.com, albo zostaw puste.',
+        discount: 'Wybierz rabat z listy.',
       },
     });
   });
 
   it('never adds the same client twice (name or NIP already used, deleted ones too)', () => {
     const existing = [client(2, { deleted_at: '2026-11-19T10:00:00.000Z' })];
-    expect(validateClientForm({ ...emptyClientForm(), name: 'café nowa' }, existing)).toMatchObject({ ok: false, errors: { name: 'Another client already has this name.' } });
-    expect(validateClientForm({ ...emptyClientForm(), name: 'Other', nip: '9876543210' }, existing)).toMatchObject({ ok: false, errors: { nip: 'Another client already has this NIP.' } });
+    expect(validateClientForm({ ...emptyClientForm(), name: 'café nowa' }, existing)).toMatchObject({ ok: false, errors: { name: 'Inny klient ma już taką nazwę.' } });
+    expect(validateClientForm({ ...emptyClientForm(), name: 'Other', nip: '9876543210' }, existing)).toMatchObject({ ok: false, errors: { nip: 'Inny klient ma już ten NIP.' } });
   });
 
   it('keeps a discount cell it cannot read when something else is edited (never clears it by accident)', () => {
@@ -81,7 +81,7 @@ describe('the client form', () => {
   });
 
   it('compares names without extra spaces or capitals', () => {
-    expect(validateClientForm({ ...emptyClientForm(), name: 'Café Nowa' }, [client(2, { name: 'Café  Nowa ' })])).toMatchObject({ ok: false, errors: { name: 'Another client already has this name.' } });
+    expect(validateClientForm({ ...emptyClientForm(), name: 'Café Nowa' }, [client(2, { name: 'Café  Nowa ' })])).toMatchObject({ ok: false, errors: { name: 'Inny klient ma już taką nazwę.' } });
   });
 
   it('an edit writes only the columns that changed', () => {

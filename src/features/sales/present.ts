@@ -2,19 +2,20 @@
 // what, how many bags) and the filters with their counts. No prices (owner, 2026-11-19).
 
 import { formatBagSize } from '../../domain/bagSizes';
-import { localDate } from '../../core/dates';
-import { KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
+import { formatDate, localDate } from '../../core/dates';
+import { count } from '../../core/polish';
+import { DATE_LABELS, KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
 
 export type SalesFilter = 'all' | InvoiceStatus | 'sample' | 'own_use';
 
 /** The filter buttons, "All" first (owner, 2026-11-19). */
 export const FILTERS: readonly { filter: SalesFilter; label: string }[] = [
-  { filter: 'all', label: 'All' },
-  { filter: 'to_issue', label: 'Invoice to be issued' },
-  { filter: 'issued', label: 'Invoice issued' },
-  { filter: 'paid', label: 'Paid' },
-  { filter: 'sample', label: 'Samples' },
-  { filter: 'own_use', label: 'Own use' },
+  { filter: 'all', label: 'Wszystkie' },
+  { filter: 'to_issue', label: 'Faktura do wystawienia' },
+  { filter: 'issued', label: 'Faktura wystawiona' },
+  { filter: 'paid', label: 'Opłacone' },
+  { filter: 'sample', label: 'Próbki' },
+  { filter: 'own_use', label: 'Na własny użytek' },
 ];
 
 const matches = (sale: Sale, filter: SalesFilter) =>
@@ -54,37 +55,41 @@ export function saleRows(
     .map((sale): SaleRow => {
       const own = linesOf(lines, sale.id);
       const items = own
-        .map((l) => `${productName(l.productId) ?? '?'} ${l.grams === null ? '?' : formatBagSize(l.grams)} × ${l.bags ?? '?'}${l.free ? ' (free)' : ''}`)
+        .map((l) => `${productName(l.productId) ?? '?'} ${l.grams === null ? '?' : formatBagSize(l.grams)} × ${l.bags ?? '?'}${l.free ? ' (gratis)' : ''}`)
         .join(', ');
       const who =
         sale.kind === 'own_use'
           ? sale.reason
           : sale.clientId
-            ? (clientName(sale.clientId) ?? '? (client not found)')
+            ? (clientName(sale.clientId) ?? '? (nie ma takiego klienta)')
             : sale.place
-              ? `${sale.place} (not a client)`
+              ? `${sale.place} (nie jest klientem)`
               : '';
       const invoiceDate = sale.kind === 'sale' && (sale.status === 'issued' || sale.status === 'paid') ? sale.invoiceDate : '';
       return {
         sale,
-        date: sale.date,
+        date: formatDate(sale.date),
         kind: sale.kind,
         kindLabel: sale.kind ? KIND_LABELS[sale.kind] : '?',
         who,
         items: items || '—',
-        bags: bagsText(own),
-        invoiceDate,
+        bags: bagsText(own, sale.kind),
+        invoiceDate: formatDate(invoiceDate),
         createdBy: sale.createdBy,
       };
     });
   return { rows, counts };
 }
 
-/** "4 bags (1 free)", "1 bag", '' without lines. */
-export function bagsText(lines: readonly { bags: number | null; free: boolean }[]): string {
+/**
+ * "4 torebki (1 gratis)", "1 torebka", "5 torebek"; for a sample (any amount, not a bag size) "8 opakowań"; '' without
+ * lines. Free bags count only for a sale (`kind`): samples and own use are never invoiced anyway.
+ */
+export function bagsText(lines: readonly { bags: number | null; free: boolean }[], kind: SaleKind | null = 'sale'): string {
   if (lines.length === 0) return '';
-  const { bags, free } = bagCount(lines);
-  return `${bags} ${bags === 1 ? 'bag' : 'bags'}${free > 0 ? ` (${free} free)` : ''}`;
+  const { bags, free } = bagCount(kind === 'sale' ? lines : lines.map((l) => ({ ...l, free: false })));
+  const counted = kind === 'sample' ? count(bags, 'opakowanie', 'opakowania', 'opakowań') : count(bags, 'torebka', 'torebki', 'torebek');
+  return `${counted}${free > 0 ? ` (${free} gratis)` : ''}`;
 }
 
 /**
@@ -93,16 +98,15 @@ export function bagsText(lines: readonly { bags: number | null; free: boolean }[
  * sale its invoice status and the date the invoice was issued.
  */
 export function saleFacts(sale: Sale): { label: string; value: string }[] {
-  const what = sale.kind ? KIND_LABELS[sale.kind].toLowerCase() : 'entry';
   const created = new Date(sale.source['created_at'] ?? '');
-  const added = Number.isNaN(created.getTime()) ? '—' : `${localDate(created)}${sale.createdBy ? ` by ${sale.createdBy}` : ''}`;
+  const added = Number.isNaN(created.getTime()) ? '—' : `${formatDate(localDate(created))}${sale.createdBy ? ` (${sale.createdBy})` : ''}`;
   const facts = [
-    { label: `Date of the ${what}`, value: sale.date || '—' },
-    { label: 'Added to Kraken', value: added },
+    { label: sale.kind ? DATE_LABELS[sale.kind] : 'Data', value: formatDate(sale.date) || '—' },
+    { label: 'Dodano do Krakena', value: added },
   ];
   if (sale.kind === 'sale') {
-    facts.push({ label: 'Invoice', value: sale.status ? STATUS_LABELS[sale.status] : '? (cannot be read)' });
-    facts.push({ label: 'Invoice issued on', value: (sale.status === 'issued' || sale.status === 'paid') && sale.invoiceDate ? sale.invoiceDate : 'Not yet' });
+    facts.push({ label: 'Stan faktury', value: sale.status ? STATUS_LABELS[sale.status] : '? (nie da się odczytać)' });
+    facts.push({ label: 'Data wystawienia faktury', value: (sale.status === 'issued' || sale.status === 'paid') && sale.invoiceDate ? formatDate(sale.invoiceDate) : 'Jeszcze nie' });
   }
   return facts;
 }
