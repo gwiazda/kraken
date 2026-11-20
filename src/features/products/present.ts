@@ -5,7 +5,7 @@
 import { formatPln, formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { BASE_GRAMS, bagCost, blendPerKg, earningsAt, marginAt, roastedPerKg, scaledPrice, suggestionsFor, type BeanCost } from '../../domain/blend';
-import { formatPercent } from '../../domain/percent';
+import { marginText } from '../../domain/percent';
 import { grossMarginPercent, grossOf, netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
 import type { BeanLot } from '../costs';
 import { typedBeanLoss, typedBeanPrice, type BeanForm } from './modelBeans';
@@ -37,8 +37,6 @@ export interface PriceRow {
 const money = (grosze: number) => formatPln(roundGrosze(grosze));
 const NONE: PriceCell = { main: '—', other: '', earn: '', margin: '', losing: false, marginLosing: false };
 
-/** A gross margin (whole percent) as shown: "56 %", "−5 %" (a loss); '' when it cannot be worked out. */
-export const marginText = (margin: number | null): string => (margin === null ? '' : `${margin < 0 ? '−' : ''}${formatPercent(Math.abs(margin) * 10)}`);
 
 /**
  * At a price without VAT (`net`) and the cost of one bag: what it earns (grosze, for sorting), "earns 26,70 zł" or

@@ -3,16 +3,26 @@
 // Everything from outside comes through ClientsPageDeps (main.ts provides it).
 
 import { formatPercent } from '../../domain/percent';
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, el, infoTip, message, nameLink } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
+import type { LotsRepository } from '../lots';
+import type { ProductsRepository } from '../products';
+import type { RoastsRepository } from '../roasts';
 import { KEEP_DISCOUNT, changedClientFields, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
+import { pricesSection } from './pricesSection';
 import type { ClientsRepository } from './repo';
+import type { SpecialPricesRepository } from './repoPrices';
 
 export interface ClientsPageDeps {
   repo: ClientsRepository;
-  /** For the wholesale discounts (Packaging & discounts). */
+  /** For the wholesale discounts (Packaging & discounts), and with the next three, what a bag costs. */
   costs: CostsRepository;
+  /** A client's special prices (owner, 2026-11-20). */
+  prices: SpecialPricesRepository;
+  products: ProductsRepository;
+  lots: LotsRepository;
+  roasts: RoastsRepository;
   whoAmI: () => Promise<string>;
   /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
@@ -141,7 +151,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         actions.replaceChildren(
           ...(restorable
             ? [button('Restore', () => change(c, 'restore', inRow('Restoring…')), 'link')]
-            : [button('Edit', () => showForm(c), 'link'), button('Delete', ask, 'link')]),
+            : [button('Delete', ask, 'link')]),
         );
       };
       const ask = () => {
@@ -158,7 +168,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         el(
           'tr',
           restorable ? { class: 'row-deleted' } : {},
-          el('td', {}, el('strong', {}, c.name), ...(c.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: c.problems.join(' ') }, 'Check')] : [])),
+          el('td', {}, restorable ? el('strong', {}, c.name) : nameLink(c.name, () => showForm(c)), ...(c.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: c.problems.join(' ') }, 'Check')] : [])),
           el('td', {}, c.registeredName || el('span', { class: 'muted' }, '—')),
           el('td', { class: 'nowrap' }, c.nip ? formatNip(c.nip) : el('span', { class: 'muted' }, '—')),
           el('td', {}, c.email || el('span', { class: 'muted' }, '—')),
@@ -183,7 +193,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
 
     render(
       el('div', { class: 'page-head' }, el('h2', {}, 'Clients'), el('div', { class: 'head-actions' }, button('Add client', () => showForm(null)))),
-      el('p', { class: 'muted small' }, 'The businesses you work with, and the wholesale discount each one gets.'),
+      el('p', { class: 'muted small' }, 'The businesses you work with, and the wholesale discount each one gets. Click a client to see or change their details and special prices.'),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
@@ -297,14 +307,18 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       event.preventDefault();
       if (!saveButton.disabled) save();
     });
+    const prices = client
+      ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show, mayHaveSaved) => errorNodes(error, retry, label, show, mayHaveSaved, 'Reload clients (drops this form)') })
+      : el('p', { class: 'muted small' }, 'Save the client first; then click it in the list to add special prices.');
 
     render(
       el('p', { class: 'small back-link' }, button('← All clients', () => showList(), 'link')),
-      el('h2', {}, client ? `Edit ${client.name}` : 'Add client'),
+      el('h2', {}, client ? client.name : 'Add client'),
       el('p', { class: 'muted small' }, 'Fields marked * are required.'),
       ...(client ? client.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,
+      prices,
     );
     inputs.name.focus();
   }

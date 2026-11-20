@@ -93,10 +93,13 @@ test that reads every import line), so CI fails if a rule is broken.
   also shows the wholesale prices and a comparison with the products; the prices table and the comparison table
   are shared in `priceTable.ts` (also used by a product's page);
   `clients`: Clients page (owner, 2026-11-19): short name, NIP (check digit validated), email, registered name
-  (CEIDG), discount chosen from Packaging & discounts; a name or NIP only once;
+  (CEIDG), discount chosen from Packaging & discounts (information only); a name or NIP only once; **special prices**
+  (owner, 2026-11-20; "Special prices" tab, migration 12): net price per client, product and size, set on the client's
+  page (`pricesSection.ts`, costs from `loadProductsWithCosts` in products), used by the Offer;
   `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19),
   invoice status to be issued → issued (date) → paid from one dropdown (Issued asks the issue date, today unless changed; paid has no date; then the list shows All), filters; no stock change;
-  `offers`: Offer page in Polish (customer, date, valid 14 days, ticked products / sizes / discounts; live preview of
+  `offers`: Offer page in Polish (customer typed or picked from Clients, date, valid 14 days, ticked products / sizes / discounts,
+  "Use their special prices": a size with a deal shows only that price, no label; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file
   name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),

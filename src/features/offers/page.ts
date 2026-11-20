@@ -8,6 +8,7 @@ import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, readSettings, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import { isClientDeleted, offerDeals, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
 import { MAX_TIERS, OFFER_VALID_DAYS, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
@@ -16,6 +17,9 @@ import { buildOffer } from './present';
 export interface OfferPageDeps {
   products: ProductsRepository;
   costs: CostsRepository;
+  /** To pick the customer from Clients and use their special prices (owner, 2026-11-20). */
+  clients: ClientsRepository;
+  prices: SpecialPricesRepository;
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
   signIn: () => Promise<void>;
   isSignedOut: (error: unknown) => boolean;
@@ -34,15 +38,24 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
 
   function load(fromClick = false): void {
     render(el('p', {}, busy('Loading products…')));
-    const both = () => Promise.all([deps.products.load(), deps.costs.load()]);
-    (fromClick ? deps.withGoogle(both) : both())
-      .then(([products, costs]) => {
+    // The clients and their special prices are extra: if they cannot be read, the offer still works (typed name).
+    const extra = () =>
+      Promise.all([deps.clients.load(), deps.prices.load()]).then(
+        ([c, p]) => ({ clients: c.clients, deals: p.deals, problems: [...c.problems, ...p.problems] }),
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          return { clients: [] as Client[], deals: [] as SpecialPrice[], problems: [`The clients and their special prices could not be read (${deps.describeError(error)}); type the customer's name.`] };
+        },
+      );
+    const all = () => Promise.all([deps.products.load(), deps.costs.load(), extra()]);
+    (fromClick ? deps.withGoogle(all) : all())
+      .then(([products, costs, found]) => {
         if (!root.isConnected) return;
         const { settings, problems } = readSettings(costs.settings);
         const discounts = activeDiscounts(costs.discounts);
         // A price Kraken cannot read is named here, so a missing size on the offer is not a mystery.
         const productProblems = products.products.filter((p) => !isProductDeleted(p)).flatMap((p) => p.problems);
-        showForm(products.products, settings, discounts.discounts, [...products.problems, ...problems, ...discounts.problems, ...productProblems]);
+        showForm(products.products, settings, discounts.discounts, found.clients, found.deals, [...products.problems, ...problems, ...discounts.problems, ...found.problems, ...productProblems]);
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
@@ -60,8 +73,16 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       });
   }
 
-  function showForm(all: readonly Product[], settings: CostSettings, discounts: readonly Discount[], problems: readonly string[]): void {
+  function showForm(
+    all: readonly Product[],
+    settings: CostSettings,
+    discounts: readonly Discount[],
+    allClients: readonly Client[],
+    allDeals: readonly SpecialPrice[],
+    problems: readonly string[],
+  ): void {
     const products = sortProducts(all).filter((p) => !isProductDeleted(p));
+    const clients = sortClients(allClients).filter((c) => !isClientDeleted(c));
     const today = localDate(deps.now());
     const errorLines = new Map<keyof OfferErrors, HTMLElement>();
     const errorLine = (key: keyof OfferErrors) => {
@@ -76,6 +97,38 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     };
 
     const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'e.g. Kawiarnia Pod Lipą' });
+    // Pick a client (their name fills in; their special prices can be used) or type any name (not a client yet).
+    const clientSelect = el('select', { id: 'offer-client' }, el('option', { value: '' }, 'Not a client (type the name)'), ...clients.map((c) => el('option', { value: c.id }, c.name)));
+    const useDeals = el('input', { type: 'checkbox', id: 'offer-use-deals' });
+    const useDealsLabel = el('span', {});
+    const useDealsRow = el('p', { class: 'offer-choices', hidden: '' }, el('label', { for: useDeals.id }, useDeals, useDealsLabel));
+    /** The picked client's usable special prices (empty: none picked, or none). */
+    let deals = new Map<string, number>();
+    /** The client whose name was filled in (to clear it when "Not a client" is chosen again). */
+    let filled = '';
+    const pickClient = () => {
+      const picked = clients.find((c) => c.id === clientSelect.value);
+      if (picked) customer.value = picked.name;
+      else if (filled && customer.value === filled) customer.value = '';
+      filled = picked?.name ?? '';
+      deals = picked ? offerDeals(allDeals, picked.id, all) : new Map();
+      useDealsRow.hidden = deals.size === 0;
+      useDeals.checked = deals.size > 0;
+      useDealsLabel.textContent = ` Use ${picked?.name ?? ''}'s special prices (${deals.size}): that size shows only their price`;
+      update();
+    };
+    clientSelect.addEventListener('change', pickClient);
+    // Another name typed over the client's: the offer is for someone else, so their special prices are not used.
+    customer.addEventListener('input', () => {
+      if (clientSelect.value !== '' && customer.value.trim() !== filled) {
+        clientSelect.value = '';
+        filled = '';
+        deals = new Map();
+        useDeals.checked = false;
+        useDealsRow.hidden = true;
+      }
+    });
+    const dealsUsed = () => (useDeals.checked ? deals : new Map<string, number>());
     const date = el('input', { id: 'offer-date', type: 'date' });
     date.value = today;
     const validUntil = el('span', { class: 'muted small' });
@@ -177,7 +230,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       const form = readForm();
       validUntil.textContent = isValidDate(form.date) ? `Valid until ${polishDate(addDays(form.date, OFFER_VALID_DAYS))} (${OFFER_VALID_DAYS} days).` : '';
       if (!isValidDate(form.date)) form.date = today; // the preview needs some date while one is typed
-      const offer = buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS);
+      const offer = buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS, dealsUsed());
       fileName = offer.fileName;
       warnings.replaceChildren(...offer.warnings.map((text) => message(text, 'error')));
       fillBanner(offer.banner);
@@ -185,7 +238,9 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     };
 
     const saveAsPdf = () => {
-      const errors = validateOffer(readForm());
+      const form = readForm();
+      const offer = isValidDate(form.date) ? buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS, dealsUsed()) : null;
+      const errors = validateOffer(form, dealsUsed().size > 0, offer?.withoutPrice ?? []);
       for (const [key, line] of errorLines) line.textContent = errors[key] ?? '';
       if (Object.keys(errors).length > 0) {
         status.replaceChildren(message('Please fix what is marked above.', 'error'));
@@ -198,7 +253,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     };
 
     for (const t of tierRows) t.box.addEventListener('input', limitTiers);
-    for (const input of [customer, date, ...productBoxes.map((b) => b.box), ...sizeBoxes.map((b) => b.box), ...tierRows.map((t) => t.box)]) {
+    for (const input of [customer, date, useDeals, ...productBoxes.map((b) => b.box), ...sizeBoxes.map((b) => b.box), ...tierRows.map((t) => t.box)]) {
       input.addEventListener('input', update);
     }
 
@@ -221,9 +276,11 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
         el(
           'div',
           { class: 'fields' },
+          ...(clients.length > 0 ? [el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: clientSelect.id }, 'Client')), clientSelect)] : []),
           el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Customer *')), customer, errorLine('customer')),
           el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Offer date *')), date, validUntil, errorLine('date')),
         ),
+        useDealsRow,
       ),
       section(
         'Products',
@@ -239,7 +296,11 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       section('Bag sizes', el('div', { class: 'offer-choices' }, ...sizeBoxes.map((b) => b.node)), errorLine('sizes')),
       section(
         'Discounts',
-        el('p', { class: 'muted small' }, `Up to ${MAX_TIERS} on one offer, so it stays readable. The name is shown next to each price, e.g. "Do 10 kg (-15%)". Add or change discounts under Packaging & discounts.`),
+        el(
+          'p',
+          { class: 'muted small' },
+          `Up to ${MAX_TIERS} on one offer, so it stays readable. The name is shown next to each price, e.g. "Do 10 kg (-15%)". Add or change discounts under Packaging & discounts. With a client's special prices you may untick them all: then only their prices are shown (untick the products without one).`,
+        ),
         ...(tierRows.length > 0 ? [el('div', { class: 'offer-choices' }, ...tierRows.map((t) => t.node))] : [el('p', { class: 'muted' }, 'No discounts yet: add them under Packaging & discounts.')]),
         errorLine('tiers'),
       ),

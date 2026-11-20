@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from '../products';
+import { dealKey } from '../clients';
 import { buildOffer } from './present';
 
 const TIERS = [
@@ -96,5 +97,30 @@ describe('buildOffer', () => {
     const own = { title: 'Ceny netto dla partnerów:', line: 'Rabat stały -20%', note: '' };
     expect(buildOffer(products, form({ banner: own }), 230, 14).banner).toEqual(own);
     expect(buildOffer(products, form(), 230, 14).banner.line).toBe('Do 10 kg / mies.: -15% | 10–20 kg / mies.: -25% | 20+ kg / mies.: -30%');
+  });
+
+  it("shows a client's special price instead of the discount lines for that size, with no label; other sizes as usual", () => {
+    const deals = new Map([
+      [dealKey('K', 250), 3800],
+      [dealKey('G', 1000), 10550],
+    ]);
+    const offer = buildOffer(products, form({ productIds: ['G', 'K'] }), 230, 14, deals);
+    const prices = offer.cards.map((c) => [c.name, ...c.blocks.map((b) => [b.size, ...b.rows.map((r) => `${r.label}${r.price.replace('\u00a0', ' ')}`)])]);
+    expect(prices).toEqual([
+      ['Gwatemala', ['250 g', 'Do 10 kg (-15%):31 zł', '10–20 kg (-25%):27 zł', '20+ kg (-30%):26 zł'], ['1 kg', '105,50 zł']],
+      ['Kenia', ['250 g', '38 zł'], ['1 kg', 'Do 10 kg (-15%):153 zł', '10–20 kg (-25%):135 zł', '20+ kg (-30%):126 zł']],
+    ]);
+    // The suggested retail price under 250 g stays.
+    expect(offer.cards[1]?.blocks[0]?.retail).toBe('Sugerowana cena detaliczna brutto: 59\u00a0zł');
+  });
+
+  it('with no discount ticked, only the special prices are shown (sizes without one have no wholesale price)', () => {
+    const offer = buildOffer(products, form({ productIds: ['K'], tiers: [] }), 230, 14, new Map([[dealKey('K', 250), 3800]]));
+    expect(offer.cards[0]?.blocks.map((b) => [b.size, b.rows.length])).toEqual([
+      ['250 g', 1],
+      ['1 kg', 0],
+    ]);
+    expect(offer.withoutPrice).toEqual(['Kenia 1 kg']); // the page refuses to save it until fixed
+    expect(offer.banner).toEqual({ title: '', line: '', note: '' }); // no line about discounts that are not there
   });
 });

@@ -86,6 +86,8 @@ export function sizesText(labels: readonly string[]): string {
 
 /** The yellow banner at the bottom of the offer. */
 export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]): Banner {
+  // Only a client's special prices (no discount ticked): no "Ceny netto B2B" line about discounts.
+  if (tiers.length === 0) return { title: '', line: '', note: '' };
   const sorted = [...tiers].sort((a, b) => a.tenths - b.tenths);
   return {
     title: 'Ceny netto B2B:',
@@ -96,15 +98,21 @@ export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]
   };
 }
 
-/** Checks the offer before it is saved as a PDF. Messages are for the owner (English, like the rest of Kraken). */
-export function validateOffer(form: OfferForm): OfferErrors {
+/**
+ * Checks the offer before it is saved as a PDF. Messages are for the owner (English, like the rest of Kraken).
+ * `withDeals`: a client's special prices are used, so the offer may have no standard discount (only their prices);
+ * `withoutPrice`: product sizes that would then have no price at all (buildOffer), which must not go out.
+ */
+export function validateOffer(form: OfferForm, withDeals = false, withoutPrice: readonly string[] = []): OfferErrors {
   const errors: OfferErrors = {};
   if (cleanName(form.customer) === '') errors.customer = 'Enter who the offer is for.';
   if (!isValidDate(form.date)) errors.date = 'Enter the offer date.';
   if (form.productIds.length === 0) errors.products = 'Tick at least one product.';
   if (form.sizes.length === 0) errors.sizes = 'Tick at least one bag size.';
-  if (form.tiers.length === 0) errors.tiers = 'Tick at least one discount (they are set under Packaging & discounts).';
-  else if (form.tiers.length > MAX_TIERS) errors.tiers = `Tick at most ${MAX_TIERS} discounts, so the offer stays readable.`;
+  if (form.tiers.length === 0 && !withDeals) errors.tiers = 'Tick at least one discount (they are set under Packaging & discounts).';
+  else if (withoutPrice.length > 0) {
+    errors.tiers = `No price for ${withoutPrice.join(', ')}: there is no special price for it and no discount is ticked. Tick a discount, or untick that product or size.`;
+  } else if (form.tiers.length > MAX_TIERS) errors.tiers = `Tick at most ${MAX_TIERS} discounts, so the offer stays readable.`;
   for (const tier of form.tiers) {
     if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `The name "${tier.label}" is longer than ${TIER_LABEL_MAX} characters, so it does not fit next to the prices. Shorten it under Packaging & discounts.`;
   }
