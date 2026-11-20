@@ -4,6 +4,7 @@ import {
   emptyLine,
   emptySaleForm,
   formFromSale,
+  lineSizeProblems,
   lineFromFields,
   linesOf,
   saleFromFields,
@@ -112,6 +113,12 @@ describe('validateSale', () => {
     expect(validateSale(form({ lines: [] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { lines: 'Add at least one product.' } });
   });
 
+  it('names lines of a sale or own use that are not a bag size (only samples can be any amount)', () => {
+    const sales = [sale(2), sale(3, { kind: 'sample', invoice_status: '' })];
+    const lines = [line(4, { sale_id: 'S2', bag_size_g: '300' }), line(5, { sale_id: 'S3', bag_size_g: '150' }), line(6, { sale_id: 'S2', bag_size_g: '250' }), line(7, { sale_id: 'S9', bag_size_g: '300' })];
+    expect(lineSizeProblems(sales, lines)).toEqual(['Row 4 of the Sale lines tab has 300 g, but only samples can be any amount: open the entry and choose a bag size.']);
+  });
+
   it('takes any amount in grams for a sample (e.g. 150 g), but only the bag sizes for a sale or own use', () => {
     const lines = [{ productId: 'P1', grams: '150', bags: '1', free: false }];
     expect(validateSale(form({ kind: 'sample', lines }), ['C1'], ['P1'])).toMatchObject({ ok: true, lines: [{ bag_size_g: '150', bags: '1' }] });
@@ -120,6 +127,7 @@ describe('validateSale', () => {
     for (const grams of ['0', '12.5', '6000', '']) {
       expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, grams }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Line 1: enter the amount in grams (1 to 5000).'] } });
     }
+    expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, bags: '' }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Line 1: enter the number of packs (1 to 999).'] } });
   });
 });
 

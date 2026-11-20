@@ -18,6 +18,7 @@ import {
   emptySaleForm,
   formFromSale,
   isDeleted,
+  lineSizeProblems,
   linesOf,
   choosableIds,
   saleEditFields,
@@ -34,7 +35,7 @@ import {
   type SaleLine,
 } from './model';
 import { FILTERS, bagsText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
-import { lastNoteText, type SaleNote } from './modelNotes';
+import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
 import type { SaleNotesRepository } from './repoNotes';
@@ -72,6 +73,18 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let filter: SalesFilter | null = null;
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
+  /**
+   * Back and the menu wait while anything is being saved. Counted, so a note saved while the form is saved (or the
+   * other way round) never unlocks them while the other is still writing.
+   */
+  let busyCount = 0;
+  const appBusy = (on: boolean) => {
+    busyCount += on ? 1 : -1;
+    if (busyCount === (on ? 1 : 0)) deps.busy(on);
+  };
+  /** One save at a time on a sample's page: its form, or one of its follow-up notes. */
+  let formSaving = false;
+  let noteSaving = false;
   const today = () => localDate(deps.now());
 
   function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload sales'): Node[] {
@@ -104,6 +117,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ...n.problems,
           ...active.flatMap((x) => x.problems),
           ...s.lines.filter((l) => l.deletedAt === '' && activeIds.has(l.saleId)).flatMap((l) => l.problems),
+          ...lineSizeProblems(active, s.lines),
         ];
         showList(note);
       })
@@ -122,10 +136,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   function act(slot: HTMLElement, working: string, action: () => Promise<void>, done: string, afterSave?: () => void): void {
     lockPage();
     slot.replaceChildren(busy(working));
-    deps.busy(true);
+    appBusy(true);
     deps
       .withGoogle(action)
-      .finally(() => deps.busy(false))
+      .finally(() => appBusy(false))
       .then(() => {
         afterSave?.();
         if (root.isConnected) load(done);
@@ -147,6 +161,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     deps.formClosed();
     filter ??= saleRows(sales, lines, 'all', clientName, productName).counts.to_issue > 0 ? 'to_issue' : 'all';
     const { rows, counts } = saleRows(sales, lines, filter, clientName, productName);
+    const newestNotes = lastNotes(sampleNotes);
     const deleted = sales.filter(isDeleted);
 
     const chip = (f: SalesFilter, label: string) => {
@@ -239,7 +254,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             'td',
             {},
             r.who || el('span', { class: 'muted' }, '—'),
-            ...(sale.kind === 'sample' && lastNoteText(sampleNotes, sale.id) ? [el('span', { class: 'last-note' }, lastNoteText(sampleNotes, sale.id))] : []),
+            ...(sale.kind === 'sample' && newestNotes.has(sale.id) ? [el('span', { class: 'last-note' }, newestNotes.get(sale.id) ?? '')] : []),
           ),
           el('td', {}, r.items),
           el('td', { class: 'num nowrap' }, r.bags || el('span', { class: 'muted' }, '—')),
@@ -326,7 +341,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     notes.value = form.notes;
     notes.addEventListener('input', () => (form.notes = notes.value));
 
+    let notesBox: HTMLElement | null = null;
     const renderKind = () => {
+      if (notesBox) notesBox.hidden = form.kind !== 'sample';
       kindHolder.replaceChildren(
         ...(['sale', 'sample', 'own_use'] as SaleKind[]).map((k) => {
           const b = button(KIND_LABELS[k], () => {
@@ -483,6 +500,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     let savedId: string | null = null;
 
     function save(): void {
+      if (noteSaving) {
+        banner.replaceChildren(message('Wait a moment: a follow-up note is being saved.', 'error'));
+        return;
+      }
       const { clientIds, productIds } = choosableIds(
         clients.filter((c) => !isClientDeleted(c)).map((c) => c.id),
         products.filter((p) => !isProductDeleted(p)).map((p) => p.id),
@@ -499,7 +520,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       errorBox.replaceChildren();
       banner.replaceChildren();
       setBusy(true);
-      deps.busy(true);
+      appBusy(true);
+      formSaving = true;
       deps
         .withGoogle(async () => {
           let email: string | null = null;
@@ -526,7 +548,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           }
           await deps.repo.saveLines(savedId, result.lines, linesOf(fresh.lines, savedId), by, deps.now());
         })
-        .finally(() => deps.busy(false))
+        .finally(() => {
+          appBusy(false);
+          formSaving = false;
+        })
         .then(() => {
           if (root.isConnected) load('Saved.');
         })
@@ -556,6 +581,18 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       if (!saveButton.disabled) save();
     });
 
+    // Follow-up notes: for a saved entry while it is a sample (switching the form to a sale hides them).
+    notesBox = sale
+      ? notesSection(sale.id, sampleNotes, {
+          ...deps,
+          busy: appBusy,
+          today,
+          changed: (stored) => (sampleNotes = stored),
+          saving: (on) => (noteSaving = on),
+          canSave: () => !formSaving,
+          errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Reload sales (drops this form)'),
+        })
+      : null;
     renderKind();
     renderWho();
     renderLines();
@@ -566,16 +603,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('The invoice for this sale is already issued: if you change the products, correct the invoice in Fakturownia too.', 'error')] : []),
       banner,
       formNode,
-      ...(sale?.kind === 'sample'
-        ? [
-            notesSection(sale.id, sampleNotes, {
-              ...deps,
-              today,
-              changed: (stored) => (sampleNotes = stored),
-              errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Reload sales (drops this form)'),
-            }),
-          ]
-        : []),
+      ...(notesBox ? [notesBox] : []),
     );
   }
 

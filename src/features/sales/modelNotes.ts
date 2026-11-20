@@ -2,8 +2,7 @@
 // Add new ones, delete old ones (soft delete, can be restored). Pure: no Google, no screen.
 
 import { isValidDate } from '../../core/dates';
-
-type Fields = Readonly<Record<string, string>>;
+import { text, type Fields } from './model';
 
 export const SALE_NOTES_TAB = 'Sale notes';
 export const NOTE_COLUMNS = ['sale_id', 'date', 'text'] as const;
@@ -21,8 +20,6 @@ export interface SaleNote {
   readonly deletedAt: string;
   readonly source: Fields;
 }
-
-const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 
 export function noteFromFields(fields: Fields, row: number): SaleNote {
   return {
@@ -45,12 +42,27 @@ export function notesOf(notes: readonly SaleNote[], saleId: string, deleted = fa
     .sort((a, b) => b.date.localeCompare(a.date) || b.row - a.row);
 }
 
-/** The newest note of a sample, for the Sales list: "2026-11-25: called, they liked the Kenia"; '' without one. */
+/** A note as one short line for the Sales list: "2026-11-25: called, they liked the Kenia" (at most 80 characters). */
+function shortNote(note: SaleNote): string {
+  const chars = Array.from(note.text.replace(/\s+/g, ' ').trim()); // by character, so an emoji is never cut in half
+  return `${note.date}: ${chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : chars.join('')}`;
+}
+
+/** The newest note of a sample, for the Sales list; '' without one. */
 export function lastNoteText(notes: readonly SaleNote[], saleId: string): string {
   const [newest] = notesOf(notes, saleId);
-  if (!newest) return '';
-  const line = newest.text.replace(/\s+/g, ' ').trim();
-  return `${newest.date}: ${line.length > 80 ? `${line.slice(0, 79)}…` : line}`;
+  return newest ? shortNote(newest) : '';
+}
+
+/** The newest note of every sample at once (sale id → short line), for drawing the list. */
+export function lastNotes(notes: readonly SaleNote[]): Map<string, string> {
+  const newest = new Map<string, SaleNote>();
+  for (const note of notes) {
+    if (isNoteDeleted(note)) continue;
+    const seen = newest.get(note.saleId);
+    if (!seen || note.date > seen.date || (note.date === seen.date && note.row > seen.row)) newest.set(note.saleId, note);
+  }
+  return new Map([...newest].map(([id, note]) => [id, shortNote(note)]));
 }
 
 export interface NoteForm {

@@ -533,6 +533,7 @@ Drive until the owner deletes them. A brand-new sheet is created in one all-or-n
 migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
-is built. Today (data version 11): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
-read), Products, Discounts, Product beans, Clients, Sales, Sale lines. Data version 12 adds Special prices (section 5).
+is built. Today (data version 13): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
+read), Products, Discounts, Product beans, Clients, Sales, Sale lines, Special prices (section 5, version 12), Sale
+notes (follow-up notes on samples, section 4, version 13).
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.

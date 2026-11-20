@@ -12,7 +12,8 @@
 import { isValidDate } from '../../core/dates';
 import { BAG_SIZES_G, isBagSize } from '../../domain/bagSizes';
 
-type Fields = Readonly<Record<string, string>>;
+/** A row as read from the sheet, by column name (shared with the other sales model files). */
+export type Fields = Readonly<Record<string, string>>;
 
 export const SALES_TAB = 'Sales';
 export const SALE_COLUMNS = ['date', 'kind', 'client_id', 'place', 'reason', 'invoice_status', 'invoice_number', 'invoice_date', 'paid_date', 'notes'] as const;
@@ -68,7 +69,8 @@ export interface SaleLine {
   readonly source: Fields;
 }
 
-const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
+/** A cell's text without spaces around ('' when the column is missing). */
+export const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 
 export function saleFromFields(fields: Fields, row: number): Sale {
   const problems: string[] = [];
@@ -131,6 +133,17 @@ export function lineFromFields(fields: Fields, row: number): SaleLine {
 }
 
 export const isDeleted = (sale: Sale) => sale.deletedAt !== '';
+
+/**
+ * Lines of a sale or own use that are not a bag size (any amount is only for samples), e.g. a row edited by hand,
+ * or a sample changed into a sale: one sentence each, for the page's problems. `sales`: those not deleted.
+ */
+export function lineSizeProblems(sales: readonly Sale[], lines: readonly SaleLine[]): string[] {
+  const kindOf = new Map(sales.map((s) => [s.id, s.kind]));
+  return lines
+    .filter((l) => l.deletedAt === '' && l.grams !== null && !isBagSize(l.grams) && kindOf.has(l.saleId) && kindOf.get(l.saleId) !== 'sample')
+    .map((l) => `Row ${l.row} of the Sale lines tab has ${l.grams} g, but only samples can be any amount: open the entry and choose a bag size.`);
+}
 
 /** A sale's active lines, in their order. */
 export const linesOf = (lines: readonly SaleLine[], saleId: string) =>
@@ -233,7 +246,7 @@ export function validateSale(
     const problems: string[] = [];
     if (!productIds.includes(line.productId)) problems.push('choose the product');
     if (form.kind === 'sample' ? !isLineWeight(grams) : !isBagSize(grams)) problems.push(form.kind === 'sample' ? `enter the amount in grams (1 to ${MAX_SAMPLE_GRAMS})` : 'choose the bag size');
-    if (bags === null) problems.push('enter the number of bags (1 to 999)');
+    if (bags === null) problems.push(form.kind === 'sample' ? 'enter the number of packs (1 to 999)' : 'enter the number of bags (1 to 999)');
     if (problems.length > 0) errors.line[i] = `Line ${i + 1}: ${problems.join(', ')}.`;
     return {
       position: String(i + 1),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lastNoteText, noteFromFields, notesOf, validateNote } from './modelNotes';
+import { lastNoteText, lastNotes, noteFromFields, notesOf, validateNote } from './modelNotes';
 
 // Made-up notes.
 const note = (row: number, o: Record<string, string> = {}) => noteFromFields({ id: `N${row}`, sale_id: 'S1', date: '2026-11-25', text: 'Called, they liked the Kenia', deleted_at: '', ...o }, row);
@@ -15,6 +15,16 @@ describe('sample notes', () => {
     expect(lastNoteText([note(2, { date: '2026-11-21' }), note(3)], 'S1')).toBe('2026-11-25: Called, they liked the Kenia');
     expect(lastNoteText([note(2, { text: 'x'.repeat(100) })], 'S1')).toBe(`2026-11-25: ${'x'.repeat(79)}…`);
     expect(lastNoteText([], 'S1')).toBe('');
+    // cut by character: an emoji at the cut is never split in half
+    expect(lastNoteText([note(2, { text: `${'x'.repeat(78)}☕👍 more` })], 'S1')).toBe(`2026-11-25: ${'x'.repeat(78)}☕…`);
+  });
+
+  it('gives the newest note of every sample at once, without deleted ones', () => {
+    const list = [note(2, { date: '2026-11-21' }), note(3, { text: 'Later' }), note(4, { sale_id: 'S2', text: 'Other' }), note(5, { text: 'Gone', deleted_at: '2026-11-26T10:00:00.000Z' })];
+    expect([...lastNotes(list)]).toEqual([
+      ['S1', '2026-11-25: Later'],
+      ['S2', '2026-11-25: Other'],
+    ]);
   });
 
   it('needs a date and some text', () => {

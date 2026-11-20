@@ -2,9 +2,8 @@
 
 import { sheetRecordTable, type RecordTable } from '../../core/records';
 import type { SheetsClient } from '../../core/sheets';
+import type { Fields } from './model';
 import { NOTE_COLUMNS, SALE_NOTES_TAB, noteFromFields, type SaleNote } from './modelNotes';
-
-type Fields = Readonly<Record<string, string>>;
 
 export interface SaleNotesRepository {
   /** All notes, deleted ones included, plus rows Kraken could not use. */

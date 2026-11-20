@@ -2037,6 +2037,10 @@ body.is-dragging tr.row-link.drag-gap > td {
   margin: 0;
 }
 
+.deleted-notes {
+  margin-top: 0.75rem;
+}
+
 .note-list {
   list-style: none;
   padding: 0;
