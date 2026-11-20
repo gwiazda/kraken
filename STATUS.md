@@ -5,29 +5,26 @@ _Last updated: 2026-11-20_
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet is at **data version 11**: the owner clicked Update now after #34).
-- **Lots:** list, add, edit, delete/restore, stock left (prices are no longer on this page).
-- **Roasts and "Sync with RoasTime"** (PR #19): lots and roasts in one step; stock left per lot (oldest delivery
-  first). Roasts with no coffee, or whose coffee has no delivery in RoasTime, are samples and are not tracked.
-  Owner synced the real data: 89 roasts, 54 samples removed; stock Santa Barbara 21,457 kg, Kenya Kegwa 31,2 kg,
-  Burunga 30,4 kg (matches the owner's numbers).
-- **Costs & prices** (PRs #20, #22: short answer first, "Show calculation", suggested prices in whole złoty): sub-tabs "Prices per lot" (lot price edited here, roast loss, cost of one bag,
-  suggested prices at the price multipliers) and "Bag costs & settings" (fixed sizes 250 g / 500 g / 1 kg, items the
-  same for every coffee, VAT, multipliers, default loss 15 %). Owner tested it locally.
-- The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 13**:
+  "Special prices" (#36) and "Sale notes" tabs; the owner clicks "Aktualizuj teraz" once if Kraken asks).
+- Lots, Roasts and Sync with RoasTime (lots and roasts in one step, stock left per lot).
+- Products (the one place for prices, beans, cost of one bag), Product planner, Packaging & discounts.
+- Clients with special prices; Sales (sale / sample with any grams and follow-up notes / own use, invoice status);
+  Offer (A4 preview, Save as PDF, "Use their special prices").
+- Every list opens by clicking a row; ⚙ Settings on the right of the menu; Kraken opens on Sales, the first tab.
+- Roasts: search, a filter under every column, pages. Sales works on a phone.
+- **Polish screens**, steps 1–3 merged (#41, #42, #43).
 
 ## In progress
-- **Clickable rows** (PR #37, open): every list opens by clicking a row.
-- **Samples: any grams and follow-up notes** (branch `claude/sample-notes`, on top of #37; data version **13**:
-  "Sale notes" tab). Owner to test locally.
-- Last merged: Clients (#31), Sales (#32), gross margin (#33), product order (#34, data version 11), #35 (docs), special prices (#36, data version 12).
+- **Polish, step 4** (branch `claude/polish-4`): Dostawy, Wypały, Synchronizacja z RoasTime. Also fixes the
+  numbering of the folder steps on the sync screen (it showed 1, 2, 4).
 
-## Next steps
-1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.
-2. Offer PDF straight to Google Drive (later iteration; needs a PDF library).
-3. Hand overrides of a discounted price (requirements section 5, later).
-4. Roasts filters and paging (later).
-5. **Translate all of Kraken to Polish** (owner, 2026-11-17: later).
+## Next steps (owner decides the order)
+1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
+2. Phone layout for the other tabs (only Sales is done).
+3. Offer templates (e.g. a Christmas one).
+4. Offer PDF straight to Google Drive (needs a PDF library).
+5. Hand overrides of a discounted price (requirements section 5).
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).

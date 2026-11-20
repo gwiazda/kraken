@@ -45,16 +45,16 @@ describe('roastListRows', () => {
     expect(row).toMatchObject({ roasted: '1,2\u00a0kg', roastedGrams: 1200, greenGrams: 1200, day: '2026-10-05', lotCodes: ['KENYA-26-09', 'KENYA-26-10'], marks: [] });
     expect(row?.lossTenths).toBe(0); // 1200 g → 1199,6 g: under 0,1 %
     const [sample] = rows([roast('b', { roastime_bean_id: '', sample: 'yes' })]);
-    expect(sample).toMatchObject({ lotCodes: ['Not counted: no coffee chosen'], marks: ['Sample'] });
+    expect(sample).toMatchObject({ lotCodes: ['Nieliczony: nie wybrano kawy'], marks: ['Próbka'] });
     const [needs] = rows([roast('c', { roastime_bean_id: '' })]);
-    expect(needs?.marks).toEqual(['Needs a lot']);
+    expect(needs?.marks).toEqual(['Potrzebna dostawa']);
     const [chosen] = rows([roast('d', { lot_id: 'L2', roasted_at: '2026-09-20T08:00:00.000Z' })]);
-    expect(chosen?.marks).toEqual(['Before delivery', 'Chosen']);
+    expect(chosen?.marks).toEqual(['Przed dostawą', 'Wybrana']);
   });
 
   it('asks for a lot when there is no coffee, unless it is a sample', () => {
     const [plain] = rows([roast('a', { roastime_bean_id: '' })]);
-    expect(plain).toMatchObject({ coffee: 'No coffee chosen', lots: 'Not counted: no coffee chosen', counted: false, needsLot: true });
+    expect(plain).toMatchObject({ coffee: 'Nie wybrano kawy', lots: 'Nieliczony: nie wybrano kawy', counted: false, needsLot: true });
     const [sample] = rows([roast('a', { roastime_bean_id: '', sample: 'yes' })]);
     expect(sample).toMatchObject({ needsLot: false, sample: true });
   });
@@ -71,6 +71,6 @@ describe('roastListRows', () => {
   });
 
   it('marks roasts entered by hand', () => {
-    expect(rows([roast('a', { roastime_roast_id: '' })])[0]?.source).toBe('By hand');
+    expect(rows([roast('a', { roastime_roast_id: '' })])[0]?.source).toBe('ręcznie');
   });
 });

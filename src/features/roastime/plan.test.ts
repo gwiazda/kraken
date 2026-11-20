@@ -107,16 +107,16 @@ describe('planImport: new deliveries', () => {
   });
 
   it.each([
-    ['no country', container(), bean({ country: '' }), 'Enter the country.'],
-    ['no name', container(), bean({ name: '' }), 'Enter the coffee name.'],
-    ['0 kg', container({ startGrams: 0 }), bean(), 'The quantity must be more than 0.'],
-    ['a very long name', container(), bean({ name: 'x'.repeat(201) }), 'Use at most 200 characters.'],
+    ['no country', container(), bean({ country: '' }), 'Wpisz kraj.'],
+    ['no name', container(), bean({ name: '' }), 'Wpisz nazwę kawy.'],
+    ['0 kg', container({ startGrams: 0 }), bean(), 'Ilość musi być większa od 0.'],
+    ['a very long name', container(), bean({ name: 'x'.repeat(201) }), 'Najwyżej 200 znaków.'],
   ])('never imports a broken lot (%s): it is reported instead', (_name, c, b, reason) => {
     const plan = planImport(data([c], [b]), [], today);
     expect(plan.items).toEqual([]);
     expect(plan.problems).toHaveLength(1);
     expect(plan.problems[0]).toContain(reason);
-    expect(plan.problems[0]).toContain('Correct it in RoasTime, or add the lot by hand.');
+    expect(plan.problems[0]).toContain('Popraw to w RoasTime albo dodaj dostawę ręcznie.');
   });
 
   it('ignores deliveries deleted in RoasTime that Kraken never had', () => {
@@ -126,7 +126,7 @@ describe('planImport: new deliveries', () => {
   it('reports a delivery whose coffee is missing', () => {
     const plan = planImport(data([container()], []), [], today);
     expect(plan.items).toEqual([]);
-    expect(plan.problems).toEqual(['A RoasTime delivery (60\u00a0kg) points to a coffee Kraken cannot find, so it was skipped.']);
+    expect(plan.problems).toEqual(['Dostawa RoasTime (60\u00a0kg) wskazuje kawę, której Kraken nie może znaleźć, więc została pominięta.']);
   });
 });
 
@@ -140,9 +140,9 @@ describe('planImport: deliveries already in Kraken', () => {
   it('lists what RoasTime changed, with readable values', () => {
     const [item] = planImport(data([container({ startGrams: 59500 })], [bean({ name: 'Kenya Kegwa AA', process: 'Natural' })]), [linked()], today).items;
     expect(item?.kind === 'changed' && item.differences).toEqual([
-      { column: 'name', label: 'Name', kraken: 'Kenya Kegwa', roastime: 'Kenya Kegwa AA', value: 'Kenya Kegwa AA' },
-      { column: 'process', label: 'Process', kraken: 'Washed', roastime: 'Natural', value: 'Natural' },
-      { column: 'quantity_kg', label: 'Quantity', kraken: '60 kg', roastime: '59,5 kg', value: '59.5' },
+      { column: 'name', label: 'Nazwa', kraken: 'Kenya Kegwa', roastime: 'Kenya Kegwa AA', value: 'Kenya Kegwa AA' },
+      { column: 'process', label: 'Obróbka', kraken: 'Washed', roastime: 'Natural', value: 'Natural' },
+      { column: 'quantity_kg', label: 'Ilość', kraken: '60 kg', roastime: '59,5 kg', value: '59.5' },
     ]);
   });
 
@@ -155,8 +155,8 @@ describe('planImport: deliveries already in Kraken', () => {
     const plan = planImport(data([container({ startGrams: 0 })], [bean({ name: 'x'.repeat(201) })]), [linked()], today);
     expect(plan.items.map((i) => i.kind)).toEqual(['same']);
     expect(plan.problems).toEqual([
-      'RoasTime has a change for KENYA-26-11 that Kraken cannot store: the name is longer than 200 characters. Correct it in RoasTime.',
-      'RoasTime has a change for KENYA-26-11 that Kraken cannot store: the quantity would be 0 kg. Correct it in RoasTime.',
+      'RoasTime ma zmianę dla KENYA-26-11, której Kraken nie może zapisać: pole „Nazwa” ma więcej niż 200 znaków. Popraw to w RoasTime.',
+      'RoasTime ma zmianę dla KENYA-26-11, której Kraken nie może zapisać: ilość wyniosłaby 0 kg. Popraw to w RoasTime.',
     ]);
   });
 
@@ -164,7 +164,7 @@ describe('planImport: deliveries already in Kraken', () => {
     const first = linked({ code: 'KENYA-26-11', deleted_at: '2026-11-10T10:00:00.000Z' });
     const second = linked({ code: 'KENYA-26-11-B' });
     const plan = planImport(data([container()]), [first, second], today);
-    expect(plan.problems).toEqual(['Lots KENYA-26-11 and KENYA-26-11-B are all linked to the same RoasTime delivery. Delete the extra one in Kraken.']);
+    expect(plan.problems).toEqual(['Dostawy KENYA-26-11 i KENYA-26-11-B są połączone z tą samą dostawą RoasTime. Usuń nadmiarową w Krakenie.']);
     expect(plan.items[0]).toMatchObject({ kind: 'same', lot: second });
   });
 
@@ -186,13 +186,13 @@ describe('operations', () => {
   it('adds new lots', () => {
     const plan = planImport(data([container()]), [], today);
     const ops = operations(plan, decide([['C1', { action: 'add' }]]));
-    expect(ops).toEqual([{ kind: 'add', label: 'Add KENYA-26-11', fields: plan.items[0]?.kind === 'new' ? plan.items[0].fields : {} }]);
+    expect(ops).toEqual([{ kind: 'add', label: 'Dodaj KENYA-26-11', fields: plan.items[0]?.kind === 'new' ? plan.items[0].fields : {} }]);
   });
 
   it('writes only the ticked differences of a changed lot, never prices or supplier', () => {
     const plan = planImport(data([container({ startGrams: 59500 })], [bean({ name: 'New name' })]), [linked()], today);
     const ops = operations(plan, decide([['C1', { action: 'update', accept: ['quantity_kg'] }]]));
-    expect(ops).toEqual([{ kind: 'update', lot: expect.anything(), label: 'Update KENYA-26-11', fields: { quantity_kg: '59.5' } }]);
+    expect(ops).toEqual([{ kind: 'update', lot: expect.anything(), label: 'Zaktualizuj KENYA-26-11', fields: { quantity_kg: '59.5' } }]);
   });
 
   it('writes nothing for skipped items, items without a choice, or nothing ticked', () => {

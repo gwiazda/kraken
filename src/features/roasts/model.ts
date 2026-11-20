@@ -2,8 +2,9 @@
 // see docs/REQUIREMENTS.md section 3. Weights are kept in grams (green as whole grams; roasted may have one decimal,
 // RoasTime writes e.g. 132.5).
 
-import { localDate } from '../../core/dates';
+import { formatDateTime, localDate } from '../../core/dates';
 import { parseDecimal, toDecimalText } from '../../core/numbers';
+import { count } from '../../core/polish';
 
 export const ROASTS_TAB = 'Roasts';
 
@@ -54,7 +55,7 @@ export function roastFromFields(fields: Fields, row: number): Roast {
   const number = (name: string, label: string, parse: (t: string) => number | null | undefined) => {
     const value = parse(text(name));
     if (value === undefined) {
-      problems.push(`${label} "${text(name)}" in row ${row} is not a number Kraken can read.`);
+      problems.push(`${label} „${text(name)}” w wierszu ${row} to nie liczba, którą Kraken umie odczytać.`);
       return null;
     }
     return value;
@@ -62,7 +63,7 @@ export function roastFromFields(fields: Fields, row: number): Roast {
   let roastedAt: Date | null = null;
   if (text('roasted_at') !== '') {
     const time = new Date(text('roasted_at'));
-    if (Number.isNaN(time.getTime())) problems.push(`Roast time "${text('roasted_at')}" in row ${row} is not a time Kraken can read.`);
+    if (Number.isNaN(time.getTime())) problems.push(`Czas wypału „${text('roasted_at')}” w wierszu ${row} to nie czas, który Kraken umie odczytać.`);
     else roastedAt = time;
   }
   return {
@@ -70,8 +71,8 @@ export function roastFromFields(fields: Fields, row: number): Roast {
     row,
     roastedAt,
     name: text('roast_name'),
-    greenGrams: number('green_g', 'Green weight', parseGrams),
-    roastedDecigrams: number('roasted_g', 'Roasted weight', parseRoastedGrams),
+    greenGrams: number('green_g', 'Waga zielonej', parseGrams),
+    roastedDecigrams: number('roasted_g', 'Waga palonej', parseRoastedGrams),
     lotId: text('lot_id'),
     sample: ['yes', 'true', '1'].includes(text('sample').toLowerCase()),
     notes: fields.notes ?? '',
@@ -91,11 +92,12 @@ export function roastLossPermille(roast: Pick<Roast, 'greenGrams' | 'roastedDeci
   return Math.round(((green - roast.roastedDecigrams) * 1000) / green);
 }
 
-/** "2026-11-03 09:15" in local time. */
+/** "1 wypał", "2 wypały", "5 wypałów" (the same form after "dodano", "zaktualizowano"). */
+export const roastsCount = (n: number) => count(n, 'wypał', 'wypały', 'wypałów');
+
+/** "03.11.2026 09:15" in local time (the Polish way). */
 export function roastTimeText(time: Date | null): string {
-  if (!time) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${localDate(time)} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
+  return time ? formatDateTime(time) : '';
 }
 
 /** Oldest first; roasts without a time at the end. */
@@ -153,8 +155,8 @@ export function validateRoastForm(
 ): { ok: true; fields: Record<string, string> } | { ok: false; errors: RoastFormErrors } {
   const errors: RoastFormErrors = {};
   const fields: Record<string, string> = {};
-  if (form.lotId !== '' && !lotIds.includes(form.lotId)) errors.lotId = 'Choose one of the lots in the list.';
-  if (form.notes.length > 2000) errors.notes = 'Use at most 2000 characters.';
+  if (form.lotId !== '' && !lotIds.includes(form.lotId)) errors.lotId = 'Wybierz jedną z dostaw z listy.';
+  if (form.notes.length > 2000) errors.notes = 'Najwyżej 2000 znaków.';
   fields.lot_id = form.lotId;
   fields.sample = form.sample ? 'yes' : '';
   fields.notes = form.notes;
@@ -162,16 +164,16 @@ export function validateRoastForm(
     const date = form.date.trim();
     const time = form.time.trim() || '00:00';
     const at = /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{2}:\d{2}$/.test(time) ? new Date(`${date}T${time}`) : null;
-    if (date === '') errors.date = 'Enter the roast date.';
-    else if (!at || Number.isNaN(at.getTime()) || localDate(at) !== date) errors.date = 'Use a real date, e.g. 2026-11-03.';
+    if (date === '') errors.date = 'Wybierz datę wypału.';
+    else if (!at || Number.isNaN(at.getTime()) || localDate(at) !== date) errors.date = 'Wybierz prawdziwą datę.';
     const green = parseGrams(form.greenG.trim());
-    if (green === null) errors.greenG = 'Enter the green weight in grams.';
-    else if (green === undefined) errors.greenG = 'Enter whole grams, e.g. 1200.';
-    else if (green === 0) errors.greenG = 'The green weight must be more than 0.';
+    if (green === null) errors.greenG = 'Wpisz wagę zielonej kawy w gramach.';
+    else if (green === undefined) errors.greenG = 'Wpisz pełne gramy, np. 1200.';
+    else if (green === 0) errors.greenG = 'Waga zielonej kawy musi być większa od 0.';
     const roasted = parseRoastedGrams(form.roastedG.trim());
-    if (roasted === undefined) errors.roastedG = 'Enter grams, e.g. 1026 or 1026,5 — or leave it empty.';
-    else if (typeof roasted === 'number' && typeof green === 'number' && roasted > green * 10) errors.roastedG = 'The roasted weight cannot be more than the green weight.';
-    if (form.name.trim().length > 200) errors.name = 'Use at most 200 characters.';
+    if (roasted === undefined) errors.roastedG = 'Wpisz gramy, np. 1026 albo 1026,5, albo zostaw puste.';
+    else if (typeof roasted === 'number' && typeof green === 'number' && roasted > green * 10) errors.roastedG = 'Waga palonej kawy nie może być większa niż zielonej.';
+    if (form.name.trim().length > 200) errors.name = 'Najwyżej 200 znaków.';
     if (at && !errors.date) fields.roasted_at = at.toISOString();
     fields.roast_name = form.name.trim();
     if (typeof green === 'number') fields.green_g = gramsText(green);

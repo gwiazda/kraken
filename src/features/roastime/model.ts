@@ -101,13 +101,13 @@ export function parseRoastimeFiles(files: readonly FolderFile[]): RoastimeData {
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not an object');
       json = parsed as Json;
     } catch {
-      problems.push(`RoasTime file ${name} could not be read, so Kraken skipped it.`);
+      problems.push(`Nie udało się odczytać pliku RoasTime ${name}, więc Kraken go pominął.`);
       continue;
     }
     if (kind === 'roasts') {
       const id = text(json.uid) || text(json.id);
       if (id === '') {
-        problems.push(`RoasTime roast ${name} has no ID, so Kraken skipped it.`);
+        problems.push(`Wypał RoasTime ${name} nie ma identyfikatora, więc Kraken go pominął.`);
         continue;
       }
       const green = weight(json.weightGreen);
@@ -128,14 +128,14 @@ export function parseRoastimeFiles(files: readonly FolderFile[]): RoastimeData {
       const beanId = text(json.beanId);
       const grams = json.startOnHand;
       if (id === '' || beanId === '' || typeof grams !== 'number' || !Number.isSafeInteger(grams) || grams < 0) {
-        problems.push(`RoasTime delivery ${name} is missing its ID, coffee or starting amount, so Kraken skipped it.`);
+        problems.push(`Dostawie RoasTime ${name} brakuje identyfikatora, kawy albo ilości początkowej, więc Kraken ją pominął.`);
         continue;
       }
       containers.push({ id, beanId, startGrams: grams, deleted: json.deleted === true, createdAt: time(json.createdAt) });
     } else {
       const id = text(json.uid) || text(json.id);
       if (id === '') {
-        problems.push(`RoasTime coffee ${name} has no ID, so Kraken skipped it.`);
+        problems.push(`Kawa RoasTime ${name} nie ma identyfikatora, więc Kraken ją pominął.`);
         continue;
       }
       const vendors = Array.isArray(json.vendorIds) ? json.vendorIds : [];

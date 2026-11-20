@@ -77,10 +77,10 @@ describe('parseRoastimeFiles', () => {
     expect(data.containers).toEqual([]);
     expect(data.beans).toEqual([]);
     expect(data.problems).toEqual([
-      'RoasTime file containers/X could not be read, so Kraken skipped it.',
-      'RoasTime delivery containers/Y is missing its ID, coffee or starting amount, so Kraken skipped it.',
-      'RoasTime file containers/Z could not be read, so Kraken skipped it.',
-      'RoasTime coffee beans/W has no ID, so Kraken skipped it.',
+      'Nie udało się odczytać pliku RoasTime containers/X, więc Kraken go pominął.',
+      'Dostawie RoasTime containers/Y brakuje identyfikatora, kawy albo ilości początkowej, więc Kraken ją pominął.',
+      'Nie udało się odczytać pliku RoasTime containers/Z, więc Kraken go pominął.',
+      'Kawa RoasTime beans/W nie ma identyfikatora, więc Kraken ją pominął.',
     ]);
   });
 });
@@ -107,6 +107,6 @@ describe('parseRoastimeFiles: roasts', () => {
   });
 
   it('reports a roast without an ID', () => {
-    expect(parseRoastimeFiles([{ path: 'roast-time/roasts/X', text: roastFile({ uid: '' }) }]).problems).toEqual(['RoasTime roast roasts/X has no ID, so Kraken skipped it.']);
+    expect(parseRoastimeFiles([{ path: 'roast-time/roasts/X', text: roastFile({ uid: '' }) }]).problems).toEqual(['Wypał RoasTime roasts/X nie ma identyfikatora, więc Kraken go pominął.']);
   });
 });

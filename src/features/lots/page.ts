@@ -53,45 +53,45 @@ interface FieldSpec {
 /** The form, in sections (owner, 2026-11-15). The price is back on the lot (owner, 2026-11-18). */
 const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   {
-    title: 'Coffee',
+    title: 'Kawa',
     fields: [
-      { key: 'name', label: 'Name', hint: 'e.g. Kenya Kegwa', required: true },
-      { key: 'country', label: 'Country', required: true },
+      { key: 'name', label: 'Nazwa', hint: 'np. Kenya Kegwa', required: true },
+      { key: 'country', label: 'Kraj', required: true },
       { key: 'region', label: 'Region' },
-      { key: 'altitude', label: 'Altitude', hint: 'e.g. 1700–1900 m' },
-      { key: 'process', label: 'Process', hint: 'e.g. Washed, Natural' },
-      { key: 'variety', label: 'Variety' },
+      { key: 'altitude', label: 'Wysokość uprawy', hint: 'np. 1700–1900 m' },
+      { key: 'process', label: 'Obróbka', hint: 'np. Washed, Natural' },
+      { key: 'variety', label: 'Odmiana' },
     ],
   },
   {
-    title: 'Delivery',
+    title: 'Dostawa',
     fields: [
-      { key: 'deliveryDate', label: 'Delivery date', type: 'date', required: true },
-      { key: 'code', label: 'Code', hint: 'Suggested from country and date; you can change it.', required: true },
-      { key: 'quantityKg', label: 'Quantity delivered (kg)', decimal: true, required: true },
-      { key: 'supplier', label: 'Supplier' },
+      { key: 'deliveryDate', label: 'Data dostawy', type: 'date', required: true },
+      { key: 'code', label: 'Kod', hint: 'Proponowany z kraju i daty; możesz go zmienić.', required: true },
+      { key: 'quantityKg', label: 'Dostarczona ilość (kg)', decimal: true, required: true },
+      { key: 'supplier', label: 'Dostawca' },
     ],
   },
   {
-    title: 'Price (what you paid, without VAT)',
+    title: 'Cena (ile zapłaciłeś, netto)',
     fields: [
       {
         key: 'coffeePrice',
-        label: 'Coffee price (zł)',
-        hint: 'For the whole delivery, e.g. 4500.',
-        tip: 'What you paid the supplier for the whole delivery, without VAT.',
+        label: 'Cena kawy (zł)',
+        hint: 'Za całą dostawę, np. 4500.',
+        tip: 'Ile zapłaciłeś dostawcy za całą dostawę, netto.',
         decimal: true,
       },
       {
         key: 'deliveryCost',
-        label: 'Delivery cost (zł)',
-        hint: 'Leave empty if there was none.',
-        tip: 'What you paid for shipping this delivery, without VAT. Kraken adds it to the coffee price.',
+        label: 'Koszt dostawy (zł)',
+        hint: 'Zostaw puste, jeśli go nie było.',
+        tip: 'Ile zapłaciłeś za transport tej dostawy, netto. Kraken dolicza go do ceny kawy.',
         decimal: true,
       },
     ],
   },
-  { title: 'Notes', fields: [{ key: 'notes', label: 'Notes', type: 'textarea' }] },
+  { title: 'Uwagi', fields: [{ key: 'notes', label: 'Uwagi', type: 'textarea' }] },
 ];
 
 const FIELDS: readonly FieldSpec[] = SECTIONS.flatMap((section) => section.fields);
@@ -110,7 +110,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
 
   /** `fromClick`: started by a click, so the sign-in may be renewed first (renew on the next click). */
   function load(note?: string, fromClick = false): void {
-    render(el('p', {}, busy('Loading lots…')));
+    render(el('p', {}, busy('Wczytuję dostawy…')));
     const both = async () => {
       const result = await deps.repo.load();
       // Stock comes from the Roasts tab; if that cannot be read, the lots are still shown (with a note).
@@ -118,7 +118,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         (map) => ({ map, problem: '' }),
         (error: unknown) => {
           if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          return { map: new Map() as StockByLot, problem: `Stock left could not be calculated: ${deps.describeError(error)}` };
+          return { map: new Map() as StockByLot, problem: `Nie udało się policzyć, ile zostało: ${deps.describeError(error)}` };
         },
       );
       // The roast loss comes from the Roasts and cost tabs; if that cannot be read, the lots are still shown too.
@@ -126,7 +126,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         (found) => ({ map: found.losses, problems: found.problems }),
         (error: unknown) => {
           if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          return { map: new Map() as LossByLot, problems: [`The roast loss could not be worked out: ${deps.describeError(error)}`] };
+          return { map: new Map() as LossByLot, problems: [`Nie udało się policzyć ubytku przy paleniu: ${deps.describeError(error)}`] };
         },
       );
       const extra = [stockResult.problem, ...lossResult.problems].filter((p) => p);
@@ -201,7 +201,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       .finally(() => deps.busy(false))
       .then((saved) => {
         if (!root.isConnected) return; // the user went to another page meanwhile
-        load(kind === 'remove' ? `Deleted ${saved.code}. You can bring it back with "Show deleted", then Restore.` : `Restored ${saved.code}.`);
+        load(kind === 'remove' ? `Usunięto ${saved.code}. Przywrócisz ją przez „Pokaż usunięte”, potem Przywróć.` : `Przywrócono ${saved.code}.`);
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
@@ -209,7 +209,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           showList();
           return;
         }
-        const working = kind === 'remove' ? `Deleting ${lot.code}…` : `Restoring ${lot.code}…`;
+        const working = kind === 'remove' ? `Usuwam ${lot.code}…` : `Przywracam ${lot.code}…`;
         const showError = (e: unknown) =>
           showList(
             undefined,
@@ -240,15 +240,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           { class: 'code' },
           row.code,
           ...(row.deleted ? [' ', el('span', { class: 'badge badge-muted' }, row.deletedNote)] : []),
-          ...(row.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: row.problems.join(' ') }, 'Check')] : []),
+          ...(row.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: row.problems.join(' ') }, 'Sprawdź')] : []),
         ),
         el('td', {}, row.name),
         el('td', {}, row.country),
         el('td', { class: 'nowrap' }, row.delivered),
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: `num nowrap${row.overdrawn ? ' overdrawn' : ''}` }, row.stockLeft),
-        el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted || row.lot.coffeePriceGrosze !== null ? '—' : el('span', { class: 'badge badge-warn' }, 'Add price'))),
-        el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossOwn ? [el('span', { class: 'muted small' }, ' (own)')] : [])),
+        el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted || row.lot.coffeePriceGrosze !== null ? '—' : el('span', { class: 'badge badge-warn' }, 'Dodaj cenę'))),
+        el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossOwn ? [el('span', { class: 'muted small' }, ' (własny)')] : [])),
         el('td', {}, row.supplier),
         el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,
@@ -262,10 +262,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       const confirmRow = el('tr', { class: 'confirm-row', hidden: '' });
       const normal = (focusDelete = false) => {
         confirmRow.hidden = true;
-        const deleteButton = button('Delete', ask, 'link');
+        const deleteButton = button('Usuń', ask, 'link');
         cell.replaceChildren(
           ...(row.deleted
-            ? [button('Restore', () => change(row.lot, 'restore', inRow('Restoring…')), 'link')]
+            ? [button('Przywróć', () => change(row.lot, 'restore', inRow('Przywracam…')), 'link')]
             : [deleteButton]),
         );
         if (focusDelete) deleteButton.focus();
@@ -278,12 +278,12 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           el(
             'td',
             { colspan: '11' },
-            el('span', {}, `Delete ${row.code}? It can be restored later under "Show deleted". `),
+            el('span', {}, `Usunąć ${row.code}? Można ją później przywrócić w „Pokaż usunięte”. `),
             button(
-              'Yes, delete',
+              'Tak, usuń',
               () => {
                 confirmRow.hidden = true;
-                change(row.lot, 'remove', inRow('Deleting…'));
+                change(row.lot, 'remove', inRow('Usuwam…'));
               },
               'primary',
             ),
@@ -295,13 +295,13 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         no.focus(); // keyboard users land on the question; the safe answer first
       };
       normal();
-      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', lot: row.lot }), `Open ${row.code}`, { asking: () => !confirmRow.hidden });
+      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', lot: row.lot }), `Otwórz ${row.code}`, { asking: () => !confirmRow.hidden });
       return [tr, confirmRow];
     }
 
     const table =
       rows.length === 0
-        ? el('p', { class: 'muted' }, hidden > 0 ? 'No active lots.' : 'No lots yet. Click "Add lot" to record your first green coffee delivery.')
+        ? el('p', { class: 'muted' }, hidden > 0 ? 'Brak aktywnych dostaw.' : 'Nie ma jeszcze dostaw. Kliknij „Dodaj dostawę”, aby wpisać pierwszą dostawę zielonej kawy.')
         : el(
             'div',
             { class: 'table-wrap' },
@@ -314,15 +314,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 el(
                   'tr',
                   {},
-                  ...['Code', 'Name', 'Country', 'Delivered', 'Quantity', 'Stock left'].map((h) => el('th', { scope: 'col' }, h)),
-                  el('th', { scope: 'col', class: 'num' }, 'Price / kg ', infoTip('How much you paid for each kilo of green coffee in this delivery: the coffee price plus delivery, shared out over the kilos you got. Without VAT.')),
+                  ...['Kod', 'Nazwa', 'Kraj', 'Dostarczona', 'Ilość', 'Zostało'].map((h) => el('th', { scope: 'col' }, h)),
+                  el('th', { scope: 'col', class: 'num' }, 'Cena / kg ', infoTip('Ile zapłaciłeś za każdy kilogram zielonej kawy z tej dostawy: cena kawy plus dostawa, rozłożone na otrzymane kilogramy. Netto.')),
                   el(
                     'th',
                     { scope: 'col', class: 'num' },
-                    'Roast loss ',
-                    infoTip('Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Kraken uses the average of this lot\'s roasts, or your own number (click the lot).'),
+                    'Ubytek ',
+                    infoTip('Ziarno przy paleniu traci na wadze. Przy 15 % ubytku z 1 kg zielonego ziarna jest 850 g palonej kawy. Kraken używa średniej z wypałów tej dostawy albo Twojej liczby (kliknij dostawę).'),
                   ),
-                  ...['Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
+                  ...['Dostawca', 'Źródło', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
@@ -340,19 +340,19 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       el(
         'div',
         { class: 'page-head' },
-        el('h2', {}, 'Green coffee lots'),
-        el('div', { class: 'head-actions' }, button('Add lot', () => showForm({ kind: 'add' }))),
+        el('h2', {}, 'Dostawy zielonej kawy'),
+        el('div', { class: 'head-actions' }, button('Dodaj dostawę', () => showForm({ kind: 'add' }))),
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
       ...rows
         .filter((row) => row.problems.length > 0 && !row.deleted)
-        .map((row) => message(`${row.code}: ${row.problems.join(' ')} Open Edit to correct it.`, 'error')),
+        .map((row) => message(`${row.code}: ${row.problems.join(' ')} Kliknij dostawę, aby to poprawić.`, 'error')),
       ...rows.filter((row) => row.overdrawn && !row.deleted).map((row) => message(row.stockNote, 'error')),
       table,
       ...(hidden > 0
-        ? [el('p', { class: 'show-deleted small' }, toggle, ' ', el('label', { for: 'show-deleted' }, `Show deleted (${hidden})`))]
+        ? [el('p', { class: 'show-deleted small' }, toggle, ' ', el('label', { for: 'show-deleted' }, `Pokaż usunięte (${hidden})`))]
         : []),
     );
   }
@@ -406,8 +406,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
 
     const banner = el('div', { class: 'form-banner' });
     // A real submit button inside the form: clicking it or pressing Enter in a field both save.
-    const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, mode.kind === 'add' ? 'Save lot' : 'Save changes');
-    const cancelButton = button('Cancel', () => showList(), 'secondary');
+    const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, mode.kind === 'add' ? 'Zapisz dostawę' : 'Zapisz zmiany');
+    const cancelButton = button('Anuluj', () => showList(), 'secondary');
 
     const showErrors = (errors: LotFormErrors) => {
       for (const spec of FIELDS) {
@@ -426,8 +426,8 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       const value = typedPricePerKg(form, typeof grams === 'number' ? grams : null);
       perKg.replaceChildren(
         ...(value !== null
-          ? ['= ', el('strong', {}, formatPln(value)), ' for 1 kg of green coffee']
-          : [el('span', { class: 'muted' }, 'Fill in the coffee price and the kg delivered to see what 1 kg cost you.')]),
+          ? ['= ', el('strong', {}, formatPln(value)), ' za 1 kg zielonej kawy']
+          : [el('span', { class: 'muted' }, 'Wpisz cenę kawy i dostarczone kg, aby zobaczyć, ile kosztował Cię 1 kg.')]),
       );
     };
     for (const key of ['coffeePrice', 'deliveryCost', 'quantityKg'] as const) inputs[key].addEventListener('input', showPerKg);
@@ -441,19 +441,19 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     const lossError = el('p', { class: 'field-error', id: 'lot-roastLoss-error', role: 'alert' });
     const lossHint =
       lossNow && !lossNow.own
-        ? `Empty: ${formatLoss(lossNow.lossTenths)}, the ${lossNow.source}.`
+        ? `Puste: ${formatLoss(lossNow.lossTenths)} (${lossNow.source}).`
         : lossNow?.own
-          ? 'Empty it to use the average of this lot\'s roasts again.'
-          : 'Empty: the average of this lot\'s roasts once there are some, until then the usual loss.';
+          ? 'Wyczyść, aby znów używać średniej z wypałów tej dostawy.'
+          : 'Puste: średnia z wypałów tej dostawy, gdy jakieś będą; do tego czasu zwykły ubytek.';
     const lossField = el(
       'div',
       { class: 'field' },
       el(
         'div',
         { class: 'label-row' },
-        el('label', { for: lossInput.id }, 'Roast loss % (optional)'),
+        el('label', { for: lossInput.id }, 'Ubytek przy paleniu % (opcjonalnie)'),
         infoTip(
-          'Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Leave it empty and Kraken uses the average of this lot\'s roasts.',
+          'Ziarno przy paleniu traci na wadze. Przy 15 % ubytku z 1 kg zielonego ziarna jest 850 g palonej kawy. Zostaw puste, a Kraken użyje średniej z wypałów tej dostawy.',
         ),
       ),
       lossInput,
@@ -464,7 +464,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
       cancelButton.disabled = working;
-      saveButton.replaceChildren(working ? busy('Saving…') : mode.kind === 'add' ? 'Save lot' : 'Save changes');
+      saveButton.replaceChildren(working ? busy('Zapisuję…') : mode.kind === 'add' ? 'Zapisz dostawę' : 'Zapisz zmiany');
     };
 
     // Called directly inside the Save click, so a sign-in renewal can open Google's window.
@@ -477,7 +477,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       if (!result.ok || !loss.ok) {
         showErrors(result.ok ? {} : result.errors);
         if (result.ok) lossInput.focus();
-        banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
+        banner.replaceChildren(message('Popraw pola zaznaczone poniżej.', 'error'));
         return;
       }
       const lossChanged = loss.value !== (lossNow?.own ?? '');
@@ -497,7 +497,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
           return saved;
         })
         .finally(() => deps.busy(false))
-        .then((saved) => load(`Saved ${saved.code}.`))
+        .then((saved) => load(`Zapisano ${saved.code}.`))
         .catch((error: unknown) => {
           setBusy(false);
           if (deps.isIgnorable(error)) return;
@@ -543,15 +543,15 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     });
 
     render(
-      el('h2', {}, mode.kind === 'add' ? 'Add lot' : `Edit ${mode.lot.code}`),
+      el('h2', {}, mode.kind === 'add' ? 'Dodaj dostawę' : `Dostawa ${mode.lot.code}`),
       el(
         'p',
         { class: 'muted small' },
         mode.kind === 'edit' && lotSource(mode.lot) === 'RoasTime'
-          ? 'Imported from RoasTime. A later import may update the name, country, region, process and quantity (you are asked first). Fields marked * are required.'
+          ? 'Pobrana z RoasTime. Kolejna synchronizacja może zmienić nazwę, kraj, region, obróbkę i ilość (najpierw zapyta). Pola oznaczone * są wymagane.'
           : mode.kind === 'edit'
-            ? 'Entered by hand. Imports from RoasTime never change it. Fields marked * are required.'
-            : 'Fields marked * are required. One lot = one delivery of green coffee.',
+            ? 'Wpisana ręcznie. Synchronizacja z RoasTime nigdy jej nie zmienia. Pola oznaczone * są wymagane.'
+            : 'Pola oznaczone * są wymagane. Każda dostawa zielonej kawy to osobny wpis.',
       ),
       ...(mode.kind === 'edit' ? mode.lot.problems.map((text) => message(text, 'error')) : []),
       banner,

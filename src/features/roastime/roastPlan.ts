@@ -11,7 +11,7 @@
 // - a roast that is no longer in RoasTime stays in Kraken (only a note); other roasts deleted in Kraken are left alone
 
 import { formatKg } from '../../core/numbers';
-import { gramsText, parseGrams, parseRoastedGrams, roastTimeText, roastedGramsText, type Roast } from '../roasts';
+import { gramsText, parseGrams, parseRoastedGrams, roastTimeText, roastedGramsText, roastsCount, type Roast } from '../roasts';
 import type { RoastimeRoast } from './model';
 
 export interface NewRoast {
@@ -47,13 +47,13 @@ export interface RoastPlan {
 
 const iso = (time: Date | null) => (time ? time.toISOString() : '');
 /** Local date and time, like the Roasts page shows it. */
-const when = (time: Date | null) => roastTimeText(time) || 'no date';
+const when = (time: Date | null) => roastTimeText(time) || 'bez daty';
 
 /** A stored weight as "1,2 kg" for the preview; a cell Kraken cannot read is shown as typed (never an error). */
 function shownGrams(text: string, parse: (t: string) => number | null | undefined, toGrams: (n: number) => number): string {
-  if (text === '') return '(empty)';
+  if (text === '') return '(puste)';
   const value = parse(text);
-  return typeof value === 'number' ? formatKg(toGrams(value)) : `"${text}"`;
+  return typeof value === 'number' ? formatKg(toGrams(value)) : `„${text}”`;
 }
 const greenShown = (text: string) => shownGrams(text, parseGrams, (n) => n);
 const roastedShown = (text: string) => shownGrams(text, parseRoastedGrams, (n) => Math.round(n / 10));
@@ -78,12 +78,12 @@ function differences(existing: Roast, rt: RoastimeRoast, label: string, problems
     fields[column] = to;
     changes.push(describe(from, to));
   };
-  offer('roasted_at', () => `Time: ${when(existing.roastedAt)} → ${when(rt.roastedAt)}`);
-  offer('roast_name', (from, to) => `Name: ${from || '(empty)'} → ${to}`);
-  if (rt.greenGrams === 0) problems.push(`RoasTime now has no green weight for ${label}; Kraken keeps its value.`);
-  else offer('green_g', (from, to) => `Green weight: ${greenShown(from)} → ${greenShown(to)}`);
-  offer('roasted_g', (from, to) => `Roasted weight: ${roastedShown(from)} → ${roastedShown(to)}`);
-  offer('roastime_bean_id', (from) => (from === '' ? 'Coffee: chosen in RoasTime' : 'Coffee: a different coffee was chosen in RoasTime'));
+  offer('roasted_at', () => `Czas: ${when(existing.roastedAt)} → ${when(rt.roastedAt)}`);
+  offer('roast_name', (from, to) => `Nazwa: ${from || '(puste)'} → ${to}`);
+  if (rt.greenGrams === 0) problems.push(`RoasTime nie ma już wagi zielonej: ${label}. Kraken zostawia swoją wartość.`);
+  else offer('green_g', (from, to) => `Waga zielonej: ${greenShown(from)} → ${greenShown(to)}`);
+  offer('roasted_g', (from, to) => `Waga palonej: ${roastedShown(from)} → ${roastedShown(to)}`);
+  offer('roastime_bean_id', (from) => (from === '' ? 'Kawa: wybrana w RoasTime' : 'Kawa: w RoasTime wybrano inną kawę'));
   return { fields, changes };
 }
 
@@ -122,7 +122,7 @@ export function coffeesOf(
 
 /** Why a RoasTime roast is a sample, or '' if it is a real roast. */
 const sampleReason = (rt: RoastimeRoast, coffees: Coffees) =>
-  rt.beanId === '' ? 'no coffee chosen' : coffees.delivered.has(rt.beanId) ? '' : 'its coffee has no delivery in RoasTime';
+  rt.beanId === '' ? 'nie wybrano kawy' : coffees.delivered.has(rt.beanId) ? '' : 'jego kawa nie ma dostawy w RoasTime';
 
 /**
  * True if a roast deleted in Kraken was a sample there (no coffee, or a coffee that had no lot): only such a roast is
@@ -139,7 +139,7 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   }
   for (const group of byRoastimeId.values()) {
     if (group.filter((r) => r.deletedAt === '').length > 1) {
-      problems.push(`${group.length} roasts in Kraken (rows ${group.map((r) => r.row).join(', ')}) are the same RoasTime roast. Delete the extra ones.`);
+      problems.push(`${roastsCount(group.length)} w Krakenie (wiersze ${group.map((r) => r.row).join(', ')}) to ten sam wypał RoasTime. Usuń nadmiarowe.`);
     }
   }
 
@@ -155,10 +155,10 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   const ordered = [...fromRoastime].sort((a, b) => (a.roastedAt?.getTime() ?? 0) - (b.roastedAt?.getTime() ?? 0));
 
   for (const rt of ordered) {
-    const label = `${rt.name || 'Roast without a name'} (${when(rt.roastedAt)})`;
+    const label = `${rt.name || 'Wypał bez nazwy'} (${when(rt.roastedAt)})`;
     if (seen.has(rt.id)) {
       // The same roast twice in the folder (e.g. a Finder copy): use it once.
-      problems.push(`${label} is in the RoasTime folder twice; Kraken uses it once.`);
+      problems.push(`${label} jest w folderze RoasTime dwa razy; Kraken bierze go raz.`);
       continue;
     }
     seen.add(rt.id);
@@ -189,11 +189,11 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
       continue;
     }
     if (rt.greenGrams === null || rt.greenGrams === 0) {
-      skipped.push(`${label}: no green weight`);
+      skipped.push(`${label}: brak wagi zielonej`);
       continue;
     }
     if (rt.roastedAt === null) {
-      skipped.push(`${label}: no roast time`);
+      skipped.push(`${label}: brak czasu wypału`);
       continue;
     }
     if (reason !== '') {
