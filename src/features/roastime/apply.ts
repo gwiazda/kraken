@@ -3,7 +3,7 @@
 // Kept out of the screen so it is tested.
 
 import type { LotsRepository } from '../lots';
-import type { Roast, RoastsRepository } from '../roasts';
+import { roastsCount, type Roast, type RoastsRepository } from '../roasts';
 import type { Operation } from './plan';
 import { count } from '../../core/polish';
 
@@ -53,8 +53,8 @@ export class ImportStopped extends Error {
 export const changeCount = (writes: SyncWrites) =>
   writes.lotOps.length + writes.roastAdds.length + writes.roastUpdates.length + writes.roastRemovals.length + writes.roastRestores.length;
 
-const lots = (n: number) => count(n, 'dostawę', 'dostawy', 'dostaw');
-const roasts = (n: number) => count(n, 'wypał', 'wypały', 'wypałów');
+/** "1 dostawę", "2 dostawy", "5 dostaw" (after "dodano", "zaktualizowano"). */
+const lotsCount = (n: number) => count(n, 'dostawę', 'dostawy', 'dostaw');
 
 export async function applySync(writes: SyncWrites, deps: ApplyDeps): Promise<SyncResult> {
   const lotAdds = writes.lotOps.filter((op) => op.kind === 'add');
@@ -69,12 +69,12 @@ export async function applySync(writes: SyncWrites, deps: ApplyDeps): Promise<Sy
       saved += lotAdds.length;
     }
     if (lotUpdates.length > 0) {
-      deps.onProgress(`Aktualizuję ${lots(lotUpdates.length)}…`);
+      deps.onProgress(`Aktualizuję ${lotsCount(lotUpdates.length)}…`);
       await deps.lots.updateMany(lotUpdates.map((op) => ({ lot: op.lot, fields: op.fields })), deps.now());
       saved += lotUpdates.length;
     }
     if (writes.roastAdds.length > 0) {
-      deps.onProgress(`Dodaję ${roasts(writes.roastAdds.length)}…`);
+      deps.onProgress(`Dodaję ${roastsCount(writes.roastAdds.length)}…`);
       await deps.roasts.addMany(writes.roastAdds, by, deps.now());
       saved += writes.roastAdds.length;
     }
@@ -85,7 +85,7 @@ export async function applySync(writes: SyncWrites, deps: ApplyDeps): Promise<Sy
       ...writes.roastRemovals.map((roast) => ({ roast, fields: {}, deleted: true })),
     ];
     if (edits.length > 0) {
-      deps.onProgress(`Aktualizuję ${roasts(edits.length)}…`);
+      deps.onProgress(`Aktualizuję ${roastsCount(edits.length)}…`);
       await deps.roasts.updateMany(edits, deps.now());
       saved += edits.length;
     }
@@ -105,12 +105,12 @@ export async function applySync(writes: SyncWrites, deps: ApplyDeps): Promise<Sy
 /** "dodano 2 dostawy, dodano 38 wypałów, zaktualizowano 3 wypały" */
 export function summaryOf(result: SyncResult): string {
   const parts = [
-    result.lotsAdded > 0 ? `dodano ${lots(result.lotsAdded)}` : '',
-    result.lotsUpdated > 0 ? `zaktualizowano ${lots(result.lotsUpdated)}` : '',
-    result.roastsAdded > 0 ? `dodano ${roasts(result.roastsAdded)}` : '',
-    result.roastsUpdated > 0 ? `zaktualizowano ${roasts(result.roastsUpdated)}` : '',
+    result.lotsAdded > 0 ? `dodano ${lotsCount(result.lotsAdded)}` : '',
+    result.lotsUpdated > 0 ? `zaktualizowano ${lotsCount(result.lotsUpdated)}` : '',
+    result.roastsAdded > 0 ? `dodano ${roastsCount(result.roastsAdded)}` : '',
+    result.roastsUpdated > 0 ? `zaktualizowano ${roastsCount(result.roastsUpdated)}` : '',
     result.roastsRemoved > 0 ? `usunięto ${count(result.roastsRemoved, 'próbkę', 'próbki', 'próbek')}` : '',
-    result.roastsRestored > 0 ? `przywrócono ${roasts(result.roastsRestored)}` : '',
+    result.roastsRestored > 0 ? `przywrócono ${roastsCount(result.roastsRestored)}` : '',
   ].filter((p) => p !== '');
   return parts.length > 0 ? parts.join(', ') : 'nic się nie zmieniło';
 }

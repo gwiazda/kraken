@@ -250,7 +250,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted || row.lot.coffeePriceGrosze !== null ? '—' : el('span', { class: 'badge badge-warn' }, 'Dodaj cenę'))),
         el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossOwn ? [el('span', { class: 'muted small' }, ' (własny)')] : [])),
         el('td', {}, row.supplier),
-        el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source === 'RoasTime' ? 'RoasTime' : 'ręcznie')),
+        el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,
       );
       const inRow = (text: string) => () => {

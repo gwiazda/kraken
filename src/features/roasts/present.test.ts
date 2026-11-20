@@ -71,6 +71,6 @@ describe('roastListRows', () => {
   });
 
   it('marks roasts entered by hand', () => {
-    expect(rows([roast('a', { roastime_roast_id: '' })])[0]?.source).toBe('By hand');
+    expect(rows([roast('a', { roastime_roast_id: '' })])[0]?.source).toBe('ręcznie');
   });
 });

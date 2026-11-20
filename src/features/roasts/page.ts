@@ -149,7 +149,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       const marks = [
         ...(row.sample ? [el('span', { class: 'badge badge-muted' }, 'Próbka')] : []),
         ...(row.needsLot ? [el('span', { class: 'badge badge-warn' }, 'Potrzebna dostawa')] : []),
-        ...(row.beforeDelivery ? [el('span', { class: 'badge', title: 'Wypalony przed dostawą tej partii: sprawdź kawę wybraną w RoasTime.' }, 'Przed dostawą')] : []),
+        ...(row.beforeDelivery ? [el('span', { class: 'badge', title: 'Wypalony przed datą tej dostawy: sprawdź kawę wybraną w RoasTime.' }, 'Przed dostawą')] : []),
         ...(row.chosen ? [el('span', { class: 'badge badge-muted', title: 'Dostawa wybrana w Krakenie' }, 'Wybrana')] : []),
         ...(row.problems.length > 0 ? [el('span', { class: 'badge badge-warn', title: row.problems.join(' ') }, 'Sprawdź')] : []),
       ];
@@ -157,7 +157,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         'tr',
         row.deleted ? { class: 'row-deleted' } : {},
         el('td', { class: 'nowrap' }, row.when),
-        el('td', {}, row.name, ...(row.source === 'By hand' ? [' ', el('span', { class: 'muted small' }, '(ręcznie)')] : [])),
+        el('td', {}, row.name, ...(row.source === 'ręcznie' ? [' ', el('span', { class: 'muted small' }, `(${row.source})`)] : [])),
         el('td', {}, row.coffee),
         el('td', { class: 'num nowrap' }, row.green),
         el('td', { class: 'num nowrap' }, row.roasted),
@@ -239,7 +239,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
             key: 'roasts',
             rows,
             columns: ROAST_COLUMNS,
-            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'ręcznie' : '', ...r.marks].join(' '),
+            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'ręcznie' ? r.source : '', ...r.marks].join(' '),
             rowNodes,
             names: { rows: 'wypały', none: 'Nie ma jeszcze wypałów.' },
           }),

@@ -47,7 +47,7 @@ describe('lotListRows', () => {
       delivered: '03.11.2026',
       quantity: '60 kg',
       supplier: '—',
-      source: 'By hand',
+      source: 'ręcznie',
       stockLeft: '60\u00a0kg',
       overdrawn: false,
       problems: [],

@@ -4,6 +4,7 @@
 
 import { formatDateTime, localDate } from '../../core/dates';
 import { parseDecimal, toDecimalText } from '../../core/numbers';
+import { count } from '../../core/polish';
 
 export const ROASTS_TAB = 'Roasts';
 
@@ -90,6 +91,9 @@ export function roastLossPermille(roast: Pick<Roast, 'greenGrams' | 'roastedDeci
   const green = roast.greenGrams * 10; // decigrams
   return Math.round(((green - roast.roastedDecigrams) * 1000) / green);
 }
+
+/** "1 wypał", "2 wypały", "5 wypałów" (the same form after "dodano", "zaktualizowano"). */
+export const roastsCount = (n: number) => count(n, 'wypał', 'wypały', 'wypałów');
 
 /** "03.11.2026 09:15" in local time (the Polish way). */
 export function roastTimeText(time: Date | null): string {

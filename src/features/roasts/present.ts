@@ -34,7 +34,8 @@ export interface RoastListRow {
   readonly chosen: boolean;
   readonly beforeDelivery: boolean;
   readonly sample: boolean;
-  readonly source: 'RoasTime' | 'By hand';
+  /** As shown: "RoasTime" (synced) or "ręcznie" (added by hand). */
+  readonly source: 'RoasTime' | 'ręcznie';
   readonly deleted: boolean;
   readonly problems: readonly string[];
 }
@@ -108,7 +109,7 @@ export function roastListRows(roasts: readonly Roast[], lots: readonly Lot[], al
         chosen,
         beforeDelivery,
         sample: roast.sample,
-        source: fromRoastime(roast) ? 'RoasTime' : 'By hand',
+        source: fromRoastime(roast) ? 'RoasTime' : 'ręcznie',
         deleted: isRoastDeleted(roast),
         problems: roast.problems,
       };

@@ -10,9 +10,8 @@
 // - Kraken's own fields (lot, sample, notes) are never changed by a sync; an empty RoasTime value never empties Kraken's
 // - a roast that is no longer in RoasTime stays in Kraken (only a note); other roasts deleted in Kraken are left alone
 
-import { count } from '../../core/polish';
 import { formatKg } from '../../core/numbers';
-import { gramsText, parseGrams, parseRoastedGrams, roastTimeText, roastedGramsText, type Roast } from '../roasts';
+import { gramsText, parseGrams, parseRoastedGrams, roastTimeText, roastedGramsText, roastsCount, type Roast } from '../roasts';
 import type { RoastimeRoast } from './model';
 
 export interface NewRoast {
@@ -81,7 +80,7 @@ function differences(existing: Roast, rt: RoastimeRoast, label: string, problems
   };
   offer('roasted_at', () => `Czas: ${when(existing.roastedAt)} → ${when(rt.roastedAt)}`);
   offer('roast_name', (from, to) => `Nazwa: ${from || '(puste)'} → ${to}`);
-  if (rt.greenGrams === 0) problems.push(`RoasTime nie ma już wagi zielonej dla ${label}; Kraken zostawia swoją wartość.`);
+  if (rt.greenGrams === 0) problems.push(`RoasTime nie ma już wagi zielonej: ${label}. Kraken zostawia swoją wartość.`);
   else offer('green_g', (from, to) => `Waga zielonej: ${greenShown(from)} → ${greenShown(to)}`);
   offer('roasted_g', (from, to) => `Waga palonej: ${roastedShown(from)} → ${roastedShown(to)}`);
   offer('roastime_bean_id', (from) => (from === '' ? 'Kawa: wybrana w RoasTime' : 'Kawa: w RoasTime wybrano inną kawę'));
@@ -140,7 +139,7 @@ export function planRoasts(fromRoastime: readonly RoastimeRoast[], roasts: reado
   }
   for (const group of byRoastimeId.values()) {
     if (group.filter((r) => r.deletedAt === '').length > 1) {
-      problems.push(`${count(group.length, 'wypał', 'wypały', 'wypałów')} w Krakenie (wiersze ${group.map((r) => r.row).join(', ')}) to ten sam wypał RoasTime. Usuń nadmiarowe.`);
+      problems.push(`${roastsCount(group.length)} w Krakenie (wiersze ${group.map((r) => r.row).join(', ')}) to ten sam wypał RoasTime. Usuń nadmiarowe.`);
     }
   }
 

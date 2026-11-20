@@ -195,7 +195,7 @@ describe('planRoasts', () => {
   it('never empties a Kraken value, and keeps the green weight if RoasTime lost it', () => {
     const plan = planRoasts([rt({ roastedDecigrams: null, greenGrams: 0, name: '' })], [kraken()], coffees);
     expect(plan.changed).toEqual([]);
-    expect(plan.problems).toEqual([`RoasTime nie ma już wagi zielonej dla Wypał bez nazwy (${roastTimeText(new Date('2026-11-03T08:15:00.000Z'))}); Kraken zostawia swoją wartość.`]);
+    expect(plan.problems).toEqual([`RoasTime nie ma już wagi zielonej: Wypał bez nazwy (${roastTimeText(new Date('2026-11-03T08:15:00.000Z'))}). Kraken zostawia swoją wartość.`]);
   });
 
   it('keeps roasts that are no longer in RoasTime, and leaves deleted ones alone', () => {

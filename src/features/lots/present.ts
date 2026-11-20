@@ -12,8 +12,8 @@ export interface LotListRow {
   readonly delivered: string;
   readonly quantity: string;
   readonly supplier: string;
-  /** "RoasTime" (imported) or "By hand". */
-  readonly source: string;
+  /** As shown: "RoasTime" (imported) or "ręcznie" (added by hand). */
+  readonly source: 'RoasTime' | 'ręcznie';
   /** Green coffee left, e.g. "21,5 kg" or "−2,4 kg"; "—" if unknown. */
   readonly stockLeft: string;
   /** More was roasted than delivered (stock below zero). */
@@ -65,7 +65,7 @@ export function lotListRows(lots: readonly Lot[], showDeleted = false, stock: St
       delivered: formatDate(lot.deliveryDate) || DASH,
       quantity: lot.quantityGrams === null ? DASH : formatKg(lot.quantityGrams),
       supplier: lot.supplier || DASH,
-      source: lotSource(lot),
+      source: lotSource(lot) === 'RoasTime' ? 'RoasTime' : 'ręcznie',
       ...stockOf(lot, stock),
       pricePerKg: perKg === null ? '' : formatPln(perKg),
       loss: loss ? formatLoss(loss.lossTenths) : '',

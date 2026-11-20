@@ -18,7 +18,7 @@ The code, the sheet's tab and column names and the docs stay in English.
 | Clients / a client | Klienci / klient |
 | Packaging & discounts | Opakowania i rabaty |
 | Settings (Kraken settings) | Ustawienia (Ustawienia Krakena) |
-| Sync with RoasTime (screen / button) | Synchronizacja z RoasTime / Synchronizuj |
+| Sync with RoasTime (screen / menu button / save button on the preview) | Synchronizacja z RoasTime / Synchronizuj z RoasTime / Synchronizuj |
 | Lot code / delivered / stock left / supplier | Kod / Dostarczona / Zostało / Dostawca |
 | Process / variety / altitude | Obróbka / Odmiana / Wysokość uprawy |
 | Added by hand (not from RoasTime) | ręcznie |

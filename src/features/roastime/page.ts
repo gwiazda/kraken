@@ -13,7 +13,7 @@ import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, t
 import { defaultDecision, newLotCodes, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
 import { coffeesOf, planRoasts, type RoastPlan } from './roastPlan';
 import { formatDate } from '../../core/dates';
-import { plural } from '../../core/polish';
+import { count } from '../../core/polish';
 
 export interface RoastimeSyncDeps {
   lots: LotsRepository;
@@ -164,9 +164,9 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     const refresh = () => {
       const codes = newLotCodes(plan, decisions);
       for (const [id, label] of codeLabels) label.textContent = codes.get(id) ?? '';
-      const count = changeCount(writes());
-      importButton.disabled = count === 0;
-      summary.textContent = count === 0 ? ' Nic nie wybrano.' : ` Do zapisania: ${count} ${plural(count, 'zmiana', 'zmiany', 'zmian')}.`;
+      const changes = changeCount(writes());
+      importButton.disabled = changes === 0;
+      summary.textContent = changes === 0 ? ' Nic nie wybrano.' : ` Do zapisania: ${count(changes, 'zmiana', 'zmiany', 'zmian')}.`;
     };
 
     /** Tick boxes for differences; `accept` is the list they update. */
@@ -243,7 +243,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     const roastNodes = (): Node[] => {
       const nodes: Node[] = [];
       const added = roastPlan.added.length;
-      if (added > 0) nodes.push(el('p', {}, `Zostanie dodanych nowych wypałów: ${added}.`));
+      if (added > 0) nodes.push(el('p', {}, `Do dodania: ${count(added, 'nowy wypał', 'nowe wypały', 'nowych wypałów')}.`));
       const tickBox = (id: string, checked: boolean, onChange: (checked: boolean) => void, label: string) => {
         const box = el('input', { type: 'checkbox', id });
         box.checked = checked;

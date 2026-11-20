@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SAFETY_COLUMNS } from '../../core/records';
 import { columnsOf } from '../../schema';
-import { ROASTS_TAB, ROAST_COLUMNS, gramsText, roastFromFields, roastLossPermille, roastTimeText, roastedGramsText, sortRoastsOldestFirst } from './model';
+import { ROASTS_TAB, ROAST_COLUMNS, gramsText, roastFromFields, roastLossPermille, roastTimeText, roastedGramsText, sortRoastsOldestFirst, roastsCount } from './model';
 
 const roast = (fields: Record<string, string> = {}, row = 2) =>
   roastFromFields(
@@ -136,5 +136,11 @@ describe('validateRoastForm', () => {
     const original = roast({ roasted_at: new Date(2026, 10, 3, 9, 15).toISOString(), roastime_roast_id: '' });
     const result = validateRoastForm(formFromRoast(original), true, []);
     expect(result.ok && result.fields).toMatchObject({ roasted_at: original.source.roasted_at, green_g: '1200', roasted_g: '1026.5' });
+  });
+});
+
+describe('roastsCount', () => {
+  it('says the number with the right Polish word', () => {
+    expect([1, 2, 5, 12, 22, 0].map(roastsCount)).toEqual(['1 wypał', '2 wypały', '5 wypałów', '12 wypałów', '22 wypały', '0 wypałów']);
   });
 });
