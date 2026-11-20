@@ -334,7 +334,7 @@ async function connect(id: string, note?: string): Promise<void> {
       return;
     }
     remember(info.id);
-    showLots(info, note, false, 'replace');
+    showSales(info, false, 'replace', note); // Sales first (owner, 2026-11-20: the partner records sales on the go)
   });
 }
 
@@ -484,7 +484,8 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
 }
 
 /** The Sales page (owner, 2026-11-19): sales, samples, own use, and the invoices to issue. */
-function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+/** The Sales page; also the page Kraken opens with (owner, 2026-11-20). `note`: e.g. after an update of the sheet. */
+function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push', note?: string): void {
   record('sales', move);
   showSalesPage(
     showApp(info, 'sales'),
@@ -500,7 +501,7 @@ function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
         leave('sale-form');
       },
     },
-    undefined,
+    note,
     fromClick,
   );
 }

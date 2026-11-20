@@ -108,7 +108,7 @@ test that reads every import line), so CI fails if a rule is broken.
   the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Sales and Clients (and their forms), Offer and Settings (owner's
   request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Lots page with a menu (Lots, Roasts, Products, Product planner, Offer, Sales, Clients, Packaging & discounts; and on the right ⚙ Settings, "Kraken settings", technical: Sync with RoasTime, sheet, sign-out; owner 2026-11-20); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Sales page (owner, 2026-11-20) with a menu (Lots, Roasts, Products, Product planner, Offer, Sales, Clients, Packaging & discounts; and on the right ⚙ Settings, "Kraken settings", technical: Sync with RoasTime, sheet, sign-out; owner 2026-11-20); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has
