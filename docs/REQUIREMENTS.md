@@ -488,6 +488,12 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
 
 ---
 
+**[R] Phones (owner, 2026-11-20: "the partner uses Sales at the cafés"):** on a phone (up to 640 px wide) the Sales
+list shows one card per entry (date and kind, client or place, products, bags, the invoice status and Delete; tap
+the card to open it), the form's product lines stack (product on its own line, then size, bags and free), a round
+"+ Add" button stays in the corner, buttons are at least 44 px tall and fields use 16 px text (so the iPhone does
+not zoom in). On a computer nothing changes. Other tabs: phone layout to follow.
+
 **[R] Search, filters and pages (owner, 2026-11-20):** a list has a **search bar** (looks in every column; capitals,
 accents and the Polish ł ignored) and a **filter under every column heading**: a list of the values (e.g. coffee,
 lot), a month list for dates, a "contains" box for names, "from – to" boxes for numbers (kg, %). **25 per page**
