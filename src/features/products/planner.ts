@@ -183,7 +183,7 @@ export function createPlanner(
       ...beanForms.map((form, i) => {
         const row = el('div', { class: `bean-row bean-${i + 1}` });
         const kind = el('select', { id: `bean-${i}-kind`, 'aria-label': `Ziarno ${i + 1}: skąd pochodzi` });
-        kind.append(el('option', { value: 'lot' }, 'Dostawa z zakładki Dostawy'), el('option', { value: 'planned' }, 'Planowane ziarno (jeszcze niekupione)'));
+        kind.append(el('option', { value: 'lot' }, 'Dostawa z zakładki Zielone ziarno'), el('option', { value: 'planned' }, 'Planowane ziarno (jeszcze niekupione)'));
         kind.value = form.kind;
         kind.addEventListener('change', () => {
           form.kind = kind.value === 'planned' ? 'planned' : 'lot';

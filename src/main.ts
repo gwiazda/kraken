@@ -153,7 +153,7 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       tab('Sprzedaż', 'sales', () => {
         if (!saving) showSales(info, true, menuMove('sales'));
       }),
-      tab('Dostawy', 'lots', () => {
+      tab('Zielone ziarno', 'lots', () => {
         if (!saving) showLots(info, undefined, true, menuMove('lots'));
       }),
       tab('Wypały', 'roasts', () => {

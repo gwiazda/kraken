@@ -8,7 +8,7 @@ The code, the sheet's tab and column names and the docs stay in English.
 | Sales (tab) / a sale | Sprzedaż / sprzedaż |
 | Sample | Próbka |
 | Own use | Na własny użytek |
-| Lots (tab) / a lot | Dostawy / dostawa |
+| Lots (tab) / a lot | Zielone ziarno (tab, owner 2026-11-20) / dostawa |
 | Roasts (tab) / a roast | Wypały / wypał |
 | Green (coffee) / roasted | zielona / palona |
 | Roast loss | ubytek |

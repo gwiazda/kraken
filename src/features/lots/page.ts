@@ -340,7 +340,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       el(
         'div',
         { class: 'page-head' },
-        el('h2', {}, 'Dostawy zielonej kawy'),
+        el('h2', {}, 'Zielone ziarno'),
         el('div', { class: 'head-actions' }, button('Dodaj dostawę', () => showForm({ kind: 'add' }))),
       ),
       ...(note ? [message(note)] : []),
