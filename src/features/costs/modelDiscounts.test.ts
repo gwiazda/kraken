@@ -32,7 +32,7 @@ describe('activeDiscounts', () => {
       'The discount "dużo" in row 2 of the Discounts tab cannot be read, so it is left out.',
       'The discount "0.15" in row 3 of the Discounts tab cannot be read, so it is left out.',
       'The Discounts tab has 15 % twice (row 5); Kraken uses the first.',
-      'The discount name "Stali klienci hurt" in row 6 of the Discounts tab is longer than 12 characters, so it will not fit on the offer. Edit it here to shorten it.',
+      'The discount name "Stali klienci hurt" in row 6 of the Discounts tab is longer than 12 characters, so it will not fit on the offer. Click it here to shorten it.',
     ]);
   });
 });

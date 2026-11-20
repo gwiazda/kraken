@@ -6,7 +6,7 @@
 // The multipliers (2×, 2,5×, 3×) are fixed. Everything from outside comes through CostsPageDeps (main.ts).
 
 import { formatPln } from '../../core/numbers';
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import {
   formFromBagCost,
@@ -146,10 +146,10 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         const row = d.row;
         save(actions, 'Deleting…', row ? () => deps.repo.removeDiscount(row, deps.now()) : writeAll(others), `Discount −${formatPercent(d.tenths)} deleted.`);
       };
-      const normal = () => actions.replaceChildren(button('Edit', edit, 'link'), button('Delete', ask, 'link'));
+      const normal = () => actions.replaceChildren(button('Delete', ask, 'link'));
       const ask = () => actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Yes', remove), ' ', button('No', normal, 'secondary'));
       normal();
-      return tr;
+      return clickableRow(tr, edit, `Change the discount −${formatPercent(d.tenths)}`);
     });
 
     return el(
@@ -347,7 +347,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       const editRow: HTMLTableRowElement = el('tr', {}, el('td', { colspan: '3' }, costForm(view, cost, () => editRow.replaceWith(tr))));
       tr.replaceWith(editRow);
     };
-    const normal = () => actions.replaceChildren(button('Edit', edit, 'link'), button('Delete', ask, 'link'));
+    const normal = () => actions.replaceChildren(button('Delete', ask, 'link'));
     const ask = () =>
       actions.replaceChildren(
         `Delete ${cost.item}? `,
@@ -356,7 +356,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         button('No', normal, 'secondary'),
       );
     normal();
-    return tr;
+    return clickableRow(tr, edit, `Change ${cost.item} (${view.label})`);
   }
 
   /** Adds a cost item to a size (`cost` null), or edits one. */

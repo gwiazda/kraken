@@ -1,7 +1,7 @@
 // The Roasts screen: the roasting log, which lot each roast used, and choosing a lot or marking a sample.
 // Everything from outside comes through RoastsPageDeps (main.ts provides it).
 
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { isDeleted, type Lot, type LotsRepository } from '../lots';
 import { allocate } from './allocation';
@@ -141,7 +141,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         cell.replaceChildren(
           ...(row.deleted
             ? [button('Restore', () => change(row, 'restore', tr, cell), 'link')]
-            : [button('Edit', () => showForm({ kind: 'edit', roast: row.roast }), 'link'), del]),
+            : [del]),
         );
         if (focusDelete) del.focus();
       };
@@ -169,6 +169,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         no.focus();
       };
       normal();
+      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', roast: row.roast }), `Open the roast ${row.name} (${row.when})`);
       return [tr, confirmRow];
     }
 
@@ -190,10 +191,10 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
       ...(noCoffee > 0
-        ? [message(`${noCoffee} roast${noCoffee === 1 ? ' has' : 's have'} no coffee chosen in RoasTime: choose a lot (Edit), or mark ${noCoffee === 1 ? 'it' : 'them'} as a sample. Until then ${noCoffee === 1 ? 'it is' : 'they are'} not counted in any lot.`, 'error')]
+        ? [message(`${noCoffee} roast${noCoffee === 1 ? ' has' : 's have'} no coffee chosen in RoasTime: choose a lot (click the roast), or mark ${noCoffee === 1 ? 'it' : 'them'} as a sample. Until then ${noCoffee === 1 ? 'it is' : 'they are'} not counted in any lot.`, 'error')]
         : []),
       ...(noLotForCoffee > 0
-        ? [message(`${noLotForCoffee} roast${noLotForCoffee === 1 ? ' is' : 's are'} of a coffee that has no lot in Kraken yet: sync the delivery from RoasTime, add the lot by hand, or choose a lot (Edit).`, 'error')]
+        ? [message(`${noLotForCoffee} roast${noLotForCoffee === 1 ? ' is' : 's are'} of a coffee that has no lot in Kraken yet: sync the delivery from RoasTime, add the lot by hand, or choose a lot (click the roast).`, 'error')]
         : []),
       el(
         'p',

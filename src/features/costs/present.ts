@@ -38,7 +38,7 @@ export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[];
     const own = active.filter((c) => c.bagSizeId === id);
     const unreadable = own.some((c) => c.costGrosze === null);
     for (const c of own.filter((c) => c.costGrosze === null)) {
-      problems.push(`The cost "${c.costText}" of ${c.item || 'an item'} (${formatBagSize(grams)}) cannot be read, so that bag size shows "missing cost". Edit it under "Bag costs & settings".`);
+      problems.push(`The cost "${c.costText}" of ${c.item || 'an item'} (${formatBagSize(grams)}) cannot be read, so that bag size shows "missing cost". Click it under Packaging & discounts to correct it.`);
     }
     const sum = own.reduce((total, c) => total + (c.costGrosze ?? 0), 0);
     return { grams, id, label: formatBagSize(grams), costs: own, itemsText: own.length === 0 || unreadable ? 'missing cost' : formatPln(sum), unreadable };
@@ -159,7 +159,7 @@ export function lotCards(
       const missing =
         lot.coffeePriceGrosze === null
           ? 'Price missing: click "Add price" below.'
-          : 'Quantity missing: add the kg delivered on the Lots page (Edit).';
+          : 'Quantity missing: add the kg delivered on the Lots page (click the lot).';
       return { ...base, missing, greenPerKg: '', greenPerKgGrosze: null, roastedFromKg: '', roastedPerKg: '', bags: [] };
     }
     return {

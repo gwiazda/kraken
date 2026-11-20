@@ -43,7 +43,7 @@ describe('bagSizeViews', () => {
     expect(unplaced).toEqual([old]);
     expect(problems).toEqual([
       '1 bag cost item is for a bag size Kraken does not use, so it is left out. Delete it under "Bag costs & settings" and add it again to 250 g, 500 g or 1 kg.',
-      'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Edit it under "Bag costs & settings".',
+      'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Click it under Packaging & discounts to correct it.',
     ]);
   });
 });
@@ -106,7 +106,7 @@ describe('lotCards', () => {
     const lots = [lot('A', { coffee_price_net_pln: '' }), lot('B', { delivery_date: '2026-10-01', quantity_kg: '' }), lot('C', { deleted_at: '2026-11-01T00:00:00.000Z' })];
     const { cards } = lotCards(lots, [], [], sizes, DEFAULT_SETTINGS);
     expect(cards.map((c) => [c.lot.id, c.missing])).toEqual([
-      ['B', 'Quantity missing: add the kg delivered on the Lots page (Edit).'],
+      ['B', 'Quantity missing: add the kg delivered on the Lots page (click the lot).'],
       ['A', 'Price missing: click "Add price" below.'],
     ]);
     expect(cards[0]?.bags).toEqual([]);

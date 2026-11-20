@@ -2,7 +2,7 @@
 // Everything it needs from outside comes through LotsPageDeps (main.ts provides it), so the screen never reaches
 // into sign-in or Google directly. The logic it shows is in model.ts and present.ts, which are tested.
 
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
 import { formatPln, parseKg } from '../../core/numbers';
 import { changedFields, emptyLotForm, formFromLot, lotSource, typedPricePerKg, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
@@ -266,7 +266,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         cell.replaceChildren(
           ...(row.deleted
             ? [button('Restore', () => change(row.lot, 'restore', inRow('Restoring…')), 'link')]
-            : [button('Edit', () => showForm({ kind: 'edit', lot: row.lot }), 'link'), deleteButton]),
+            : [deleteButton]),
         );
         if (focusDelete) deleteButton.focus();
       };
@@ -295,6 +295,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         no.focus(); // keyboard users land on the question; the safe answer first
       };
       normal();
+      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', lot: row.lot }), `Open ${row.code}`);
       return [tr, confirmRow];
     }
 
@@ -319,7 +320,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                     'th',
                     { scope: 'col', class: 'num' },
                     'Roast loss ',
-                    infoTip('Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Kraken uses the average of this lot\'s roasts, or your own number (Edit).'),
+                    infoTip('Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Kraken uses the average of this lot\'s roasts, or your own number (click the lot).'),
                   ),
                   ...['Supplier', 'Source', ''].map((h) => el('th', { scope: 'col' }, h)),
                 ),

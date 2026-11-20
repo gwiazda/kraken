@@ -7,7 +7,7 @@
 
 import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
-import { busy, button, el, infoTip, message, nameLink } from '../../ui/dom';
+import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { DEFAULT_SETTINGS, activeDiscounts, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
@@ -422,14 +422,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           });
         actions.append(button('Restore', restore, 'link'));
       }
-      return el(
+      const tr = el(
         'tr',
         restorable ? { class: 'row-deleted' } : {},
         ...(restorable ? [] : [grip()]),
         el(
           'td',
           {},
-          restorable ? el('span', {}, p.name) : nameLink(p.name, () => openFromList(p)),
+          el('strong', {}, p.name),
           ...(p.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, p.brewMethod)] : []),
           ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : []),
         ),
@@ -437,6 +437,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         ...BAG_SIZES_G.map((g) => el('td', { class: 'num nowrap' }, price(p, g))),
         ...(restorable ? [actions] : []),
       );
+      return restorable ? tr : clickableRow(tr, () => openFromList(p), `Open ${p.name}`);
     };
 
     const table = (list: readonly Product[], restorable: boolean) =>

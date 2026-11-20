@@ -61,10 +61,10 @@ export function clientFromFields(fields: Fields, row: number): Client {
   const name = text(fields, 'name');
   const problems: string[] = [];
   const nip = text(fields, 'nip');
-  if (nip !== '' && !isValidNip(nip)) problems.push(`The NIP "${nip}" of ${name || `row ${row}`} is not a valid Polish tax ID. Edit the client to correct it.`);
+  if (nip !== '' && !isValidNip(nip)) problems.push(`The NIP "${nip}" of ${name || `row ${row}`} is not a valid Polish tax ID. Click the client to correct it.`);
   const discountText = text(fields, 'discount_percent');
   const discount = discountText === '' ? null : discountTenths(discountText);
-  if (discountText !== '' && discount === null) problems.push(`The discount "${discountText}" of ${name || `row ${row}`} cannot be read. Edit the client to correct it.`);
+  if (discountText !== '' && discount === null) problems.push(`The discount "${discountText}" of ${name || `row ${row}`} cannot be read. Click the client to correct it.`);
   return {
     id: text(fields, 'id'),
     row,

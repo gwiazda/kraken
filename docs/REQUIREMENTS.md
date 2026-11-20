@@ -484,6 +484,10 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
 
 ---
 
+**[R] Lists (owner, 2026-11-20):** on every tab a row opens its page (or its edit form) when clicked anywhere; there
+are no Edit or Details buttons. Buttons in the row (Delete, Restore), the status dropdown and the drag grip keep
+their own click. With the keyboard: Tab to a row, Enter opens it.
+
 ## 7. Data storage and schema changes (Google Sheets)
 
 **[R]** Everything is stored in a Google Sheet. Requirements will change over time, and **no data may ever be lost** during a schema change.
