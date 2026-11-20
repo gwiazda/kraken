@@ -51,18 +51,6 @@ describe('SignInFlow', () => {
     expect(late).toHaveBeenCalledWith({ ok: false, error: new Error(MISSING_SCOPE_MESSAGE) });
   });
 
-  it('writes each step to the log, but never the pass itself', async () => {
-    const tokens = new TokenHolder();
-    const log = vi.fn();
-    const flow = new SignInFlow(tokens, log);
-    const result = flow.start(() => {});
-    flow.handleToken({ access_token: 'secret-token-value', expires_in: 3599 }, true);
-    await result;
-    const lines = log.mock.calls.map((call) => String(call[0]));
-    expect(lines).toEqual(['Kraken asked Google to open the sign-in window', 'Google sent a pass with the Drive permission']);
-    expect(lines.join(' ')).not.toContain('secret-token-value');
-  });
-
   it('explains what to do when the Drive permission box was not ticked, and stores nothing', async () => {
     const { flow, tokens, late, request } = setup();
     const result = flow.start(request);

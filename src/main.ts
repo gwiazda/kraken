@@ -7,7 +7,6 @@ import {
   initAuth,
   isSignedIn,
   onLateReply,
-  onSignInLog,
   signIn,
   signOut,
   withFreshToken,
@@ -25,7 +24,6 @@ import { sheetSaleNotesRepository, sheetSalesRepository, showSalesPage } from '.
 import { sheetProductsRepository, showPlannerPage, showProductsPage, type PlannerStart } from './features/products';
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
-import { startDevSignInLog } from './ui/devLog';
 import { button, el, gearIcon, message, type Child } from './ui/dom';
 import { forgetLists } from './ui/listView';
 import { HOME_SCREEN, type Screen, screenOf, stateFor } from './ui/history';
@@ -638,9 +636,6 @@ onLateReply((outcome) => {
     waiting.fail(errorText(outcome.error));
   }
 });
-
-// Test version only (npm run dev): show each sign-in step under the page, to diagnose sign-in problems.
-if (import.meta.env.DEV) startDevSignInLog(onSignInLog);
 
 show(message('Wczytuję logowanie Google…'));
 initAuth()
