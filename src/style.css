@@ -128,17 +128,32 @@ a {
 
 .app-nav {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
   border-bottom: 1px solid #333;
   margin-bottom: 1.5rem;
 }
 
 .app-nav .btn-link {
+  flex: none; /* a narrow screen wraps the tabs onto a second line instead of squeezing them */
   padding: 0.5rem 0;
   border-bottom: 3px solid transparent;
   border-radius: 0;
   text-decoration: none;
   color: var(--grey);
+}
+
+/* Kraken's own settings: on the right, with a gear, apart from the business tabs. */
+.app-nav .nav-settings {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.icon {
+  flex: none;
+  vertical-align: middle;
 }
 
 .app-nav .btn-link[aria-current='page'] {
@@ -1985,4 +2000,69 @@ body.is-dragging tr.row-link:hover > td {
 
 body.is-dragging tr.row-link.drag-gap > td {
   background: rgba(202, 212, 1, 0.06);
+}
+
+/* ---- Sales: follow-up notes on samples (owner, 2026-11-20) ---- */
+.last-note {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--grey);
+}
+
+.note-add {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: start;
+  margin-bottom: 0.75rem;
+}
+
+.note-add textarea,
+.note-add input {
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  background: #111;
+  color: var(--white);
+  border: 1px solid #444;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.note-add input[type='date'] {
+  min-width: 10.5rem;
+}
+
+.note-add .field-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.deleted-notes {
+  margin-top: 0.75rem;
+}
+
+.note-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.note-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #222;
+}
+
+.note-date {
+  color: var(--lime);
+  margin-right: 0.3rem;
+}
+
+.note-text {
+  white-space: pre-wrap;
+}
+
+@media (max-width: 600px) {
+  .note-add {
+    grid-template-columns: 1fr;
+  }
 }

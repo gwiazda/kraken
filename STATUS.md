@@ -17,9 +17,10 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - The owner deleted the unused "Bag sizes" tab from their sheet (fine: nothing reads it).
 
 ## In progress
-- **Special prices per client** (branch `claude/special-prices`, data version **12**: "Special prices" tab): set
-  on the client's page, used on the Offer (pick the client). Owner to test locally.
-- Last merged: Clients (#31), Sales (#32), gross margin (#33), product order (#34, data version 11), #35 (docs).
+- **Clickable rows** (PR #37, open): every list opens by clicking a row.
+- **Samples: any grams and follow-up notes** (branch `claude/sample-notes`, on top of #37; data version **13**:
+  "Sale notes" tab). Owner to test locally.
+- Last merged: Clients (#31), Sales (#32), gross margin (#33), product order (#34, data version 11), #35 (docs), special prices (#36, data version 12).
 
 ## Next steps
 1. **Offer templates** (owner, 2026-11-17, later): e.g. a Christmas one with Santa, chosen per offer.

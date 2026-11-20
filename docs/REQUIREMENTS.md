@@ -235,6 +235,10 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   of its own and keeps the issue date (it asks for it only when there is none yet). Opening an entry shows these dates in a box
   at the top (owner, 2026-11-19): date of the sale, added to Kraken (day and by whom), invoice status, invoice issued on. The list then switches to **All** so the entry stays in view. No invoice number (owner, 2026-11-19): the
   `invoice_number` and `paid_date` columns stay in the sheet, unused.
+- **Samples (owner, 2026-11-20):** a sample's line takes **any amount in grams** (e.g. 100 g, 150 g; 1 to 5000 g),
+  not only the bag sizes; sales and own use stay on 250 g / 500 g / 1 kg. Each sample has **Follow-up notes**: a dated
+  log ("2026-11-25: called, they liked the Kenia") under its form; add a note, delete an old one (can be restored);
+  the newest one shows under the sample in the Sales list. Sheet: "Sale notes" tab (data version 13).
 - **No prices in Sales** (owner, 2026-11-19): it records only how much went out (bags, and which are free). The owner
   takes the prices from the client's offer when issuing the invoice; the partner does not need to know them. The
   `unit_price_net_pln` column of the Sale lines tab stays (migration 10) but is left empty.
@@ -529,6 +533,7 @@ Drive until the owner deletes them. A brand-new sheet is created in one all-or-n
 migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
-is built. Today (data version 11): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
-read), Products, Discounts, Product beans, Clients, Sales, Sale lines. Data version 12 adds Special prices (section 5).
+is built. Today (data version 13): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
+read), Products, Discounts, Product beans, Clients, Sales, Sale lines, Special prices (section 5, version 12), Sale
+notes (follow-up notes on samples, section 4, version 13).
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.

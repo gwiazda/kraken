@@ -2,3 +2,4 @@
 
 export { sheetSalesRepository } from './repo';
 export { showSalesPage } from './page';
+export { sheetSaleNotesRepository, type SaleNotesRepository } from './repoNotes';

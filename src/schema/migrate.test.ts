@@ -270,11 +270,26 @@ describe('version 12', () => {
 
   it('updates a version 11 sheet with the tab, keeping the data', async () => {
     const google = sheetAt(11, [{ title: 'Clients', sheetId: 3, rows: [['id', 'name'], ['C1', 'Café Nowa']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 11), appVersion: 12 });
     expect(result).toMatchObject({ fromVersion: 11, toVersion: 12 });
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Clients', 'Special prices']);
     expect(tab(google, 'Clients')?.rows).toEqual([['id', 'name'], ['C1', 'Café Nowa']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '12']);
+  });
+});
+
+describe('version 13', () => {
+  it('adds the Sale notes tab, agreed on 2026-11-20', () => {
+    expect(MIGRATIONS[11]?.steps).toEqual([{ kind: 'add-tab', tab: 'Sale notes', headers: ['id', 'sale_id', 'date', 'text', 'created_at', 'updated_at', 'created_by', 'deleted_at'] }]);
+  });
+
+  it('updates a version 12 sheet with the tab, keeping the data', async () => {
+    const google = sheetAt(12, [{ title: 'Sales', sheetId: 3, rows: [['id', 'kind'], ['S1', 'sample']] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result).toMatchObject({ fromVersion: 12, toVersion: 13 });
+    expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Sales', 'Sale notes']);
+    expect(tab(google, 'Sales')?.rows).toEqual([['id', 'kind'], ['S1', 'sample']]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '13']);
   });
 });
 
