@@ -13,7 +13,7 @@ export function loadScript(src: string): Promise<void> {
     script.onload = () => resolve();
     script.onerror = () => {
       loading.delete(src);
-      reject(new Error(`Could not load ${src}. Check the internet connection and try again.`));
+      reject(new Error(`Nie udało się wczytać skryptu Google (${new URL(src).host}). Sprawdź połączenie z internetem i spróbuj ponownie.`));
     };
     document.head.append(script);
   });

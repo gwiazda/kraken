@@ -5,7 +5,7 @@ export function startDevSignInLog(subscribe: (listener: (event: string) => void)
   const box = document.createElement('section');
   box.className = 'dev-log';
   const title = document.createElement('h2');
-  title.textContent = 'Sign-in log (test version only)';
+  title.textContent = 'Dziennik logowania (tylko wersja testowa)';
   const list = document.createElement('ol');
   box.append(title, list);
   document.body.append(box);
@@ -19,6 +19,6 @@ export function startDevSignInLog(subscribe: (listener: (event: string) => void)
 
   subscribe(add);
   // Focus changes show when the Google window opened (Kraken loses focus) and closed (Kraken gets it back).
-  window.addEventListener('blur', () => add('Kraken page lost focus (Google window opened?)'));
-  window.addEventListener('focus', () => add('Kraken page got focus back (Google window closed?)'));
+  window.addEventListener('blur', () => add('Strona Krakena straciła fokus (otwarto okno Google?)'));
+  window.addEventListener('focus', () => add('Strona Krakena odzyskała fokus (zamknięto okno Google?)'));
 }

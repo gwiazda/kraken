@@ -11,9 +11,10 @@ Status legend: **[R]** stated requirement · **[P]** Claude's proposal, awaiting
 
 ## 0. General
 
-- **[R] Language:** the whole app is in **English**. When the owners paste Polish text
-  (column names, notes, product names), translate it to English for the UI and code.
-  Polish proper names stay as they are (for example coffee names on the labels, such as "Gwatemala Espresso").
+- **[R] Language (owner, 2026-11-20):** the **screens are in Polish only** (no language switch), with the words in
+  `docs/GLOSSARY-PL.md`; dates on screen as 20.11.2026. The code, the sheet's tab and column names and these docs stay
+  in **English**, so the data never changes because of the language. Polish proper names stay as they are (for
+  example coffee names on the labels, such as "Gwatemala Espresso"). Translated in four steps, starting 2026-11-20.
 - **[R] Users:** two owners, signing in with Google (see `CLAUDE.md`).
 - **[R] Storage:** all data lives in one Google Sheet (see section 7).
 
@@ -541,7 +542,7 @@ their own click. With the keyboard: Tab to a row, Enter opens it.
 
 **[R] Built (2026-11-15): migrations.** When Kraken opens a sheet with an older data version, it shows what will change
 and the backup's name, and does nothing until someone clicks **Update now**. Then, in the browser: (1) a full copy named
-"Kraken backup YYYY-MM-DD (before vN)" is made in Google Drive and checked against the sheet (same tabs, same number of rows, same header rows; not
+"Kopia zapasowa Krakena YYYY-MM-DD (przed vN)" is made in Google Drive and checked against the sheet (same tabs, same number of rows, same header rows; not
 every cell, because formulas like `=TODAY()` can show a different value in the copy); (2) the
 migration runs; (3) Kraken checks every old tab has the same number of rows and the new headers are there; (4) only then
 `schema_version` is raised. A failure at any point leaves the version as it was; clicking Update now again is safe (steps

@@ -72,7 +72,7 @@ export function notesSection(saleId: string, all: readonly SaleNote[], deps: Not
       .then(() => show(done))
       .catch((error: unknown) => {
         if (deps.isIgnorable(error)) return show();
-        const again = (e: unknown) => show(undefined, deps.errorNodes(e, retry, 'Sign in and try again', again));
+        const again = (e: unknown) => show(undefined, deps.errorNodes(e, retry, 'Zaloguj się i spróbuj ponownie', again));
         again(error);
       });
   }

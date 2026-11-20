@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, bannerText, cleanName, discountText, offerFileName, polishDate, sizesText, tierText, validateOffer } from './model';
+import { formatDate } from '../../core/dates';
+import { addDays, bannerText, cleanName, discountText, offerFileName, sizesText, tierText, validateOffer } from './model';
 
 describe('dates and the file name', () => {
   it('adds the two weeks across months and years', () => {
@@ -9,7 +10,7 @@ describe('dates and the file name', () => {
   });
 
   it('writes dates the Polish way and names the file after the customer and date', () => {
-    expect(polishDate('2026-11-16')).toBe('16.11.2026');
+    expect(formatDate('2026-11-16')).toBe('16.11.2026');
     expect(offerFileName('Kawiarnia Pod Lipą', '2026-11-16')).toBe('Oferta dla Kawiarnia Pod Lipą 16.11.2026');
   });
 

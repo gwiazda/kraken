@@ -52,7 +52,7 @@ export async function callGoogle<T>(client: SheetsClient, url: string, init: Req
     } catch {
       // Body was not JSON; keep the status text.
     }
-    throw new SheetsError(errorKindForStatus(response.status), response.status, `Google error ${response.status}: ${detail}`);
+    throw new SheetsError(errorKindForStatus(response.status), response.status, `Błąd Google ${response.status}: ${detail}`);
   }
   return (await response.json()) as T;
 }

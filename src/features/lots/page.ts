@@ -150,10 +150,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
     render(
       ...googleErrorNodes(error, {
         retry: () => load(),
-        retryLabel: 'Sign in and show lots',
+        retryLabel: 'Zaloguj się i pokaż dostawy',
         show: showLoadError,
         otherButton: 'try-again',
-        signedOutNote: 'Nothing was lost.',
+        signedOutNote: 'Nic nie zostało utracone.',
       }),
     );
   }
@@ -177,7 +177,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       show: options.show,
       ...(options.signedOutNote ? { signedOutNote: options.signedOutNote } : {}),
       other: {
-        label: tryAgain ? 'Try again' : (options.reloadLabel ?? 'Reload lots'),
+        label: tryAgain ? 'Spróbuj ponownie' : (options.reloadLabel ?? 'Odśwież dostawy'),
         action: () => load(undefined, true),
         mayHaveSaved: !tryAgain,
       },
@@ -215,7 +215,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
             undefined,
             googleErrorNodes(e, {
               retry: () => change(lot, kind, () => render(el('p', {}, busy(working)))),
-              retryLabel: kind === 'remove' ? `Sign in and delete ${lot.code}` : `Sign in and restore ${lot.code}`,
+              retryLabel: kind === 'remove' ? `Zaloguj się i usuń ${lot.code}` : `Zaloguj się i przywróć ${lot.code}`,
               show: showError,
               otherButton: 'reload',
             }),
@@ -509,10 +509,10 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       banner.replaceChildren(
         ...googleErrorNodes(error, {
           retry: () => save(),
-          retryLabel: 'Sign in and save',
+          retryLabel: 'Zaloguj się i zapisz',
           show: showSaveError,
           otherButton: 'reload',
-          reloadLabel: 'Reload lots (drops this form)',
+          reloadLabel: 'Odśwież dostawy (bez tego formularza)',
         }),
       );
       banner.scrollIntoView({ block: 'nearest' });

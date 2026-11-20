@@ -87,13 +87,13 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let noteSaving = false;
   const today = () => localDate(deps.now());
 
-  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload sales'): Node[] {
+  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Odśwież sprzedaż'): Node[] {
     return googleErrorNodes(error, deps, {
       retry,
       retryLabel,
       show,
-      ...(mayHaveSaved ? {} : { signedOutNote: 'Nothing was lost.' }),
-      other: { label: mayHaveSaved ? reloadLabel : 'Try again', action: () => load(undefined, true), mayHaveSaved },
+      ...(mayHaveSaved ? {} : { signedOutNote: 'Nic nie zostało utracone.' }),
+      other: { label: mayHaveSaved ? reloadLabel : 'Spróbuj ponownie', action: () => load(undefined, true), mayHaveSaved },
     });
   }
 
@@ -123,7 +123,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
-        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Sign in and show sales', show, false));
+        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Zaloguj się i pokaż sprzedaż', show, false));
         show(error);
       });
   }
@@ -147,7 +147,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       .catch((error: unknown) => {
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
-        const show = (e: unknown) => showList(undefined, errorNodes(e, () => act(slot, working, action, done, afterSave), 'Sign in and try again', show, true));
+        const show = (e: unknown) => showList(undefined, errorNodes(e, () => act(slot, working, action, done, afterSave), 'Zaloguj się i spróbuj ponownie', show, true));
         show(error);
       });
   }
@@ -566,7 +566,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           setBusy(false);
           if (deps.isIgnorable(error)) return;
           const show = (e: unknown) => {
-            banner.replaceChildren(...errorNodes(e, save, 'Sign in and save', show, true, 'Reload sales (drops this form)'));
+            banner.replaceChildren(...errorNodes(e, save, 'Zaloguj się i zapisz', show, true, 'Odśwież sprzedaż (bez tego formularza)'));
             banner.scrollIntoView({ block: 'nearest' });
           };
           show(error);
@@ -597,7 +597,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           changed: (stored) => (sampleNotes = stored),
           saving: (on) => (noteSaving = on),
           canSave: () => !formSaving,
-          errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Reload sales (drops this form)'),
+          errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Odśwież sprzedaż (bez tego formularza)'),
         })
       : null;
     renderKind();

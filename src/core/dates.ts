@@ -21,3 +21,15 @@ export function addDays(date: string, days: number): string {
   const result = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, (d ?? 1) + days));
   return result.toISOString().slice(0, 10);
 }
+
+/** A YYYY-MM-DD date the Polish way, for the screen: "2026-11-20" → "20.11.2026" (other text is left as it is). */
+export function formatDate(date: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : date;
+}
+
+/** A date and time the Polish way: "20.11.2026 09:30" (local time). */
+export function formatDateTime(time: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${formatDate(localDate(time))} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
+}

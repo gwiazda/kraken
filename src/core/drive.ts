@@ -11,7 +11,7 @@ export async function copyFile(client: SheetsClient, id: string, name: string): 
     method: 'POST',
     body: JSON.stringify({ name }),
   });
-  if (typeof result.id !== 'string' || result.id === '') throw new Error('Google did not return the ID of the backup copy');
+  if (typeof result.id !== 'string' || result.id === '') throw new Error('Google nie podał identyfikatora kopii zapasowej');
   return result.id;
 }
 
@@ -19,6 +19,6 @@ export async function copyFile(client: SheetsClient, id: string, name: string): 
 export async function whoAmI(client: SheetsClient): Promise<string> {
   const result = await callGoogle<{ user?: { emailAddress?: unknown } }>(client, 'https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)');
   const email = result.user?.emailAddress;
-  if (typeof email !== 'string' || email === '') throw new Error('Google did not say who is signed in');
+  if (typeof email !== 'string' || email === '') throw new Error('Google nie podał, kto jest zalogowany');
   return email;
 }

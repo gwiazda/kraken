@@ -12,7 +12,7 @@ function loadPicker(): Promise<void> {
   pickerReady ??= loadScript(GAPI_SCRIPT).then(
     () =>
       new Promise<void>((resolve, reject) => {
-        const failed = () => reject(new Error("Google's file window could not be loaded. Check the internet connection and try again."));
+        const failed = () => reject(new Error('Nie udało się wczytać okna plików Google. Sprawdź połączenie z internetem i spróbuj ponownie.'));
         gapi.load('picker', { callback: () => resolve(), onerror: failed, timeout: LOAD_TIMEOUT_MS, ontimeout: failed });
       }),
   );
@@ -27,18 +27,19 @@ export async function pickSpreadsheet(accessToken: string): Promise<string | nul
   await loadPicker();
   return new Promise<string | null>((resolve) => {
     // Two tabs: every spreadsheet the user can open, and only the ones shared with them (where a partner finds the sheet).
-    const all = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setMode(google.picker.DocsViewMode.LIST).setLabel('All spreadsheets');
+    const all = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setMode(google.picker.DocsViewMode.LIST).setLabel('Wszystkie arkusze');
     const shared = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
       .setMode(google.picker.DocsViewMode.LIST)
       .setOwnedByMe(false)
-      .setLabel('Shared with me');
+      .setLabel('Udostępnione dla mnie');
     const picker = new google.picker.PickerBuilder()
       .addView(all)
       .addView(shared)
       .setOAuthToken(accessToken)
       .setDeveloperKey(GOOGLE_PICKER_API_KEY)
       .setAppId(GOOGLE_PROJECT_NUMBER)
-      .setTitle('Choose your Kraken sheet')
+      .setTitle('Wybierz swój arkusz Krakena')
+      .setLocale('pl') // Google's own buttons (Wybierz, Anuluj, search) in Polish too
       .setCallback((data) => {
         if (data.action === 'loaded') return; // the window has opened; wait for the user
         picker.dispose();

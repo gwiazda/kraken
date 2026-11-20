@@ -58,15 +58,15 @@ describe('parseTable', () => {
     const { records, problems } = parseTable('Items', values, []);
     expect(records.map((r) => r.fields.name)).toEqual(['Kenya']);
     expect(problems).toEqual([
-      'Row 3 of "Items" has no ID, so Kraken ignores it. Was it typed in by hand?',
-      'Row 4 of "Items" has the same ID as row 2, so Kraken ignores it.',
+      'Wiersz 3 zakładki „Items” nie ma identyfikatora (ID), więc Kraken go pomija. Czy został wpisany ręcznie?',
+      'Wiersz 4 zakładki „Items” ma ten sam identyfikator co wiersz 2, więc Kraken go pomija.',
     ]);
   });
 
   it('refuses a tab with missing or repeated columns', () => {
     expect(() => parseTable('Items', [['id', 'name']], ['kg'])).toThrow(TableError);
-    expect(() => parseTable('Items', [['id', 'name']], ['kg'])).toThrow('missing the column(s): created_at, updated_at, created_by, deleted_at, kg');
-    expect(() => parseTable('Items', [[...HEADERS, 'name']], [])).toThrow('has the column(s) name more than once');
+    expect(() => parseTable('Items', [['id', 'name']], ['kg'])).toThrow('brakuje kolumn: created_at, updated_at, created_by, deleted_at, kg');
+    expect(() => parseTable('Items', [[...HEADERS, 'name']], [])).toThrow('ma kolumny name więcej niż raz');
     expect(() => parseTable('Items', [], [])).toThrow(TableError);
   });
 
@@ -235,7 +235,7 @@ describe('sheetRecordTable', () => {
 
   it('refuses to change a record that is gone', async () => {
     const { table } = setup();
-    await expect(table.update('nope', { kg: '1' }, {}, t1)).rejects.toThrow('no longer in "Items"');
+    await expect(table.update('nope', { kg: '1' }, {}, t1)).rejects.toThrow('nie ma już w zakładce „Items”');
   });
 
   it('soft-deletes and restores, keeping the row', async () => {
@@ -283,7 +283,7 @@ describe('sheetRecordTable', () => {
     const row = rowsOf(google)?.[1];
     if (row) row[2] = '59.5';
     const before = structuredClone(rowsOf(google));
-    await expect(table.update(a.id ?? '', { kg: '58' }, a, t2)).rejects.toThrow('changed kg directly in the sheet');
+    await expect(table.update(a.id ?? '', { kg: '58' }, a, t2)).rejects.toThrow('zmienił w arkuszu kg');
     expect(rowsOf(google)).toEqual(before);
   });
 
@@ -308,7 +308,7 @@ describe('sheetRecordTable', () => {
 
   it('refuses fields the tab has no column for, instead of dropping them silently', async () => {
     const { table } = setup();
-    await expect(table.add({ name: 'x', roast_level: 'light' }, 'me', t1)).rejects.toThrow('has no column(s) roast_level');
+    await expect(table.add({ name: 'x', roast_level: 'light' }, 'me', t1)).rejects.toThrow('nie ma kolumn roast_level');
     const a = await table.add({ name: 'x' }, 'me', t1);
     await expect(table.update(a.id ?? '', { roast_level: 'light' }, a, t2)).rejects.toBeInstanceOf(TableError);
   });
@@ -321,7 +321,7 @@ describe('sheetRecordTable', () => {
       if (r.url.endsWith('/values:batchUpdate')) rowsOf(google)?.splice(1, 1); // someone deletes row 2 by hand right now
       return undefined;
     });
-    await expect(table.update(a.id ?? '', { kg: '1' }, a, t2)).rejects.toThrow('Version history');
+    await expect(table.update(a.id ?? '', { kg: '1' }, a, t2)).rejects.toThrow('Historia wersji');
   });
 
   it('adds after the filled rows; a gap typed in the sheet only moves the rows below it', async () => {
@@ -360,7 +360,7 @@ describe('planChange', () => {
     const current = { ...loaded, name: 'Kenya AA' };
     expect(planChange(current, loaded, { name: 'Kenya', kg: '59' })).toEqual({ write: { kg: '59' } });
     expect(planChange(current, loaded, { name: 'Kenya Kegwa' })).toEqual({
-      conflict: 'Someone changed name directly in the sheet in the meantime. Reload the page, then try again.',
+      conflict: 'Ktoś w międzyczasie zmienił w arkuszu name. Odśwież stronę i spróbuj ponownie.',
     });
   });
 });

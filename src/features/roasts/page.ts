@@ -85,10 +85,10 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
           render(
             ...googleErrorNodes(e, deps, {
               retry: () => load(),
-              retryLabel: 'Sign in and show roasts',
+              retryLabel: 'Zaloguj się i pokaż wypały',
               show,
-              other: { label: 'Try again', action: () => load(undefined, true), mayHaveSaved: false },
-              signedOutNote: 'Nothing was lost.',
+              other: { label: 'Spróbuj ponownie', action: () => load(undefined, true), mayHaveSaved: false },
+              signedOutNote: 'Nic nie zostało utracone.',
             }),
           );
         show(error);
@@ -96,10 +96,10 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
   }
 
   /** The explanation and buttons after a failed save, delete or restore. */
-  function saveError(error: unknown, retry: () => void, show: (e: unknown) => void, reloadLabel = 'Reload roasts'): Node[] {
+  function saveError(error: unknown, retry: () => void, show: (e: unknown) => void, reloadLabel = 'Odśwież wypały'): Node[] {
     return googleErrorNodes(error, deps, {
       retry,
-      retryLabel: 'Sign in and try again',
+      retryLabel: 'Zaloguj się i spróbuj ponownie',
       show,
       other: { label: reloadLabel, action: () => load(undefined, true), mayHaveSaved: true },
     });
@@ -240,7 +240,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
             columns: ROAST_COLUMNS,
             text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'by hand' : '', ...r.marks].join(' '),
             rowNodes,
-            noun: ['roast', 'roasts'],
+            names: { rows: 'wypały', none: 'Nie ma jeszcze wypałów.' },
           }),
     );
   }
@@ -331,7 +331,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
           cancel.disabled = false;
           save.replaceChildren(mode.kind === 'add' ? 'Save roast' : 'Save changes');
           if (!root.isConnected || deps.isIgnorable(error)) return;
-          const show = (e: unknown) => banner.replaceChildren(...saveError(e, () => submit(), show, 'Reload roasts (drops this form)'));
+          const show = (e: unknown) => banner.replaceChildren(...saveError(e, () => submit(), show, 'Odśwież wypały (bez tego formularza)'));
           show(error);
         });
     }

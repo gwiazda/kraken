@@ -58,9 +58,9 @@ export interface MigrateResult {
   backupName: string | null;
 }
 
-/** "Kraken backup 2026-11-15 (before v2)", using the local date. */
+/** "Kopia zapasowa Krakena 2026-11-15 (przed v2)", using the local date. */
 export function backupName(now: Date, nextVersion: number): string {
-  return `Kraken backup ${localDate(now)} (before v${nextVersion})`;
+  return `Kopia zapasowa Krakena ${localDate(now)} (przed v${nextVersion})`;
 }
 
 /** Rows that have at least one filled cell. */
@@ -93,15 +93,15 @@ export async function migrateSpreadsheet(ops: SheetOps, id: string, options: Mig
 
   // Read everything first: the version and how many rows each tab has. Anything wrong stops here, before a backup.
   const tabs = await ops.tabs(id);
-  if (!tabs.includes(META_TAB)) stop('This is not a Kraken sheet. Nothing was changed.');
+  if (!tabs.includes(META_TAB)) stop('To nie jest arkusz Krakena. Niczego nie zmieniono.');
   const contents = await ops.readTabs(id, tabs);
   const metaIndex = tabs.indexOf(META_TAB);
   const metaRows = contents[metaIndex] ?? [];
   const meta = checkMeta(metaRows, appVersion);
   if (meta.kind === 'ok') return { fromVersion: meta.schemaVersion, toVersion: meta.schemaVersion, backupName: null };
-  if (meta.kind !== 'needs-migration') stop('This sheet cannot be updated by this version of Kraken. Nothing was changed.');
+  if (meta.kind !== 'needs-migration') stop('Tej wersji Krakena nie da się użyć do aktualizacji tego arkusza. Niczego nie zmieniono.');
   const fromVersion = meta.schemaVersion;
-  const versionCell = schemaVersionCell(metaRows) ?? stop('The _meta tab has no single schema_version row, so Kraken did not change anything.');
+  const versionCell = schemaVersionCell(metaRows) ?? stop('Zakładka _meta nie ma dokładnie jednego wiersza schema_version, więc Kraken niczego nie zmienił.');
   const pending = pendingMigrations(options.migrations ?? MIGRATIONS, fromVersion, appVersion);
   const rowsBefore = contents.map(countRows);
 
@@ -109,51 +109,51 @@ export async function migrateSpreadsheet(ops: SheetOps, id: string, options: Mig
   //    (Not every cell: formulas like =TODAY() can show a different value in the copy.)
   if (options.backup) {
     const name = backupName(options.now ?? new Date(), fromVersion + 1);
-    progress(`Making a backup copy "${name}"…`);
+    progress(`Robię kopię zapasową „${name}”…`);
     const copyId = await ops.copyFile(id, name);
     backup = name;
-    progress('Checking the backup copy…');
+    progress('Sprawdzam kopię zapasową…');
     const copyTabs = await ops.tabs(copyId);
     const copyContents = await ops.readTabs(copyId, copyTabs);
     const matches =
       JSON.stringify(copyTabs) === JSON.stringify(tabs) &&
       copyContents.every((rows, i) => countRows(rows) === rowsBefore[i] && JSON.stringify(rows[0] ?? []) === JSON.stringify(contents[i]?.[0] ?? []));
-    if (!matches) stop(`The backup copy "${name}" does not match the sheet, so Kraken stopped. Nothing in your sheet was changed.`);
+    if (!matches) stop(`Kopia zapasowa „${name}” nie zgadza się z arkuszem, więc Kraken przerwał. W Twoim arkuszu niczego nie zmieniono.`);
   }
 
   for (const migration of pending) {
-    const safe = backup ? ` Your backup "${backup}" is in your Google Drive.` : '';
-    const notRaised = `The sheet stays at data version ${migration.toVersion - 1}.${safe} Click "Update now" to try again.`;
+    const safe = backup ? ` Twoja kopia zapasowa „${backup}” jest na Dysku Google.` : '';
+    const notRaised = `Arkusz zostaje w wersji danych ${migration.toVersion - 1}.${safe} Kliknij „Aktualizuj teraz”, aby spróbować ponownie.`;
 
     // 2. The steps.
-    progress(`Updating to data version ${migration.toVersion}: ${migration.description}…`);
+    progress(`Aktualizuję do wersji danych ${migration.toVersion}: ${migration.description}…`);
     for (const step of migration.steps) await applyStep(ops, id, step, notRaised, stop);
 
     // 3. Check, in one read: the old tabs have the same number of rows, and the new tabs and columns have their headers.
     const newTabs = migration.steps.map((step) => step.tab);
     const after = await ops.readTabs(id, [...tabs, ...newTabs]);
     tabs.forEach((tab, i) => {
-      if (countRows(after[i] ?? []) !== rowsBefore[i]) stop(`Tab "${tab}" has a different number of rows after the update. ${notRaised}`);
+      if (countRows(after[i] ?? []) !== rowsBefore[i]) stop(`Zakładka „${tab}” ma po aktualizacji inną liczbę wierszy. ${notRaised}`);
     });
     migration.steps.forEach((step, i) => {
       const header = after[tabs.length + i]?.[0];
       const ok = step.kind === 'add-tab' ? sameHeaders(header, step.headers) : missingColumns(header, step.columns).length === 0;
-      if (!ok) stop(`Tab "${step.tab}" is missing its column headers. ${notRaised}`);
+      if (!ok) stop(`W zakładce „${step.tab}” brakuje nagłówków kolumn. ${notRaised}`);
     });
 
     // 4. Raise the version, unless someone else changed it meanwhile.
     const current = checkMeta(after[metaIndex], appVersion);
     if (current.kind === 'ok') break; // the other person finished the whole update meanwhile
     if (current.kind !== 'needs-migration' || current.schemaVersion < migration.toVersion - 1) {
-      stop(`The sheet's data version changed while updating. Reload the page with Cmd+Shift+R.${safe}`);
+      stop(`Wersja danych arkusza zmieniła się w trakcie aktualizacji. Odśwież stronę skrótem Cmd+Shift+R.${safe}`);
     }
     if (current.schemaVersion >= migration.toVersion) continue; // the other person already did this one
     await ops.writeValues(id, META_TAB, versionCell, [[String(migration.toVersion)]]);
     const [check] = await ops.readTabs(id, [META_TAB]);
-    if (checkMeta(check, migration.toVersion).kind !== 'ok') stop(`The new data version could not be saved. ${notRaised}`);
+    if (checkMeta(check, migration.toVersion).kind !== 'ok') stop(`Nie udało się zapisać nowej wersji danych. ${notRaised}`);
   }
 
-  progress('Update finished.');
+  progress('Aktualizacja zakończona.');
   return { fromVersion, toVersion: appVersion, backupName: backup };
 }
 
@@ -195,7 +195,7 @@ function missingColumns(header: readonly unknown[] | undefined, columns: readonl
 async function applyStep(ops: SheetOps, id: string, step: MigrationStep, notRaised: string, stop: (message: string) => never): Promise<void> {
   const tabs = await ops.tabs(id);
   if (step.kind === 'add-columns') {
-    if (!tabs.includes(step.tab)) stop(`The sheet has no "${step.tab}" tab, so Kraken could not add its new columns. ${notRaised}`);
+    if (!tabs.includes(step.tab)) stop(`Arkusz nie ma zakładki „${step.tab}”, więc Kraken nie mógł dodać jej nowych kolumn. ${notRaised}`);
     const [rows] = await ops.readTabs(id, [step.tab]);
     const header = rows?.[0] ?? [];
     const missing = missingColumns(header, step.columns);
@@ -215,7 +215,7 @@ async function applyStep(ops: SheetOps, id: string, step: MigrationStep, notRais
   // Already there: fine if a previous attempt added it, but never touch a tab someone made by hand.
   const [rows] = await ops.readTabs(id, [step.tab]);
   if (!sameHeaders(rows?.[0], step.headers) || countRows(rows ?? []) > 1) {
-    stop(`The sheet already has a "${step.tab}" tab that Kraken did not make. Rename that tab in Google Sheets, then try again. ${notRaised}`);
+    stop(`Arkusz ma już zakładkę „${step.tab}”, której nie utworzył Kraken. Zmień jej nazwę w Arkuszach Google i spróbuj ponownie. ${notRaised}`);
   }
 }
 
@@ -224,7 +224,7 @@ export function updatePlan(fromVersion: number, now = new Date(), all: readonly 
   const pending = pendingMigrations(all, fromVersion, appVersion);
   return {
     toVersion: appVersion,
-    changes: pending.map((m) => `Data version ${m.toVersion}: ${m.description}`),
+    changes: pending.map((m) => `Wersja danych ${m.toVersion}: ${m.description}`),
     backupName: backupName(now, fromVersion + 1),
   };
 }

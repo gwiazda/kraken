@@ -58,10 +58,10 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
           render(
             ...googleErrorNodes(e, deps, {
               retry: () => load(),
-              retryLabel: 'Sign in and show the page',
+              retryLabel: 'Zaloguj się i pokaż stronę',
               show,
-              other: { label: 'Try again', action: () => load(undefined, true), mayHaveSaved: false },
-              signedOutNote: 'Nothing was lost.',
+              other: { label: 'Spróbuj ponownie', action: () => load(undefined, true), mayHaveSaved: false },
+              signedOutNote: 'Nic nie zostało utracone.',
             }),
           );
         show(error);
@@ -98,9 +98,9 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
           slot.replaceChildren(
             ...googleErrorNodes(e, deps, {
               retry: () => save(slot, working, action, done),
-              retryLabel: 'Sign in and try again',
+              retryLabel: 'Zaloguj się i spróbuj ponownie',
               show,
-              other: { label: 'Reload (drops what you typed)', action: () => load(undefined, true), mayHaveSaved: true },
+              other: { label: 'Odśwież (bez tego, co wpisano)', action: () => load(undefined, true), mayHaveSaved: true },
             }),
           );
         show(error);

@@ -57,13 +57,13 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
-  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload clients'): Node[] {
+  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Odśwież klientów'): Node[] {
     return googleErrorNodes(error, deps, {
       retry,
       retryLabel,
       show,
-      ...(mayHaveSaved ? {} : { signedOutNote: 'Nothing was lost.' }),
-      other: { label: mayHaveSaved ? reloadLabel : 'Try again', action: () => load(undefined, true), mayHaveSaved },
+      ...(mayHaveSaved ? {} : { signedOutNote: 'Nic nie zostało utracone.' }),
+      other: { label: mayHaveSaved ? reloadLabel : 'Spróbuj ponownie', action: () => load(undefined, true), mayHaveSaved },
     });
   }
 
@@ -93,7 +93,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
-        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Sign in and show clients', show, false));
+        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Zaloguj się i pokaż klientów', show, false));
         show(error);
       });
   }
@@ -116,7 +116,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
         const working = kind === 'remove' ? `Deleting ${client.name}…` : `Restoring ${client.name}…`;
-        const label = kind === 'remove' ? `Sign in and delete ${client.name}` : `Sign in and restore ${client.name}`;
+        const label = kind === 'remove' ? `Zaloguj się i usuń ${client.name}` : `Zaloguj się i przywróć ${client.name}`;
         const show = (e: unknown) => showList(undefined, errorNodes(e, () => change(client, kind, () => render(el('p', {}, busy(working)))), label, show, true));
         show(error);
       });
@@ -289,7 +289,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
           setBusy(false);
           if (deps.isIgnorable(error)) return;
           const show = (e: unknown) => {
-            banner.replaceChildren(...errorNodes(e, save, 'Sign in and save', show, true, 'Reload clients (drops this form)'));
+            banner.replaceChildren(...errorNodes(e, save, 'Zaloguj się i zapisz', show, true, 'Odśwież klientów (bez tego formularza)'));
             banner.scrollIntoView({ block: 'nearest' });
           };
           show(error);
@@ -307,7 +307,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       if (!saveButton.disabled) save();
     });
     const prices = client
-      ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show, mayHaveSaved) => errorNodes(error, retry, label, show, mayHaveSaved, 'Reload clients (drops this form)') })
+      ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show, mayHaveSaved) => errorNodes(error, retry, label, show, mayHaveSaved, 'Odśwież klientów (bez tego formularza)') })
       : el('p', { class: 'muted small' }, 'Save the client first; then click it in the list to add special prices.');
 
     render(

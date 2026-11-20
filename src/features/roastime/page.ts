@@ -118,9 +118,9 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
               {},
               ...googleErrorNodes(e, deps, {
                 retry: () => compare(data),
-                retryLabel: 'Sign in and continue',
+                retryLabel: 'Zaloguj się i kontynuuj',
                 show,
-                other: { label: 'Try again', action: () => compare(data, true), mayHaveSaved: false },
+                other: { label: 'Spróbuj ponownie', action: () => compare(data, true), mayHaveSaved: false },
                 signedOutNote: 'The folder is already read; nothing to choose again.',
               }),
             ),

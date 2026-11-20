@@ -95,6 +95,6 @@ describe('sheetLotsRepository', () => {
   it('shows a row typed by hand without an ID as a problem, not as a lot', async () => {
     const { repo, lotsRows } = await setup();
     lotsRows()?.push(['', 'TYPED-BY-HAND']);
-    expect(await repo.load()).toEqual({ lots: [], problems: ['Row 2 of "Lots" has no ID, so Kraken ignores it. Was it typed in by hand?'] });
+    expect(await repo.load()).toEqual({ lots: [], problems: ['Wiersz 2 zakładki „Lots” nie ma identyfikatora (ID), więc Kraken go pomija. Czy został wpisany ręcznie?'] });
   });
 });

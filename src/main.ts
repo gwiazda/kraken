@@ -152,37 +152,37 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       'nav',
       { class: 'app-nav', 'aria-label': 'Kraken' },
       // Sales first: Kraken opens on it (owner, 2026-11-20).
-      tab('Sales', 'sales', () => {
+      tab('Sprzedaż', 'sales', () => {
         if (!saving) showSales(info, true, menuMove('sales'));
       }),
-      tab('Lots', 'lots', () => {
+      tab('Dostawy', 'lots', () => {
         if (!saving) showLots(info, undefined, true, menuMove('lots'));
       }),
-      tab('Roasts', 'roasts', () => {
+      tab('Wypały', 'roasts', () => {
         if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
       }),
-      tab('Products', 'products', () => {
+      tab('Produkty', 'products', () => {
         if (!saving) showProducts(info, true, menuMove('products'));
       }),
-      tab('Product planner', 'planner', () => {
+      tab('Planer produktu', 'planner', () => {
         if (!saving) showPlanner(info, undefined, true, menuMove('planner'));
       }),
-      tab('Offer', 'offer', () => {
+      tab('Oferta', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
       }),
-      tab('Clients', 'clients', () => {
+      tab('Klienci', 'clients', () => {
         if (!saving) showClients(info, true, menuMove('clients'));
       }),
-      tab('Packaging & discounts', 'packaging', () => {
+      tab('Opakowania i rabaty', 'packaging', () => {
         if (!saving) showPackaging(info, true, menuMove('packaging'));
       }),
       // Kraken's own settings (sheet, sync, sign-in), apart from the business tabs: on the right, with a gear.
       (() => {
-        const b = tab('Settings', 'settings', () => {
+        const b = tab('Ustawienia', 'settings', () => {
           if (!saving) showSettings(info, menuMove('settings'));
         });
         b.classList.add('nav-settings');
-        b.title = 'Kraken settings: the sheet, Sync with RoasTime, sign-in';
+        b.title = 'Ustawienia Krakena: arkusz, synchronizacja z RoasTime, logowanie';
         b.prepend(gearIcon(), ' ');
         return b;
       })(),
@@ -196,11 +196,11 @@ function errorText(error: unknown): string {
   if (error instanceof SheetsError) {
     switch (error.kind) {
       case 'signed-out':
-        return 'Your sign-in expired. Please sign in again.';
+        return 'Twoje logowanie wygasło. Zaloguj się ponownie.';
       case 'no-access':
-        return 'Kraken cannot open this sheet. If it was shared with you, use "Choose existing sheet" to pick it once.';
+        return 'Kraken nie może otworzyć tego arkusza. Jeśli ktoś Ci go udostępnił, wybierz go raz przyciskiem „Wybierz istniejący arkusz”.';
       case 'rate-limited':
-        return 'Google is busy. Wait a minute and try again.';
+        return 'Google jest teraz zajęty. Poczekaj minutę i spróbuj ponownie.';
       case 'other':
         return error.message;
     }
@@ -208,7 +208,7 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const WAITING_FOR_GOOGLE = 'Waiting for Google sign-in… Finish it in the Google window.';
+const WAITING_FOR_GOOGLE = 'Czekam na logowanie Google… Dokończ je w oknie Google.';
 
 /**
  * Opens Google's sign-in window (synchronously, inside the click) and shows a waiting message, so there is nothing
@@ -251,9 +251,9 @@ function onClickWithGoogle(busyText: string, action: () => Promise<void>): () =>
 function showSignIn(note?: string): void {
   const screen: Resume = { ok: afterSignIn, fail: (text) => showSignIn(text) };
   show(
-    el('p', {}, 'Sign in with the Google account that has access to the Kraken sheet.'),
+    el('p', {}, 'Zaloguj się kontem Google, które ma dostęp do arkusza Krakena.'),
     ...(note ? [message(note, 'error')] : []),
-    button('Sign in with Google', () => signInFromClick(afterSignIn, (text) => showSignIn(text), screen)),
+    button('Zaloguj się przez Google', () => signInFromClick(afterSignIn, (text) => showSignIn(text), screen)),
   );
   resume = screen;
 }
@@ -262,11 +262,11 @@ function showSignIn(note?: string): void {
  * Google rejected the sign-in in the middle of an action. Offer to sign in and repeat the same action instead of
  * starting over. Future forms keep their typed values this way.
  */
-function showRetry(retry: () => void, note = 'Your Google sign-in ran out. Nothing was lost.'): void {
+function showRetry(retry: () => void, note = 'Twoje logowanie Google wygasło. Nic nie zostało utracone.'): void {
   const screen: Resume = { ok: retry, fail: (text) => showRetry(retry, text) };
   show(
     message(note, 'error'),
-    button('Sign in and continue', () => signInFromClick(retry, (text) => showRetry(retry, text), screen)),
+    button('Zaloguj się i kontynuuj', () => signInFromClick(retry, (text) => showRetry(retry, text), screen)),
   );
   resume = screen;
 }
@@ -288,20 +288,20 @@ function showChooseSheet(note?: string): void {
   }
   const ownerSetup = wantsNewSheet(window.location.search);
   show(
-    el('p', {}, 'Connect Kraken to its Google Sheet.'),
+    el('p', {}, 'Połącz Krakena z jego arkuszem Google.'),
     ...(note ? [message(note, 'error')] : []),
     el(
       'div',
       { class: 'actions' },
-      button('Choose existing sheet', onClickWithGoogle("Opening Google's file window…", chooseSheet)),
-      ...(ownerSetup ? [button('Create Kraken sheet', onClickWithGoogle('Creating the Kraken sheet…', createSheet), 'secondary')] : []),
+      button('Wybierz istniejący arkusz', onClickWithGoogle('Otwieram okno plików Google…', chooseSheet)),
+      ...(ownerSetup ? [button('Utwórz arkusz Krakena', onClickWithGoogle('Tworzę arkusz Krakena…', createSheet), 'secondary')] : []),
     ),
     el(
       'p',
       { class: 'muted small' },
       ownerSetup
-        ? 'Creates a new, empty Kraken sheet in your Google Drive. Share it in Google Drive with your partner.'
-        : 'Choose the Kraken sheet once on this computer. If it was shared with you, it is under "Shared with me".',
+        ? 'Tworzy nowy, pusty arkusz Krakena na Twoim Dysku Google. Udostępnij go wspólnikowi na Dysku Google.'
+        : 'Wybierz arkusz Krakena raz na tym komputerze. Jeśli ktoś Ci go udostępnił, jest w zakładce „Udostępnione dla mnie”.',
     ),
   );
 }
@@ -322,7 +322,7 @@ async function createSheet(): Promise<void> {
 }
 
 async function connect(id: string, note?: string): Promise<void> {
-  await run('Opening the Kraken sheet…', async () => {
+  await run('Otwieram arkusz Krakena…', async () => {
     const { info, meta } = await inspectSpreadsheet(client, id);
     if (meta.kind === 'needs-migration') {
       remember(info.id);
@@ -344,21 +344,21 @@ function showUpdate(info: SpreadsheetInfo, fromVersion: number, error?: string):
   const shownAt = new Date(); // the backup gets the name shown here, even if the click comes after midnight
   const plan = updatePlan(fromVersion, shownAt);
   show(
-    el('p', {}, `Your Kraken sheet "${info.title}" needs an update (data version ${fromVersion} → ${plan.toVersion}):`),
+    el('p', {}, `Twój arkusz Krakena „${info.title}” wymaga aktualizacji (wersja danych ${fromVersion} → ${plan.toVersion}):`),
     el('ul', {}, ...plan.changes.map((change) => el('li', {}, change))),
     el(
       'p',
       { class: 'muted small' },
-      `Kraken will first make a full backup copy in your Google Drive, named "${plan.backupName}", and check it. ` +
-        'Your sheet is changed only after that.',
+      `Kraken najpierw zrobi pełną kopię zapasową na Twoim Dysku Google o nazwie „${plan.backupName}” i ją sprawdzi. ` +
+        'Dopiero potem zmieni Twój arkusz.',
     ),
     ...(error ? [message(error, 'error')] : []),
     el(
       'div',
       { class: 'actions' },
-      button('Update now', onClickWithGoogle('Starting the update…', () => runUpdate(info, fromVersion, shownAt))),
+      button('Aktualizuj teraz', onClickWithGoogle('Rozpoczynam aktualizację…', () => runUpdate(info, fromVersion, shownAt))),
       button(
-        'Change sheet',
+        'Zmień arkusz',
         () => {
           forgetSpreadsheetId(store);
           showChooseSheet();
@@ -372,10 +372,10 @@ function showUpdate(info: SpreadsheetInfo, fromVersion: number, error?: string):
 async function runUpdate(info: SpreadsheetInfo, fromVersion: number, shownAt: Date): Promise<void> {
   try {
     const result = await updateSpreadsheet(client, info.id, (text) => show(message(text)), shownAt);
-    await connect(info.id, result.backupName ? `Updated. Backup copy saved in your Google Drive: "${result.backupName}".` : undefined);
+    await connect(info.id, result.backupName ? `Zaktualizowano. Kopia zapasowa jest na Twoim Dysku Google: „${result.backupName}”.` : undefined);
   } catch (error) {
     if (error instanceof SignInSuperseded || (error instanceof SheetsError && error.kind === 'signed-out')) throw error;
-    const text = error instanceof MigrationError ? error.message : `${errorText(error)} The data version was not raised; try "Update now" again.`;
+    const text = error instanceof MigrationError ? error.message : `${errorText(error)} Wersja danych nie została podniesiona; kliknij „Aktualizuj teraz” jeszcze raz.`;
     showUpdate(info, fromVersion, text);
   }
 }
@@ -593,21 +593,21 @@ function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push', note?: 
     ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)
     : el('span', {}, info.title);
   showApp(info, 'settings').append(
-    el('h2', {}, 'Kraken settings'),
-    el('p', { class: 'muted small' }, 'How Kraken itself works: the sheet it uses, bringing in data from RoasTime, and signing in. Packaging, prices and discounts are under Packaging & discounts.'),
+    el('h2', {}, 'Ustawienia Krakena'),
+    el('p', { class: 'muted small' }, 'Jak działa sam Kraken: arkusz, z którego korzysta, pobieranie danych z RoasTime i logowanie. Opakowania, ceny i rabaty są w zakładce Opakowania i rabaty.'),
     ...(note ? [message(note)] : []),
     el('section', { class: 'product-card' }, el('h3', {}, 'RoasTime'),
-      el('p', { class: 'muted small' }, 'Brings in the deliveries (lots) and the roasts from the RoasTime folder on this computer. You see a preview first; nothing is saved until you confirm.'),
-      el('div', { class: 'actions' }, button('Sync with RoasTime', () => showSync(info), 'primary')),
+      el('p', { class: 'muted small' }, 'Pobiera dostawy i wypały z folderu RoasTime na tym komputerze. Najpierw widzisz podgląd; nic nie jest zapisywane, dopóki nie potwierdzisz.'),
+      el('div', { class: 'actions' }, button('Synchronizuj z RoasTime', () => showSync(info), 'primary')),
     ),
-    el('h3', {}, 'Sheet and sign-in'),
-    el('p', { class: 'connected' }, 'Connected to: ', link),
-    el('p', { class: 'muted small' }, `Data version ${APP_SCHEMA_VERSION}.`),
+    el('h3', {}, 'Arkusz i logowanie'),
+    el('p', { class: 'connected' }, 'Połączono z: ', link),
+    el('p', { class: 'muted small' }, `Wersja danych ${APP_SCHEMA_VERSION}.`),
     el(
       'div',
       { class: 'actions' },
       button(
-        'Change sheet',
+        'Zmień arkusz',
         () => {
           forgetSpreadsheetId(store);
           showChooseSheet();
@@ -615,7 +615,7 @@ function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push', note?: 
         'secondary',
       ),
       button(
-        'Sign out',
+        'Wyloguj się',
         () => {
           signOut();
           forgetLists();
@@ -642,7 +642,7 @@ onLateReply((outcome) => {
 // Test version only (npm run dev): show each sign-in step under the page, to diagnose sign-in problems.
 if (import.meta.env.DEV) startDevSignInLog(onSignInLog);
 
-show(message('Loading Google sign-in…'));
+show(message('Wczytuję logowanie Google…'));
 initAuth()
   .then(() => showSignIn())
   .catch((error: unknown) => show(message(errorText(error), 'error')));

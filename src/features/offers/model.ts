@@ -1,8 +1,8 @@
 // The offer for a customer (owner, 2026-11-17; docs/REQUIREMENTS.md section 5): the owner's HTML template, filled
 // with ticked products, bag sizes and discounts, saved as a PDF with Chrome's "Save as PDF". The offer is in Polish
-// (for Polish customers); Kraken's screens stay in English. Pure: no Google, no screen.
+// (for Polish customers), like Kraken's screens. Pure: no Google, no screen.
 
-import { isValidDate } from '../../core/dates';
+import { formatDate, isValidDate } from '../../core/dates';
 
 export { addDays } from '../../core/dates';
 
@@ -49,11 +49,6 @@ export const TIER_LABEL_MAX = 12;
 /** At most this many characters in each part of the banner. */
 export const BANNER_MAX = 300;
 
-/** "2026-11-16" → "16.11.2026" (the Polish way). */
-export function polishDate(date: string): string {
-  const [y, m, d] = date.split('-');
-  return `${d}.${m}.${y}`;
-}
 
 /** The customer's name as it goes into a file name: no characters a file name cannot have, single spaces. */
 export function cleanName(customer: string): string {
@@ -66,7 +61,7 @@ export function cleanName(customer: string): string {
 }
 
 /** The PDF's name, e.g. "Oferta dla Kawiarnia Pod Lipą 16.11.2026" (Chrome adds ".pdf"). */
-export const offerFileName = (customer: string, date: string) => `Oferta dla ${cleanName(customer)} ${polishDate(date)}`;
+export const offerFileName = (customer: string, date: string) => `Oferta dla ${cleanName(customer)} ${formatDate(date)}`;
 
 /** "-15%", "-12,5%" (as on the template). */
 export function discountText(tenths: number): string {
@@ -99,7 +94,7 @@ export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]
 }
 
 /**
- * Checks the offer before it is saved as a PDF. Messages are for the owner (English, like the rest of Kraken).
+ * Checks the offer before it is saved as a PDF. Messages are for the owner (to be in Polish, like the rest of Kraken).
  * `withDeals`: a client's special prices are used, so the offer may have no standard discount (only their prices);
  * `withoutPrice`: product sizes that would then have no price at all (buildOffer), which must not go out.
  */

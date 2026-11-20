@@ -255,7 +255,7 @@ describe('version 11', () => {
 
   it('stops without raising the version when the Products tab is missing', async () => {
     const google = sheetAt(10);
-    await expect(migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 10), appVersion: 11 })).rejects.toThrow('has no "Products" tab');
+    await expect(migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 10), appVersion: 11 })).rejects.toThrow('nie ma zakładki „Products”');
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '10']);
   });
 });
@@ -295,8 +295,8 @@ describe('version 13', () => {
 
 describe('helpers', () => {
   it('names the backup with the local date and the next version', () => {
-    expect(backupName(now, 2)).toBe('Kraken backup 2026-11-15 (before v2)');
-    expect(backupName(new Date(2027, 0, 5), 10)).toBe('Kraken backup 2027-01-05 (before v10)');
+    expect(backupName(now, 2)).toBe('Kopia zapasowa Krakena 2026-11-15 (przed v2)');
+    expect(backupName(new Date(2027, 0, 5), 10)).toBe('Kopia zapasowa Krakena 2027-01-05 (przed v10)');
   });
 
   it('counts only rows with something in them', () => {
@@ -314,8 +314,8 @@ describe('helpers', () => {
   it('describes the update for the screen', () => {
     expect(updatePlan(1, now, [addA, addB], 3)).toEqual({
       toVersion: 3,
-      changes: ['Data version 2: adds A', 'Data version 3: adds B'],
-      backupName: 'Kraken backup 2026-11-15 (before v2)',
+      changes: ['Wersja danych 2: adds A', 'Wersja danych 3: adds B'],
+      backupName: 'Kopia zapasowa Krakena 2026-11-15 (przed v2)',
     });
   });
 });
@@ -328,10 +328,10 @@ describe('migrateSpreadsheet', () => {
 
     const result = await run(google, { onProgress: (text) => progress.push(text) });
 
-    expect(result).toEqual({ fromVersion: 1, toVersion: 3, backupName: 'Kraken backup 2026-11-15 (before v2)' });
+    expect(result).toEqual({ fromVersion: 1, toVersion: 3, backupName: 'Kopia zapasowa Krakena 2026-11-15 (przed v2)' });
     // The backup is a full, identical copy of the sheet as it was.
     const [[, backup] = []] = backups(google);
-    expect(backup).toEqual({ ...before, name: 'Kraken backup 2026-11-15 (before v2)' });
+    expect(backup).toEqual({ ...before, name: 'Kopia zapasowa Krakena 2026-11-15 (przed v2)' });
     // New tabs with their headers.
     expect(tab(google, 'A')?.rows).toEqual([['id', 'name']]);
     expect(tab(google, 'B')?.rows).toEqual([['id', 'kg']]);
@@ -339,11 +339,11 @@ describe('migrateSpreadsheet', () => {
     expect(tab(google, 'Owner notes')).toEqual(before?.tabs[1]);
     expect(tab(google, META_TAB)?.rows).toEqual([...metaRows(3), ['note', 'keep me']]);
     expect(progress).toEqual([
-      'Making a backup copy "Kraken backup 2026-11-15 (before v2)"…',
-      'Checking the backup copy…',
-      'Updating to data version 2: adds A…',
-      'Updating to data version 3: adds B…',
-      'Update finished.',
+      'Robię kopię zapasową „Kopia zapasowa Krakena 2026-11-15 (przed v2)”…',
+      'Sprawdzam kopię zapasową…',
+      'Aktualizuję do wersji danych 2: adds A…',
+      'Aktualizuję do wersji danych 3: adds B…',
+      'Aktualizacja zakończona.',
     ]);
   });
 
@@ -385,7 +385,7 @@ describe('migrateSpreadsheet', () => {
   it('refuses a sheet without _meta and changes nothing', async () => {
     const google = fakeGoogleDrive();
     google.addFile(ID, { name: 'Budget', tabs: [{ title: 'Sheet1', sheetId: 0, rows: [['x']] }] });
-    await expect(run(google)).rejects.toThrow('not a Kraken sheet');
+    await expect(run(google)).rejects.toThrow('nie jest arkusz Krakena');
     expect(writes(google)).toEqual([]);
   });
 
@@ -405,7 +405,7 @@ describe('migrateSpreadsheet', () => {
       google.afterCopy = (copy) => copy.tabs[1]?.rows.pop();
       const error = await run(google).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(MigrationError);
-      expect((error as MigrationError).message).toContain('Nothing in your sheet was changed');
+      expect((error as MigrationError).message).toContain('W Twoim arkuszu niczego nie zmieniono');
       expect(google.files.get(ID)).toEqual(before);
       expect(writes(google)).toEqual([]);
     });
@@ -427,7 +427,7 @@ describe('migrateSpreadsheet', () => {
         const notes = copy.tabs[1];
         if (notes) notes.rows[0] = ['what', 'WHEN'];
       };
-      await expect(run(google)).rejects.toThrow('does not match');
+      await expect(run(google)).rejects.toThrow('nie zgadza się');
       expect(google.files.get(ID)).toEqual(before);
     });
 
@@ -465,8 +465,8 @@ describe('migrateSpreadsheet', () => {
       const google = sheetAt(1, [{ title: 'A', sheetId: 3, rows }]);
       const error = await run(google).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(MigrationError);
-      expect((error as MigrationError).message).toContain('already has a "A" tab');
-      expect((error as MigrationError).backupName).toBe('Kraken backup 2026-11-15 (before v2)');
+      expect((error as MigrationError).message).toContain('ma już zakładkę „A”');
+      expect((error as MigrationError).backupName).toBe('Kopia zapasowa Krakena 2026-11-15 (przed v2)');
       expect(tab(google, 'A')?.rows).toEqual(rows);
       expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '1']);
     });
@@ -474,7 +474,7 @@ describe('migrateSpreadsheet', () => {
     it('stops before any backup or change when _meta has two schema_version rows', async () => {
       const google = sheetAt(1);
       tab(google, META_TAB)?.rows.push(['schema_version', '1']);
-      await expect(run(google)).rejects.toThrow('no single schema_version row');
+      await expect(run(google)).rejects.toThrow('dokładnie jednego wiersza schema_version');
       expect(writes(google)).toEqual([]);
       expect(backups(google)).toEqual([]);
     });
@@ -495,7 +495,7 @@ describe('migrateSpreadsheet', () => {
         }
         return undefined;
       });
-      await expect(run(google)).rejects.toThrow('changed while updating');
+      await expect(run(google)).rejects.toThrow('zmieniła się w trakcie aktualizacji');
       expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '5']);
     });
 
