@@ -176,12 +176,12 @@ export function costing(
     if (bean.kind === 'lot') {
       const lot = lots.find((l) => l.lotId === bean.lotId);
       if (!lot) {
-        notes.push(bean.lotId ? 'Jednej z dostaw nie ma już w zakładce Dostawy: wybierz inną.' : 'Wybierz dostawę dla każdego ziarna.');
+        notes.push(bean.lotId ? 'Jednej z dostaw nie ma już w zakładce Zielone ziarno: wybierz inną.' : 'Wybierz dostawę dla każdego ziarna.');
         parts.push(`${bean.sharePercent} % (nie wybrano dostawy)`);
         explained.push({ name: 'nie wybrano dostawy', lossNote: '' });
         return { greenPerKg: null, loss: 0, sharePercent: bean.sharePercent };
       }
-      if (lot.greenPerKg === null) notes.push(`${lot.label} nie ma jeszcze ceny: dodaj ją w zakładce Dostawy (kliknij dostawę).`);
+      if (lot.greenPerKg === null) notes.push(`${lot.label} nie ma jeszcze ceny: dodaj ją w zakładce Zielone ziarno (kliknij dostawę).`);
       parts.push(`${bean.sharePercent} % ${lot.label}`);
       explained.push({ name: lot.label, lossNote: lot.lossSource ? ` (${lot.lossSource})` : '' });
       return { greenPerKg: lot.greenPerKg, loss: lot.lossTenths / 1000, sharePercent: bean.sharePercent };

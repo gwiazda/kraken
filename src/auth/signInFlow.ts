@@ -36,7 +36,7 @@ export function usableLifetime(expiresIn: number | string | undefined): number |
 export function popupErrorMessage(type: string): string {
   // Known Google behaviour: on a person's very first sign-in, Google's script loses contact with its own window
   // during the "allow" screens, reports popup_closed and never sends the pass. Google still saves the "allow",
-  // so the second click works. (Diagnosed with the test-version sign-in log, 2026-11-09.)
+  // so the second click works. (Diagnosed 2026-11-09.)
   if (type === 'popup_closed') {
     return 'Logujesz się pierwszy raz? Google potrzebuje drugiego kliknięcia: kliknij ponownie „Zaloguj się przez Google”. ' +
       '(Jeśli to Ty zamknąłeś okno Google, też po prostu kliknij jeszcze raz.)';
@@ -52,11 +52,7 @@ export class SignInFlow {
   private pending: { resolve: () => void; reject: (error: Error) => void } | null = null;
   private lateListener: (outcome: LateOutcome) => void = () => {};
 
-  /** `log` receives a short description of each step (never the token itself), for the test-version sign-in log. */
-  constructor(
-    private readonly tokens: TokenHolder,
-    private readonly log: (event: string) => void = () => {},
-  ) {}
+  constructor(private readonly tokens: TokenHolder) {}
 
   /** Called when Google replies after the sign-in attempt was already reported as failed. */
   onLateReply(listener: (outcome: LateOutcome) => void): void {
@@ -76,7 +72,6 @@ export class SignInFlow {
     this.pending?.reject(new SignInSuperseded());
     return new Promise<void>((resolve, reject) => {
       this.pending = { resolve, reject };
-      this.log('Kraken asked Google to open the sign-in window');
       request();
     });
   }
@@ -85,25 +80,20 @@ export class SignInFlow {
   handleToken(reply: TokenReply, scopesGranted: boolean): void {
     const waiting = this.pending;
     this.pending = null;
-    const when = waiting ? '' : ' (late: after the attempt had ended)';
 
     if (reply.error || !reply.access_token) {
-      this.log(`Google replied with an error: ${reply.error ?? 'no pass'}${when}`);
       this.fail(waiting, new Error(reply.error_description ?? reply.error ?? 'Logowanie Google nie powiodło się. Spróbuj ponownie.'));
       return;
     }
     if (!scopesGranted) {
-      this.log(`Google sent a pass WITHOUT the Drive permission${when}`);
       this.fail(waiting, new Error(MISSING_SCOPE_MESSAGE));
       return;
     }
     const lifetime = usableLifetime(reply.expires_in);
     if (lifetime === null) {
-      this.log(`Google sent a pass without a usable lifetime${when}`);
       this.fail(waiting, new Error(UNUSABLE_PASS_MESSAGE));
       return;
     }
-    this.log(`Google sent a pass with the Drive permission${when}`);
     this.tokens.set(reply.access_token, lifetime);
     if (waiting) {
       waiting.resolve();
@@ -116,7 +106,6 @@ export class SignInFlow {
   handlePopupError(type: string): void {
     const waiting = this.pending;
     this.pending = null;
-    this.log(`Google reported a window problem: ${type}${waiting ? '' : ' (after the attempt had ended)'}`);
     waiting?.reject(new Error(popupErrorMessage(type)));
   }
 }

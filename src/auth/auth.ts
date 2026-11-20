@@ -11,13 +11,7 @@ import { TokenHolder } from './token';
 const GIS_SCRIPT = 'https://accounts.google.com/gsi/client';
 
 const tokens = new TokenHolder();
-const logListeners: ((event: string) => void)[] = [];
-const flow = new SignInFlow(tokens, (event) => logListeners.forEach((listener) => listener(event)));
-
-/** Receives each sign-in step as a short sentence (never the pass itself). Used by the test-version sign-in log. */
-export function onSignInLog(listener: (event: string) => void): void {
-  logListeners.push(listener);
-}
+const flow = new SignInFlow(tokens);
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
 
 /** Loads the Google sign-in script. Call once at start-up so the sign-in click opens the popup without delay. */

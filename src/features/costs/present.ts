@@ -158,7 +158,7 @@ export function lotCards(
       const missing =
         lot.coffeePriceGrosze === null
           ? 'Brak ceny: kliknij „Dodaj cenę” poniżej.'
-          : 'Brak ilości: wpisz dostarczone kg w zakładce Dostawy (kliknij dostawę).';
+          : 'Brak ilości: wpisz dostarczone kg w zakładce Zielone ziarno (kliknij dostawę).';
       return { ...base, missing, greenPerKg: '', greenPerKgGrosze: null, roastedFromKg: '', roastedPerKg: '', bags: [] };
     }
     return {

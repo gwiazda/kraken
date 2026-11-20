@@ -13,7 +13,7 @@ do not treat them as decided until the owner confirms.
 
 ## Language
 - **The screens are in Polish** (owner, 2026-11-20: Polish only, no language switch): every label, button, tooltip
-  and message. Use the words in `docs/GLOSSARY-PL.md` (e.g. Lots = Dostawy, Roasts = Wypały, Own use = Na własny
+  and message. Use the words in `docs/GLOSSARY-PL.md` (e.g. the Lots tab = Zielone ziarno, a lot = dostawa, Roasts = Wypały, Own use = Na własny
   użytek). Dates on screen as 20.11.2026 (`formatDate` in `core/dates.ts`); the sheet keeps storing 2026-11-20.
   Numbers that change a word use `core/polish.ts` (1 wypał, 2 wypały, 5 wypałów).
 - **Code, sheet column names, tab names, code comments and the docs stay in English** (the data never changes
@@ -57,7 +57,7 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Known Google issue (diagnosed 2026-11-09): on a person's **first** sign-in, GIS reports `popup_closed` during the
   "unverified app" / allow screens and never delivers the token; the consent is still saved, so the second click works.
   Owner chose to handle it with a clear "click again" message (option A), not a redirect flow or publishing the app.
-  `npm run dev` shows a sign-in log under the page (`src/ui/devLog.ts`, never in the live build) for diagnosing sign-in.
+  The dev-only sign-in log used for that diagnosis was removed (owner, 2026-11-20).
 
 ## Code structure (owner agreed 2026-11-15)
 Modules with small public interfaces, like Java packages. Enforced by `src/architecture.test.ts` (an ArchUnit-style
@@ -108,11 +108,11 @@ test that reads every import line), so CI fails if a rule is broken.
   name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
-- `ui/`: shared screen helpers (`listView.ts` a list with a search bar, a filter under every column and pages, rules in `core/listFilter.ts` (owner 2026-11-20; Roasts first); `dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner/`clickableRow` (every list: click a row to open it, no Edit or Details buttons, owner 2026-11-20), `googleErrors.ts` explains Google errors
+- `ui/`: shared screen helpers (`listView.ts` a list with a search bar, a filter under every column and pages, rules in `core/listFilter.ts` (owner 2026-11-20; Roasts first); `dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner/`clickableRow` (every list: click a row to open it, no Edit or Details buttons, owner 2026-11-20), `cardTable` / `cardLabels` (every list is cards on a phone: labels and ⓘ tips from the column headings; Wypały's filters behind "Filtry"; Sales keeps its own cards; owner 2026-11-20), `googleErrors.ts` explains Google errors
   the same way on every screen, `history.ts` browser Back/Forward between Lots, Roasts, their forms, Sync, Products (a product and its form), Product planner, Sales and Clients (and their forms), Offer and Settings (owner's
-  request 2026-11-15; while saving, Back and the menu wait), `devLog.ts` dev-only sign-in log).
+  request 2026-11-15; while saving, Back and the menu wait)).
   Pages get what they need through a small deps interface (e.g. `LotsPageDeps`), filled in by `main.ts`. After connecting,
-  the app shows the Sales page (owner, 2026-11-20) with a menu (Sales, Lots, Roasts, Products, Product planner, Offer, Clients, Packaging & discounts; and on the right ⚙ Settings, "Kraken settings", technical: Sync with RoasTime, sheet, sign-out; owner 2026-11-20); Change sheet and Sign out are under Settings. `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
+  the app shows the Sales page (owner, 2026-11-20) with a menu (Sales, Lots, Roasts, Products, Product planner, Offer, Clients, Packaging & discounts; and on the right ⚙ Settings, "Kraken settings", technical: Sync with RoasTime, sheet, sign-out; owner 2026-11-20); Change sheet and Sign out are under Settings. On a phone the menu is a ☰ button in the logo bar that drops down the tabs (`ui/menu.ts`, owner 2026-11-20). `main.ts`: start file and wiring; `config.ts`: public IDs. New sheets are named "Kraken YYYY-MM-DD" (Drive allows duplicate names; owner, 2026-11-15).
   "Create Kraken sheet" is hidden (owner, 2026-11-15: the partner should only see "Choose existing sheet"); it shows only
   when the address has the `new-sheet` parameter, e.g. `https://gwiazda.github.io/kraken/?new-sheet` (then Kraken also
   skips the remembered sheet and goes straight to that screen). The file picker has

@@ -105,7 +105,7 @@ describe('lotCards', () => {
     const lots = [lot('A', { coffee_price_net_pln: '' }), lot('B', { delivery_date: '2026-10-01', quantity_kg: '' }), lot('C', { deleted_at: '2026-11-01T00:00:00.000Z' })];
     const { cards } = lotCards(lots, [], [], sizes, DEFAULT_SETTINGS);
     expect(cards.map((c) => [c.lot.id, c.missing])).toEqual([
-      ['B', 'Brak ilości: wpisz dostarczone kg w zakładce Dostawy (kliknij dostawę).'],
+      ['B', 'Brak ilości: wpisz dostarczone kg w zakładce Zielone ziarno (kliknij dostawę).'],
       ['A', 'Brak ceny: kliknij „Dodaj cenę” poniżej.'],
     ]);
     expect(cards[0]?.bags).toEqual([]);

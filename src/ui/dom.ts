@@ -42,28 +42,91 @@ export function clickableRow<T extends HTMLTableRowElement>(
   cell?.prepend(opener);
   tr.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('button, a, input, select, textarea, label, .drag-handle, .no-row-click')) return;
+    if (target?.closest('button, a, input, select, textarea, label, .drag-handle, .info-tip, .no-row-click')) return;
     if (blocked() || (window.getSelection()?.toString() ?? '') !== '') return;
     open();
   });
   return tr;
 }
 
+/**
+ * A list table that turns into cards on a phone (owner, 2026-11-20; the CSS is under `table.cards` in style.css).
+ * Every cell gets its column heading as a label (hidden on a computer), with the heading's ⓘ tip, so the tips still
+ * work on a phone where the heading row is hidden; the first column with a heading becomes the card's title. The
+ * headings are read once. Rows with a different number of cells (a full-width "Delete …?" line) get no labels.
+ */
+export function cardTable(table: HTMLTableElement): HTMLTableElement {
+  cardLabels(table);
+  return table;
+}
+
+/** Like `cardTable`, for a list whose rows are redrawn: call the returned function after each redraw. */
+export function cardLabels(table: HTMLTableElement): () => void {
+  table.classList.add('cards');
+  const headings = [...(table.tHead?.rows[0]?.cells ?? [])].map((cell) => ({
+    text: headingText(cell),
+    tip: cell.querySelector('.info-tip')?.getAttribute('aria-label') ?? '',
+  }));
+  const title = headings.findIndex((h) => h.text !== '');
+  const usable = (row: HTMLTableRowElement) => row.cells.length === headings.length;
+  // The filters under the headings (Wypały): their column's name above each, shown only on a phone.
+  for (const row of [...(table.tHead?.rows ?? [])].slice(1)) {
+    if (usable(row)) [...row.cells].forEach((cell, i) => (cell.dataset['label'] = headings[i]?.text ?? ''));
+  }
+  const labelRows = () => {
+    for (const body of table.tBodies) {
+      for (const row of body.rows) {
+        if (!usable(row)) continue;
+        [...row.cells].forEach((cell, i) => {
+          const heading = headings[i];
+          cell.classList.toggle('card-title', i === title);
+          if (!heading || heading.text === '' || i === title || cell.querySelector(':scope > .card-label')) return;
+          cell.prepend(el('span', { class: 'card-label' }, heading.text, ...(heading.tip ? [' ', infoTip(heading.tip)] : [])));
+        });
+      }
+    }
+  };
+  labelRows();
+  return labelRows;
+}
+
+/** A heading's words, without its ⓘ tip or text meant only for screen readers. */
+function headingText(cell: HTMLTableCellElement): string {
+  const copy = cell.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll('.info-tip, .visually-hidden').forEach((n) => n.remove());
+  return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
 /** A gear icon (inline SVG, drawn in the text colour), e.g. for Kraken's own settings. Hidden from screen readers. */
 export function gearIcon(): SVGSVGElement {
+  return icon(
+    ['circle', { cx: '12', cy: '12', r: '3' }],
+    [
+      'path',
+      {
+        d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+      },
+    ],
+  );
+}
+
+/** Three lines (☰), for the menu button on a phone; `open` draws a cross (✕) instead. Hidden from screen readers. */
+export function menuIcon(open: boolean): SVGSVGElement {
+  const line = (d: string): [string, Record<string, string>] => ['path', { d }];
+  return open ? icon(line('M6 6l12 12'), line('M18 6L6 18')) : icon(line('M4 6h16'), line('M4 12h16'), line('M4 18h16'));
+}
+
+/** A small line icon (inline SVG, drawn in the text colour) made of the given shapes. */
+function icon(...shapes: [string, Record<string, string>][]): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
-  for (const [name, value] of Object.entries({ viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: 'icon' })) {
-    svg.setAttribute(name, value);
+  const attrs = { viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', class: 'icon' };
+  for (const [name, value] of Object.entries(attrs)) svg.setAttribute(name, value);
+  for (const [tag, shapeAttrs] of shapes) {
+    const shape = document.createElementNS(ns, tag);
+    for (const [name, value] of Object.entries(shapeAttrs)) shape.setAttribute(name, value);
+    svg.append(shape);
   }
-  const circle = document.createElementNS(ns, 'circle');
-  for (const [name, value] of Object.entries({ cx: '12', cy: '12', r: '3' })) circle.setAttribute(name, value);
-  const path = document.createElementNS(ns, 'path');
-  path.setAttribute(
-    'd',
-    'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
-  );
-  svg.append(circle, path);
   return svg;
 }
 
