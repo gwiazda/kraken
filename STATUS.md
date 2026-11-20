@@ -16,7 +16,7 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - **Polish screens**: every screen (#41–#44).
 
 ## In progress
-- **Phone layout for every tab** (branch `claude/mobile-tabs`): lists as cards (Dostawy, Wypały, Produkty, Klienci),
+- **Phone layout for every tab** (branch `claude/mobile-tabs`): lists as cards (Zielone ziarno, Wypały, Produkty, Klienci),
   Wypały's filters behind "Filtry", Opakowania i rabaty and Planer produktu fit the screen. Price tables and the
   Oferta preview scroll sideways inside their own box.
 
