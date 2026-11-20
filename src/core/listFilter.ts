@@ -72,23 +72,31 @@ export function isActive(value: FilterValue | undefined): boolean {
 /** True when anything narrows the list (the search or a column filter). */
 export const anyFilter = (state: ListState) => state.search.trim() !== '' || Object.values(state.filters).some(isActive);
 
-function matches<T>(row: T, column: ListColumn<T>, value: FilterValue | undefined): boolean {
-  if (!isActive(value) || value === undefined) return true;
+/**
+ * One column's filter as a test for a row, worked out once per update (what was typed is read and made
+ * comparable once, not again for every row). Null when the filter is not set.
+ */
+function matcher<T>(column: ListColumn<T>, value: FilterValue | undefined): ((row: T) => boolean) | null {
+  if (!isActive(value) || value === undefined) return null;
   switch (column.kind) {
     case 'choice':
-      return typeof value === 'string' && column.values(row).includes(value);
-    case 'text':
-      return typeof value === 'string' && searchable(column.value(row)).includes(searchable(value));
+      return typeof value === 'string' ? (row) => column.values(row).includes(value) : null;
+    case 'text': {
+      if (typeof value !== 'string') return null;
+      const wanted = searchable(value);
+      return (row) => searchable(column.value(row)).includes(wanted);
+    }
     case 'month':
-      return typeof value === 'string' && column.value(row).startsWith(`${value}-`);
+      return typeof value === 'string' ? (row) => column.value(row).startsWith(`${value}-`) : null;
     case 'range': {
-      if (typeof value === 'string') return true;
-      const n = column.value(row);
+      if (typeof value === 'string') return null;
       const from = value.from.trim() === '' ? null : column.parse(value.from);
       const to = value.to.trim() === '' ? null : column.parse(value.to);
-      if (from === null && to === null) return true; // nothing readable typed yet
-      if (n === null) return false;
-      return (from === null || n >= from) && (to === null || n <= to);
+      if (from === null && to === null) return null; // nothing readable typed yet
+      return (row) => {
+        const n = column.value(row);
+        return n !== null && (from === null || n >= from) && (to === null || n <= to);
+      };
     }
   }
 }
@@ -109,12 +117,14 @@ export interface ListPage<T> {
 }
 
 /**
- * The rows matching the search (over `text(row)`, everything shown in the row) and every column filter, then the
- * page asked for. The rows keep their order.
+ * The rows matching the search and every column filter, then the page asked for; the rows keep their order.
+ * `searchText(row)`: everything shown in the row, already made comparable with `searchable` (a list works it out
+ * once per row, not on every key press).
  */
-export function listPage<T>(rows: readonly T[], columns: readonly ListColumn<T>[], state: ListState, text: (row: T) => string): ListPage<T> {
+export function listPage<T>(rows: readonly T[], columns: readonly ListColumn<T>[], state: ListState, searchText: (row: T) => string): ListPage<T> {
   const search = searchable(state.search);
-  const matching = rows.filter((row) => (search === '' || searchable(text(row)).includes(search)) && columns.every((c) => matches(row, c, state.filters[c.key])));
+  const tests = columns.map((c) => matcher(c, state.filters[c.key])).filter((t): t is (row: T) => boolean => t !== null);
+  const matching = rows.filter((row) => (search === '' || searchText(row).includes(search)) && tests.every((test) => test(row)));
   const size = state.pageSize > 0 ? state.pageSize : Math.max(matching.length, 1);
   const pages = Math.max(1, Math.ceil(matching.length / size));
   const page = Math.min(Math.max(1, state.page), pages);

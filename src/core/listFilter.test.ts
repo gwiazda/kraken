@@ -26,7 +26,7 @@ const columns: ListColumn<Row>[] = [
   { kind: 'range', key: 'green', label: 'Green', value: (r) => r.green, parse: kg },
   { kind: 'choice', key: 'lots', label: 'Lot', values: (r) => r.lots },
 ];
-const text = (r: Row) => `${r.date} ${r.name} ${r.coffee} ${r.lots.join(' ')}`;
+const text = (r: Row) => searchable(`${r.date} ${r.name} ${r.coffee} ${r.lots.join(' ')}`);
 const names = (state: Partial<ListState>) => listPage(rows, columns, { ...emptyListState(), ...state }, text).rows.map((r) => r.name);
 
 describe('listPage', () => {

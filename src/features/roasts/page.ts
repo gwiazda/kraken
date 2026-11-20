@@ -3,13 +3,12 @@
 
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { listView } from '../../ui/listView';
-import { localDate } from '../../core/dates';
+import { listView, type ListViewColumn } from '../../ui/listView';
+import { parsePercent } from '../../domain/percent';
 import { parseKg } from '../../core/numbers';
-import type { ListColumn } from '../../core/listFilter';
 import { isDeleted, type Lot, type LotsRepository } from '../lots';
 import { allocate } from './allocation';
-import { emptyRoastForm, formFromRoast, fromRoastime, roastLossPermille, validateRoastForm, type Roast, type RoastForm, type RoastFormErrors } from './model';
+import { emptyRoastForm, formFromRoast, fromRoastime, validateRoastForm, type Roast, type RoastForm, type RoastFormErrors } from './model';
 import { roastListRows, type RoastListRow } from './present';
 import type { RoastsRepository } from './repo';
 
@@ -39,28 +38,25 @@ const typedKg = (typed: string) => {
   return typeof grams === 'number' ? grams : null;
 };
 
-/** How each column of the Roasts list is filtered (owner, 2026-11-20: every column, and a search bar). */
-const ROAST_COLUMNS: readonly (ListColumn<RoastListRow> | null)[] = [
-  { kind: 'month', key: 'month', label: 'month roasted', value: (r) => (r.roast.roastedAt ? localDate(r.roast.roastedAt) : '') },
-  { kind: 'text', key: 'name', label: 'name', value: (r) => r.name },
-  { kind: 'choice', key: 'coffee', label: 'coffee', values: (r) => [r.coffee] },
-  { kind: 'range', key: 'green', label: 'green kg', value: (r) => r.roast.greenGrams, parse: typedKg },
-  { kind: 'range', key: 'roasted', label: 'roasted kg', value: (r) => (r.roast.roastedDecigrams === null ? null : r.roast.roastedDecigrams / 10), parse: typedKg },
-  {
-    kind: 'range',
-    key: 'loss',
-    label: 'loss %',
-    value: (r) => {
-      const permille = roastLossPermille(r.roast);
-      return permille === null ? null : permille / 10;
-    },
-    parse: (typed) => {
-      const n = Number(typed.trim().replace(',', '.'));
-      return typed.trim() === '' || !Number.isFinite(n) ? null : n;
-    },
-  },
-  { kind: 'choice', key: 'lot', label: 'lot', values: (r) => r.lotCodes },
-  null,
+/** A percentage as typed ("15,5") → tenths, the unit of the roast loss; null when it cannot be read. */
+const typedPercent = (typed: string) => {
+  const tenths = parsePercent(typed.trim());
+  return typeof tenths === 'number' ? tenths : null;
+};
+
+/**
+ * The Roasts list's columns: heading and filter (owner, 2026-11-20: every column, and a search bar). The values
+ * compared are the row's, the same as shown (present.ts, tested there).
+ */
+const ROAST_COLUMNS: readonly ListViewColumn<RoastListRow>[] = [
+  { header: 'Roasted', filter: { kind: 'month', key: 'month', label: 'month roasted', value: (r) => r.day } },
+  { header: 'Name', filter: { kind: 'text', key: 'name', label: 'name', value: (r) => r.name } },
+  { header: 'Coffee', filter: { kind: 'choice', key: 'coffee', label: 'coffee', values: (r) => [r.coffee] } },
+  { header: 'Green', filter: { kind: 'range', key: 'green', label: 'green kg', value: (r) => r.greenGrams, parse: typedKg } },
+  { header: 'Roasted', filter: { kind: 'range', key: 'roasted', label: 'roasted kg', value: (r) => r.roastedGrams, parse: typedKg } },
+  { header: 'Loss', filter: { kind: 'range', key: 'loss', label: 'loss %', value: (r) => r.lossTenths, parse: typedPercent } },
+  { header: 'Lot', filter: { kind: 'choice', key: 'lot', label: 'lot', values: (r) => r.lotCodes } },
+  { header: '', filter: null },
 ];
 
 export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: string, fromClick = false): void {
@@ -242,8 +238,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
             key: 'roasts',
             rows,
             columns: ROAST_COLUMNS,
-            headers: ['Roasted', 'Name', 'Coffee', 'Green', 'Roasted', 'Loss', 'Lot', ''],
-            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'by hand' : '', r.sample ? 'sample' : ''].join(' '),
+            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'by hand' : '', ...r.marks].join(' '),
             rowNodes,
             noun: ['roast', 'roasts'],
           }),

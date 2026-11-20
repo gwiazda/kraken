@@ -1,5 +1,6 @@
 // What the Roasts screen shows, as plain text. Pure, so it is tested directly.
 
+import { localDate } from '../../core/dates';
 import { formatKg } from '../../core/numbers';
 import type { Lot } from '../lots';
 import type { Allocation, RoastAllocation } from './allocation';
@@ -19,6 +20,14 @@ export interface RoastListRow {
   readonly lots: string;
   /** For the Lot filter: the codes of the lots it is counted in, or why it is not counted ("Not counted: …"). */
   readonly lotCodes: readonly string[];
+  /** For the filters, the same values as shown: the day roasted (YYYY-MM-DD, '' if unknown), the green and the
+   * roasted weight in grams (roasted rounded to the gram, as shown), the loss in tenths of a percent. */
+  readonly day: string;
+  readonly greenGrams: number | null;
+  readonly roastedGrams: number | null;
+  readonly lossTenths: number | null;
+  /** The badges shown in the row ("Needs a lot", "Sample", …), so the search finds them too. */
+  readonly marks: readonly string[];
   readonly counted: boolean;
   /** No coffee and no lot, and not marked as a sample: the owner should choose a lot (or mark it as a sample). */
   readonly needsLot: boolean;
@@ -63,26 +72,41 @@ export function roastListRows(roasts: readonly Roast[], lots: readonly Lot[], al
         lotCodes = allocated.parts.map((p) => lotById.get(p.lotId)?.code ?? '?');
         lotsText =
           allocated.parts.length === 1
-            ? (lotById.get(allocated.parts[0]?.lotId ?? '')?.code ?? DASH)
+            ? (lotById.get(allocated.parts[0]?.lotId ?? '')?.code ?? '?')
             : allocated.parts.map((p) => `${lotById.get(p.lotId)?.code ?? '?'} ${formatKg(p.grams)}`).join(' + ');
       } else if (allocated) {
         lotsText = NOT_COUNTED[allocated.reason];
         lotCodes = [lotsText];
       }
+      const needsLot = allocated?.status === 'not-counted' && allocated.reason !== 'no-green-weight' && !roast.sample;
+      const chosen = allocated?.status === 'chosen';
+      const beforeDelivery = allocated !== undefined && allocated.status !== 'not-counted' && allocated.beforeDelivery;
+      const roastedGrams = roast.roastedDecigrams === null ? null : Math.round(roast.roastedDecigrams / 10);
       return {
         roast,
         when: roastTimeText(roast.roastedAt) || DASH,
+        day: roast.roastedAt ? localDate(roast.roastedAt) : '',
+        greenGrams: roast.greenGrams,
+        roastedGrams,
+        lossTenths: roastLossPermille(roast),
+        marks: [
+          ...(roast.sample ? ['Sample'] : []),
+          ...(needsLot ? ['Needs a lot'] : []),
+          ...(beforeDelivery ? ['Before delivery'] : []),
+          ...(chosen ? ['Chosen'] : []),
+          ...(roast.problems.length > 0 ? ['Check'] : []),
+        ],
         name: roast.name || DASH,
         coffee: chosenLot?.name || coffeeByBean.get(roast.roastime.beanId) || (roast.roastime.beanId === '' ? 'No coffee chosen' : 'Coffee not in Kraken'),
         green: roast.greenGrams === null ? DASH : formatKg(roast.greenGrams),
-        roasted: roast.roastedDecigrams === null ? DASH : formatKg(Math.round(roast.roastedDecigrams / 10)),
+        roasted: roastedGrams === null ? DASH : formatKg(roastedGrams),
         loss: formatLoss(roastLossPermille(roast)),
         lots: lotsText,
         lotCodes,
         counted,
-        needsLot: allocated?.status === 'not-counted' && allocated.reason !== 'no-green-weight' && !roast.sample,
-        chosen: allocated?.status === 'chosen',
-        beforeDelivery: allocated !== undefined && allocated.status !== 'not-counted' && allocated.beforeDelivery,
+        needsLot,
+        chosen,
+        beforeDelivery,
         sample: roast.sample,
         source: fromRoastime(roast) ? 'RoasTime' : 'By hand',
         deleted: isRoastDeleted(roast),

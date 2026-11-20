@@ -3,19 +3,27 @@
 // the count and the pages are redrawn, so the cursor stays where it is. What was typed or chosen is remembered per
 // list until the page is reloaded (owner: "yes, until reload").
 
-import { PAGE_SIZES, anyFilter, choicesOf, emptyListState, listPage, monthsOf, type FilterValue, type ListColumn, type ListState } from '../core/listFilter';
+import { PAGE_SIZES, anyFilter, choicesOf, emptyListState, listPage, monthsOf, searchable, type FilterValue, type ListColumn, type ListState } from '../core/listFilter';
 import { button, el } from './dom';
 
 /** Each list's search, filters and page, kept while Kraken is open (not stored anywhere). */
 const remembered = new Map<string, ListState>();
 
+/** Forgets every list's search and filters (another sheet was opened, or the user signed out). */
+export const forgetLists = () => remembered.clear();
+
+/** One column of the table: its heading and how it is filtered (null for none, e.g. the column with the buttons). */
+export interface ListViewColumn<T> {
+  readonly header: string | Node;
+  readonly filter: ListColumn<T> | null;
+}
+
 export interface ListViewOptions<T> {
   /** Which list, e.g. "roasts": its filters are remembered under this name. */
   readonly key: string;
   readonly rows: readonly T[];
-  /** One per table column, in order: how it is filtered, or null for none (e.g. the column with the buttons). */
-  readonly columns: readonly (ListColumn<T> | null)[];
-  readonly headers: readonly (string | Node)[];
+  /** The table's columns, in order (heading and filter together, so they can never be out of step). */
+  readonly columns: readonly ListViewColumn<T>[];
   /** Everything shown in a row, for the search bar. */
   readonly text: (row: T) => string;
   /** The table row(s) of one entry (e.g. the row and its hidden "Delete …?" line). */
@@ -27,7 +35,10 @@ export interface ListViewOptions<T> {
 
 export function listView<T>(options: ListViewOptions<T>): HTMLElement {
   let state: ListState = remembered.get(options.key) ?? emptyListState();
-  const filterable = options.columns.filter((c): c is ListColumn<T> => c !== null);
+  const filterable = options.columns.flatMap((c) => (c.filter ? [c.filter] : []));
+  // Each row's text for the search, made comparable once (not again on every key press).
+  const searchTexts = new Map(options.rows.map((row) => [row, searchable(options.text(row))]));
+  const searchText = (row: T) => searchTexts.get(row) ?? '';
   const set = (next: Partial<ListState>) => {
     state = { ...state, ...next };
     remembered.set(options.key, state);
@@ -93,29 +104,32 @@ export function listView<T>(options: ListViewOptions<T>): HTMLElement {
     el(
       'thead',
       {},
-      el('tr', {}, ...options.headers.map((h) => el('th', { scope: 'col' }, h))),
-      ...(filterable.length > 0 ? [el('tr', { class: 'list-filters' }, ...options.columns.map((c) => el('td', {}, control(c))))] : []),
+      el('tr', {}, ...options.columns.map((c) => el('th', { scope: 'col' }, c.header))),
+      ...(filterable.length > 0 ? [el('tr', { class: 'list-filters' }, ...options.columns.map((c) => el('td', {}, control(c.filter))))] : []),
     ),
     body,
   );
 
-  // The pages.
-  const pager = el('div', { class: 'list-pager small' });
+  // The pages: built once; an update changes only the text and which buttons work (so the focus stays on them).
   const sizes = el('select', { 'aria-label': `${options.noun[1]} per page` }, ...PAGE_SIZES.map((n) => el('option', { value: String(n) }, n === 0 ? 'All' : String(n))));
   sizes.value = String(state.pageSize);
   sizes.addEventListener('change', () => set({ pageSize: Number(sizes.value), page: 1 }));
   const previous = button('← Previous', () => set({ page: state.page - 1 }), 'link');
   const next = button('Next →', () => set({ page: state.page + 1 }), 'link');
   const where = el('span', {});
+  const pager = el('div', { class: 'list-pager small' }, previous, where, next, el('label', { class: 'list-size' }, 'Per page ', sizes));
 
   function update(): void {
-    const page = listPage(options.rows, filterable, state, options.text);
-    if (page.page !== state.page) state = { ...state, page: page.page };
+    const page = listPage(options.rows, filterable, state, searchText);
+    if (page.page !== state.page) {
+      state = { ...state, page: page.page }; // fewer pages left after filtering
+      remembered.set(options.key, state);
+    }
     const narrowed = anyFilter(state);
     body.replaceChildren(
       ...(page.rows.length > 0
         ? page.rows.flatMap(options.rowNodes)
-        : [el('tr', {}, el('td', { colspan: String(options.headers.length), class: 'muted' }, narrowed ? `No ${options.noun[1]} match the search and filters.` : `No ${options.noun[1]}.`))]),
+        : [el('tr', {}, el('td', { colspan: String(options.columns.length), class: 'muted' }, narrowed ? `No ${options.noun[1]} match the search and filters.` : `No ${options.noun[1]}.`))]),
     );
     const noun = (n: number) => (n === 1 ? options.noun[0] : options.noun[1]);
     count.textContent =
@@ -125,10 +139,13 @@ export function listView<T>(options: ListViewOptions<T>): HTMLElement {
           : ''
         : `Showing ${page.first}–${page.last} of ${page.matching} ${noun(page.matching)}${narrowed ? ` (filtered from ${page.total})` : ''}.`;
     clear.hidden = !narrowed;
+    const focused = document.activeElement;
     previous.disabled = page.page <= 1;
     next.disabled = page.page >= page.pages;
+    // On the first or last page that button stops working: the focus moves to the other one, not off the list.
+    if (focused === next && next.disabled && !previous.disabled) previous.focus();
+    if (focused === previous && previous.disabled && !next.disabled) next.focus();
     where.textContent = `Page ${page.page} of ${page.pages}`;
-    pager.replaceChildren(previous, where, next, el('label', { class: 'list-size' }, 'Per page ', sizes));
   }
 
   update();
