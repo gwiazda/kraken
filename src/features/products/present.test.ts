@@ -82,6 +82,7 @@ describe('costing (what a bag costs and earns)', () => {
     const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 5900 });
     expect(result.madeOf).toBe('Skład: 100 % KENYA-26-09 · Kegwa');
     expect(result.perKg).toBe('90,59\u00a0zł za kg palonej kawy');
+    expect(result.perKgPrice).toBe('90,59\u00a0zł za kg'); // the title "Skąd 90,59 zł za kg?"
     expect(result.rows[0]).toMatchObject({
       size: '250 g',
       cost: '24,15\u00a0zł',
@@ -153,7 +154,7 @@ describe('costing (what a bag costs and earns)', () => {
     expect(costing([lotBean('NOPRICE', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['PERU-26-10 · Cajamarca nie ma jeszcze ceny: dodaj ją w zakładce Dostawy (kliknij dostawę).']);
     expect(costing([lotBean('', 100)], lots, packaging, 230, 150, {}).notes).toEqual(['Wybierz dostawę dla każdego ziarna.']);
     expect(costing([lotBean('KEN', 60), lotBean('', 30)], lots, packaging, 230, 150, {}).notes).toEqual(['Wybierz dostawę dla każdego ziarna.', 'Udziały dają razem 90 %, a nie 100 %.']);
-    expect(costing([], lots, packaging, 230, 150, {})).toEqual({ madeOf: '', perKg: '', rows: expect.any(Array) as unknown, notes: [], perKgSteps: [] });
+    expect(costing([], lots, packaging, 230, 150, {})).toEqual({ madeOf: '', perKg: '', perKgPrice: '', rows: expect.any(Array) as unknown, notes: [], perKgSteps: [] });
   });
 
   it('names the missing 250 g packaging when the bigger sizes cannot follow the 250 g price', () => {

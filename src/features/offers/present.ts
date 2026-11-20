@@ -7,7 +7,7 @@ import { formatWholePln } from '../../core/numbers';
 import { wholesalePrice } from '../../domain/prices';
 import { formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { dealKey } from '../clients';
-import { isProductDeleted, type Product } from '../products';
+import { isProductDeleted, productDetails, type Product } from '../products';
 import { addDays, bannerText, offerFileName, tierText, type Banner, type OfferForm } from './model';
 
 export interface OfferPriceBlock {
@@ -64,17 +64,9 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
     if (sizes.length === 0) {
       // nothing to say per product: validateOffer asks to tick a size
     } else if (missing.length === sizes.length) warnings.push(`${p.name} nie ma ceny za ${missing.map(formatBagSize).join(' ani ')}, więc jest pokazany bez cen. Dodaj je w zakładce Produkty.`);
-    else if (missing.length > 0) warnings.push(`${p.name} nie ma ceny za ${missing.map(formatBagSize).join(' i ')}, więc ta wielkość jest dla niego pominięta.`);
-    const details = [
-      ['Kraj', p.country],
-      ['Region', p.region],
-      ['Wysokość uprawy', p.altitude],
-      ['Obróbka', p.processing],
-      ['Odmiana', p.variety],
-      ['Profil smakowy', p.flavourProfile],
-    ]
-      .filter(([, value]) => value)
-      .map(([label, value]) => ({ label: `${label}:`, value: value ?? '' }));
+    else if (missing.length > 0) warnings.push(`${p.name} nie ma ceny za ${missing.map(formatBagSize).join(' i ')}, więc ${missing.length === 1 ? 'ta wielkość jest' : 'te wielkości są'} dla niego ${missing.length === 1 ? 'pominięta' : 'pominięte'}.`);
+    // The same details, in the same words, as a product's page shows under "W ofercie" (one list in products).
+    const details = productDetails(p).map((d) => ({ label: `${d.label}:`, value: d.value }));
     const blocks = sizes.flatMap((grams): OfferPriceBlock[] => {
       const gross = p.prices[grams];
       if (gross === undefined) return [];

@@ -6,3 +6,4 @@ export { showProductsPage, type ProductsPageDeps } from './page';
 export { showPlannerPage, type PlannerPageDeps } from './plannerPage';
 export type { PlannerStart } from './planner';
 export { loadProductsWithCosts, type ProductsWithCosts } from './bagCosts';
+export { productDetails } from './present';

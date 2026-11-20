@@ -1,7 +1,6 @@
 // The cost calculation as plain text (bag costs per size, lot cards for suggestions and roast loss), so it is tested without a browser. Joins the lots, the roasts
 // (for the average roast loss) and the cost tabs, and runs the calculation.
 
-import { formatDate } from '../../core/dates';
 import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { plural } from '../../core/polish';
 import { isDeleted, sortLots, type Lot } from '../lots';
@@ -74,7 +73,6 @@ export interface BagLine {
 export interface LotCard {
   readonly lot: Lot;
   readonly title: string;
-  readonly subtitle: string;
   /** Why the lot cannot be calculated (e.g. the price is missing); empty when it can. */
   readonly missing: string;
   readonly greenPerKg: string;
@@ -142,7 +140,7 @@ export function lotCards(
     const lossTenths = Math.round(loss * 1000);
     const lossSource =
       source.kind === 'own'
-        ? 'własny'
+        ? 'Twój własny ubytek'
         : source.kind === 'average'
           ? `średnia z ${source.roasts} ${plural(source.roasts, 'wypału', 'wypałów', 'wypałów')}`
           : nonsense
@@ -151,7 +149,6 @@ export function lotCards(
     const base = {
       lot,
       title: `${lot.code} · ${lot.name}`,
-      subtitle: [lot.deliveryDate && `dostarczona ${formatDate(lot.deliveryDate)}`, lot.country].filter((t) => t).join(' · '),
       loss: formatPercent(lossTenths),
       lossTenths,
       lossSource,

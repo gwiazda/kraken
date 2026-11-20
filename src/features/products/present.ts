@@ -138,10 +138,12 @@ export interface CostingRow {
 }
 
 export interface Costing {
-  /** "Made of 60 % KENYA-26-09 · Kegwa and 40 % Etiopia offer (planned)"; '' without beans. */
+  /** "Skład: 60 % KENYA-26-09 · Kegwa i 40 % Etiopia z oferty (planowane)"; '' without beans. */
   readonly madeOf: string;
-  /** "79,35 zł per kg of roasted coffee"; '' when it cannot be worked out. */
+  /** "79,35 zł za kg palonej kawy"; '' when it cannot be worked out. */
   readonly perKg: string;
+  /** The same, short: "79,35 zł za kg" (the title "Skąd 79,35 zł za kg?"); '' when it cannot be worked out. */
+  readonly perKgPrice: string;
   readonly rows: readonly CostingRow[];
   /** Why something cannot be worked out, in plain words (missing price, packaging, …). */
   readonly notes: readonly string[];
@@ -150,6 +152,8 @@ export interface Costing {
 }
 
 const percentText = (tenths: number) => `${String(tenths / 10).replace('.', ',')} %`;
+/** "4 razy", "1 raz", "3,5 raza" (a markup without its own words in MARKUP_WORDS). */
+const timesWord = (n: number) => `${String(n).replace('.', ',')} ${Number.isInteger(n) ? (n === 1 ? 'raz' : 'razy') : 'raza'}`;
 const MARKUP_WORDS: Readonly<Record<number, string>> = { 200: 'Dwa razy', 250: 'Dwa i pół raza', 300: 'Trzy razy' };
 
 /**
@@ -234,7 +238,7 @@ export function costing(
     const suggestionSteps = base
       ? baseSuggestions.map((sug) => {
           const net = (cost * sug.markupHundredths) / 100;
-          return `${MARKUP_WORDS[sug.markupHundredths] ?? `${String(sug.markupHundredths / 100).replace('.', ',')} raza`} koszt to ${money(net)}; z VAT ${money(grossOf(net, vatTenths))}, po zaokrągleniu ${formatWholePln(sug.gross)}. Przy tej cenie zarabiasz ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} na torebce, marża brutto ${marginText(marginAt(sug.gross, cost, vatTenths))}.`;
+          return `${MARKUP_WORDS[sug.markupHundredths] ?? timesWord(sug.markupHundredths / 100)} koszt to ${money(net)}; z VAT ${money(grossOf(net, vatTenths))}, po zaokrągleniu ${formatWholePln(sug.gross)}. Przy tej cenie zarabiasz ${signedMoney(earningsAt(sug.gross, cost, vatTenths))} na torebce, marża brutto ${marginText(marginAt(sug.gross, cost, vatTenths))}.`;
         })
       : scaled && basePrice !== undefined && basePack !== null
         ? [
@@ -277,7 +281,8 @@ export function costing(
   });
   const missingPackaging = perKg !== null && BAG_SIZES_G.filter((g) => (packaging.get(g) ?? null) === null);
   if (missingPackaging && missingPackaging.length > 0) notes.push(`Nie wpisano opakowania dla ${missingPackaging.map(formatBagSize).join(', ')}: dodaj je w zakładce Opakowania i rabaty.`);
-  return { madeOf, perKg: perKg === null ? '' : `${formatPln(roundGrosze(perKg))} za kg palonej kawy`, rows, notes: [...new Set(notes)], perKgSteps };
+  const perKgPrice = perKg === null ? '' : `${formatPln(roundGrosze(perKg))} za kg`;
+  return { madeOf, perKg: perKgPrice && `${perKgPrice} palonej kawy`, perKgPrice, rows, notes: [...new Set(notes)], perKgSteps };
 }
 
 // ---- Comparing a plan with the products ----

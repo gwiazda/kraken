@@ -68,7 +68,7 @@ interface FieldSpec {
   list?: readonly string[];
 }
 
-/** The text fields; the Polish words in brackets are the labels on the offer. */
+/** The text fields; the labels of "Szczegóły w ofercie" are the same words as on the offer. */
 const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   {
     title: 'Produkt',

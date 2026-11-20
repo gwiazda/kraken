@@ -136,7 +136,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   function discountsNode(discounts: readonly Discount[], usingDefaults: boolean): HTMLElement {
     const rows = discounts.map((d) => {
       const actions = el('td', { class: 'row-actions nowrap' });
-      const tr = el('tr', {}, el('td', { class: 'num nowrap' }, `−${formatPercent(d.tenths)}`), el('td', {}, d.name || el('span', { class: 'muted' }, 'no name')), actions);
+      const tr = el('tr', {}, el('td', { class: 'num nowrap' }, `−${formatPercent(d.tenths)}`), el('td', {}, d.name || el('span', { class: 'muted' }, 'bez nazwy')), actions);
       const others = discounts.filter((o) => o !== d);
       const edit = () => {
         const editRow: HTMLTableRowElement = el('tr', {}, el('td', { colspan: '3' }, discountForm(d, others, () => editRow.replaceWith(tr), usingDefaults ? discounts : null)));

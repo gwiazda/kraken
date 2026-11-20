@@ -55,7 +55,6 @@ describe('lotCards', () => {
     const { cards } = lotCards([lot('L1')], [], [], sizes, DEFAULT_SETTINGS);
     expect(cards[0]).toMatchObject({
       title: 'KENYA-L1 · Kegwa',
-      subtitle: 'dostarczona 08.09.2026 · Kenya',
       missing: '',
       greenPerKg: '77,00\u00a0zł / kg',
       loss: '15 %',
@@ -86,7 +85,7 @@ describe('lotCards', () => {
     const roasts = [roast('R1', '1000', '850'), roast('R2', '1000', '830')];
     expect(lotCards([lot('L1')], roasts, [], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '16 %', lossSource: 'średnia z 2 wypałów' });
     const own = lotCostFromFields({ id: 'O', lot_id: 'L1', roast_loss_percent: '14.2' }, 2);
-    expect(lotCards([lot('L1')], roasts, [own], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '14,2 %', lossSource: 'własny', ownLoss: own });
+    expect(lotCards([lot('L1')], roasts, [own], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '14,2 %', lossSource: 'Twój własny ubytek', ownLoss: own });
   });
 
   it('reports roasts whose weights give a loss that makes no sense, and uses the default', () => {
@@ -153,7 +152,7 @@ describe('lotLosses (for the Lots page)', () => {
     const { losses, problems } = lotLosses(data, [lot('A', { roastime_bean_id: 'BA' }), lot('B', { roastime_bean_id: 'BB' }), lot('C', { roastime_bean_id: 'BC' })], roasts);
     expect(problems).toEqual([]);
     expect(losses.get('A')).toEqual({ lossTenths: 160, source: 'średnia z 2 wypałów', own: '' });
-    expect(losses.get('B')).toEqual({ lossTenths: 142, source: 'własny', own: '14.2' });
+    expect(losses.get('B')).toEqual({ lossTenths: 142, source: 'Twój własny ubytek', own: '14.2' });
     expect(losses.get('C')).toEqual({ lossTenths: 150, source: 'zwykły ubytek: brak wypałów z obiema wagami', own: '' });
   });
 

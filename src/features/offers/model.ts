@@ -3,6 +3,7 @@
 // (for Polish customers), like Kraken's screens. Pure: no Google, no screen.
 
 import { formatDate, isValidDate } from '../../core/dates';
+import { plural } from '../../core/polish';
 
 export { addDays } from '../../core/dates';
 
@@ -107,7 +108,7 @@ export function validateOffer(form: OfferForm, withDeals = false, withoutPrice: 
   if (form.tiers.length === 0 && !withDeals) errors.tiers = 'Zaznacz co najmniej jeden rabat (ustawiasz je w zakładce Opakowania i rabaty).';
   else if (withoutPrice.length > 0) {
     errors.tiers = `Brak ceny dla: ${withoutPrice.join(', ')}; nie ma dla nich ceny specjalnej, a żaden rabat nie jest zaznaczony. Zaznacz rabat albo odznacz ten produkt lub wielkość.`;
-  } else if (form.tiers.length > MAX_TIERS) errors.tiers = `Zaznacz najwyżej ${MAX_TIERS} rabaty, żeby oferta była czytelna.`;
+  } else if (form.tiers.length > MAX_TIERS) errors.tiers = `Zaznacz najwyżej ${MAX_TIERS} ${plural(MAX_TIERS, 'rabat', 'rabaty', 'rabatów')}, żeby oferta była czytelna.`;
   for (const tier of form.tiers) {
     if (tier.label.length > TIER_LABEL_MAX) errors.tiers = `Nazwa „${tier.label}” ma więcej niż ${TIER_LABEL_MAX} znaków, więc nie zmieści się przy cenach. Skróć ją w zakładce Opakowania i rabaty.`;
   }

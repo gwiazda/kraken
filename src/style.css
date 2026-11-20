@@ -1736,9 +1736,6 @@ body.is-dragging * {
   margin: 0.25rem 0 0.5rem;
 }
 
-.price-earn[hidden] {
-  display: none;
-}
 
 .earn {
   color: var(--lime);

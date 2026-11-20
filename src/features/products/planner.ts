@@ -4,6 +4,7 @@
 // price earns, every step explained). The rules are in domain/blend.ts and present.ts (costing).
 
 import { formatPln, parseMoney } from '../../core/numbers';
+import { plural } from '../../core/polish';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
 import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
@@ -261,7 +262,7 @@ export function createPlanner(
     el(
       'p',
       { class: 'muted small' },
-      `Najwyżej ${MAX_BEANS} ziarna: dostawy, które masz, albo planowane ziarno, które myślisz kupić. `,
+      `Najwyżej ${MAX_BEANS} ${plural(MAX_BEANS, 'ziarno', 'ziarna', 'ziaren')}: dostawy, które masz, albo planowane ziarno, które myślisz kupić. `,
       infoTip('Przeciągnij białą granicę na pasku, aby zmienić, ile torebki stanowi każde ziarno, albo wpisz procent. Udziały zawsze dają razem 100 %.'),
     ),
     splitHolder,
@@ -362,7 +363,7 @@ export function createPlanner(
     showExtra(made.rows, prices);
     madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
     madeOfLine.hidden = !made.madeOf;
-    perKgTitle.textContent = `Skąd ${made.perKg.replace(' palonej kawy', '')}?`;
+    perKgTitle.textContent = `Skąd ${made.perKgPrice}?`;
     perKgList.replaceChildren(...made.perKgSteps.map((step) => el('li', {}, step)));
     perKgBox.hidden = made.perKgSteps.length === 0;
     notesHolder.replaceChildren(...made.notes.map((n) => el('p', { class: 'muted small' }, n)));
