@@ -128,17 +128,32 @@ a {
 
 .app-nav {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
   border-bottom: 1px solid #333;
   margin-bottom: 1.5rem;
 }
 
 .app-nav .btn-link {
+  flex: none; /* a narrow screen wraps the tabs onto a second line instead of squeezing them */
   padding: 0.5rem 0;
   border-bottom: 3px solid transparent;
   border-radius: 0;
   text-decoration: none;
   color: var(--grey);
+}
+
+/* Kraken's own settings: on the right, with a gear, apart from the business tabs. */
+.app-nav .nav-settings {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.icon {
+  flex: none;
+  vertical-align: middle;
 }
 
 .app-nav .btn-link[aria-current='page'] {

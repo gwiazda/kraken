@@ -26,7 +26,7 @@ import { sheetProductsRepository, showPlannerPage, showProductsPage, type Planne
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
-import { button, el, message, type Child } from './ui/dom';
+import { button, el, gearIcon, message, type Child } from './ui/dom';
 import { screenOf, stateFor, type Screen } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
 
@@ -170,9 +170,16 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       tab('Packaging & discounts', 'packaging', () => {
         if (!saving) showPackaging(info, true, menuMove('packaging'));
       }),
-      tab('Settings', 'settings', () => {
-        if (!saving) showSettings(info, menuMove('settings'));
-      }),
+      // Kraken's own settings (sheet, sync, sign-in), apart from the business tabs: on the right, with a gear.
+      (() => {
+        const b = tab('Settings', 'settings', () => {
+          if (!saving) showSettings(info, menuMove('settings'));
+        });
+        b.classList.add('nav-settings');
+        b.title = 'Kraken settings: the sheet, Sync with RoasTime, sign-in';
+        b.prepend(gearIcon(), ' ');
+        return b;
+      })(),
     ),
     page,
   );
@@ -579,7 +586,8 @@ function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push', note?: 
     ? el('a', { href: info.url, target: '_blank', rel: 'noopener noreferrer' }, info.title)
     : el('span', {}, info.title);
   showApp(info, 'settings').append(
-    el('h2', {}, 'Settings'),
+    el('h2', {}, 'Kraken settings'),
+    el('p', { class: 'muted small' }, 'How Kraken itself works: the sheet it uses, bringing in data from RoasTime, and signing in. Packaging, prices and discounts are under Packaging & discounts.'),
     ...(note ? [message(note)] : []),
     el('section', { class: 'product-card' }, el('h3', {}, 'RoasTime'),
       el('p', { class: 'muted small' }, 'Brings in the deliveries (lots) and the roasts from the RoasTime folder on this computer. You see a preview first; nothing is saved until you confirm.'),
