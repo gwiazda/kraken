@@ -4,7 +4,7 @@
 // list until the page is reloaded (owner: "yes, until reload").
 
 import { PAGE_SIZES, anyFilter, choicesOf, emptyListState, listPage, monthsOf, searchable, type FilterValue, type ListColumn, type ListState } from '../core/listFilter';
-import { button, cardTable, el } from './dom';
+import { button, cardLabels, el } from './dom';
 
 /** Each list's search, filters and page, kept while Kraken is open (not stored anywhere). */
 const remembered = new Map<string, ListState>();
@@ -110,6 +110,8 @@ export function listView<T>(options: ListViewOptions<T>): HTMLElement {
     body,
   );
 
+  const labelCards = cardLabels(table);
+
   // The pages: built once; an update changes only the text and which buttons work (so the focus stays on them).
   const sizes = el('select', { 'aria-label': 'Ile na stronie' }, ...PAGE_SIZES.map((n) => el('option', { value: String(n) }, n === 0 ? 'Wszystkie' : String(n))));
   sizes.value = String(state.pageSize);
@@ -138,7 +140,7 @@ export function listView<T>(options: ListViewOptions<T>): HTMLElement {
           : ''
         : `Pokazano ${page.first}–${page.last} z ${page.matching}${narrowed ? ` (po filtrach; wszystkich: ${page.total})` : ''}.`;
     clear.hidden = !narrowed;
-    cardTable(table);
+    labelCards();
     const focused = document.activeElement;
     previous.disabled = page.page <= 1;
     next.disabled = page.page >= page.pages;

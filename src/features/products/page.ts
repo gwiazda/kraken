@@ -275,13 +275,17 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const box = tr.getBoundingClientRect();
     const grabY = start.clientY - box.top;
 
-    // The floating copy: the same cells at the same widths, in a table of its own.
+    // The floating copy: the same cells at the same widths, in a table of its own. On a phone the row is a card
+    // (table.cards): the copy is a card too, and its cells keep the card's own layout.
     const copy = tr.cloneNode(true) as HTMLTableRowElement;
-    [...tr.cells].forEach((cell, i) => {
-      const twin = copy.cells[i];
-      if (twin) twin.style.width = `${cell.getBoundingClientRect().width}px`;
-    });
-    const ghost = el('table', { class: 'data-table product-table drag-ghost', 'aria-hidden': 'true' }, el('tbody', {}, copy));
+    const asCard = getComputedStyle(tr).display === 'block';
+    if (!asCard) {
+      [...tr.cells].forEach((cell, i) => {
+        const twin = copy.cells[i];
+        if (twin) twin.style.width = `${cell.getBoundingClientRect().width}px`;
+      });
+    }
+    const ghost = el('table', { class: `data-table product-table drag-ghost${asCard ? ' cards' : ''}`, 'aria-hidden': 'true' }, el('tbody', {}, copy));
     ghost.style.left = `${box.left}px`;
     ghost.style.top = `${box.top}px`;
     ghost.style.width = `${box.width}px`;

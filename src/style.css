@@ -163,6 +163,18 @@ a {
 
 /* On a phone (owner, 2026-11-20): a ☰ button at the right of the logo bar; the tabs drop down as a list under it. */
 @media (max-width: 640px) {
+  /* The logo bar has one height on a phone; the ☰ button and the list are placed from it. */
+  :root {
+    --header-height: 72px;
+  }
+
+  .site-header {
+    box-sizing: border-box;
+    height: var(--header-height);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
   .app-nav {
     display: block;
     border: none;
@@ -171,7 +183,7 @@ a {
 
   .nav-toggle {
     position: absolute;
-    top: 14px; /* in the middle of the logo bar */
+    top: calc((var(--header-height) - 44px) / 2); /* in the middle of the logo bar */
     right: 16px;
     display: inline-flex;
     align-items: center;
@@ -204,7 +216,7 @@ a {
     display: flex;
     flex-direction: column;
     position: absolute;
-    top: 66px; /* just under the logo bar */
+    top: calc(var(--header-height) + 4px); /* just under the logo bar */
     left: 16px;
     right: 16px;
     z-index: 60; /* above the floating "+ Dodaj" */
@@ -2443,6 +2455,11 @@ select.list-filter {
   display: none;
 }
 
+/* A card's line label ("ZOSTAŁO"): only on a phone (see table.cards). */
+.card-label {
+  display: none;
+}
+
 /*
  * Every list on a phone (owner, 2026-11-20): each row is a card. The first column with a heading is the title;
  * every other cell is a line "HEADING  value" (the heading comes from `data-label`, set by cardTable in ui/dom.ts).
@@ -2525,8 +2542,8 @@ select.list-filter {
     white-space: normal;
   }
 
-  table.cards tbody > tr > td::before {
-    content: attr(data-label);
+  table.cards .card-label {
+    display: inline;
     float: left;
     margin-right: 1rem;
     line-height: 1.6;
@@ -2545,17 +2562,12 @@ select.list-filter {
     text-align: left;
   }
 
-  table.cards tbody > tr > td.card-title::before,
-  table.cards tbody > tr > td[data-label='']::before {
-    content: none;
-  }
-
   /* A cell with no heading (Delete, Restore): at the bottom right. */
-  table.cards tbody > tr > td[data-label=''] {
+  table.cards tbody > tr > td:not(.card-title):not(:has(> .card-label)) {
     padding-top: 0.4rem;
   }
 
-  table.cards tbody > tr > td[data-label='']:empty {
+  table.cards tbody > tr > td:empty {
     display: none;
   }
 
@@ -2571,10 +2583,6 @@ select.list-filter {
   table.cards tbody > tr > td[colspan] {
     display: block;
     text-align: left;
-  }
-
-  table.cards tbody > tr > td[colspan]::before {
-    content: none;
   }
 
   table.cards tr.confirm-row:not([hidden]) {

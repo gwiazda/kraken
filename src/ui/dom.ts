@@ -42,7 +42,7 @@ export function clickableRow<T extends HTMLTableRowElement>(
   cell?.prepend(opener);
   tr.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('button, a, input, select, textarea, label, .drag-handle, .no-row-click')) return;
+    if (target?.closest('button, a, input, select, textarea, label, .drag-handle, .info-tip, .no-row-click')) return;
     if (blocked() || (window.getSelection()?.toString() ?? '') !== '') return;
     open();
   });
@@ -51,23 +51,43 @@ export function clickableRow<T extends HTMLTableRowElement>(
 
 /**
  * A list table that turns into cards on a phone (owner, 2026-11-20; the CSS is under `table.cards` in style.css).
- * Each cell gets its column heading as `data-label` (shown before the value on a phone), and the first column with a
- * heading becomes the card's title. Call it again after the rows change (e.g. a new page of a list).
+ * Every cell gets its column heading as a label (hidden on a computer), with the heading's ⓘ tip, so the tips still
+ * work on a phone where the heading row is hidden; the first column with a heading becomes the card's title. The
+ * headings are read once. Rows with a different number of cells (a full-width "Delete …?" line) get no labels.
  */
 export function cardTable(table: HTMLTableElement): HTMLTableElement {
-  table.classList.add('cards');
-  const headings = [...(table.tHead?.rows[0]?.cells ?? [])].map(headingText);
-  const title = headings.findIndex((h) => h !== '');
-  const label = (row: HTMLTableRowElement) => {
-    if (row.cells.length !== headings.length) return; // e.g. the full-width "Delete …?" line
-    [...row.cells].forEach((cell, i) => {
-      cell.dataset['label'] = headings[i] ?? '';
-      cell.classList.toggle('card-title', i === title);
-    });
-  };
-  for (const row of [...(table.tHead?.rows ?? [])].slice(1)) label(row); // the filters under the headings
-  for (const body of table.tBodies) for (const row of body.rows) label(row);
+  cardLabels(table);
   return table;
+}
+
+/** Like `cardTable`, for a list whose rows are redrawn: call the returned function after each redraw. */
+export function cardLabels(table: HTMLTableElement): () => void {
+  table.classList.add('cards');
+  const headings = [...(table.tHead?.rows[0]?.cells ?? [])].map((cell) => ({
+    text: headingText(cell),
+    tip: cell.querySelector('.info-tip')?.getAttribute('aria-label') ?? '',
+  }));
+  const title = headings.findIndex((h) => h.text !== '');
+  const usable = (row: HTMLTableRowElement) => row.cells.length === headings.length;
+  // The filters under the headings (Wypały): their column's name above each, shown only on a phone.
+  for (const row of [...(table.tHead?.rows ?? [])].slice(1)) {
+    if (usable(row)) [...row.cells].forEach((cell, i) => (cell.dataset['label'] = headings[i]?.text ?? ''));
+  }
+  const labelRows = () => {
+    for (const body of table.tBodies) {
+      for (const row of body.rows) {
+        if (!usable(row)) continue;
+        [...row.cells].forEach((cell, i) => {
+          const heading = headings[i];
+          cell.classList.toggle('card-title', i === title);
+          if (!heading || heading.text === '' || i === title || cell.querySelector(':scope > .card-label')) return;
+          cell.prepend(el('span', { class: 'card-label' }, heading.text, ...(heading.tip ? [' ', infoTip(heading.tip)] : [])));
+        });
+      }
+    }
+  };
+  labelRows();
+  return labelRows;
 }
 
 /** A heading's words, without its ⓘ tip or text meant only for screen readers. */
