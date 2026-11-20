@@ -7,7 +7,7 @@
 
 import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
-import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
+import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { DEFAULT_SETTINGS, activeDiscounts, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
@@ -445,7 +445,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       el(
         'div',
         { class: 'table-wrap' },
-        el(
+        cardTable(el(
           'table',
           { class: 'data-table product-table' },
           el(
@@ -462,7 +462,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             ),
           ),
           el('tbody', {}, ...list.map((p, i) => row(p, restorable, i))),
-        ),
+        )),
       );
 
     render(

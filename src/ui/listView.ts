@@ -4,7 +4,7 @@
 // list until the page is reloaded (owner: "yes, until reload").
 
 import { PAGE_SIZES, anyFilter, choicesOf, emptyListState, listPage, monthsOf, searchable, type FilterValue, type ListColumn, type ListState } from '../core/listFilter';
-import { button, el } from './dom';
+import { button, cardTable, el } from './dom';
 
 /** Each list's search, filters and page, kept while Kraken is open (not stored anywhere). */
 const remembered = new Map<string, ListState>();
@@ -138,6 +138,7 @@ export function listView<T>(options: ListViewOptions<T>): HTMLElement {
           : ''
         : `Pokazano ${page.first}–${page.last} z ${page.matching}${narrowed ? ` (po filtrach; wszystkich: ${page.total})` : ''}.`;
     clear.hidden = !narrowed;
+    cardTable(table);
     const focused = document.activeElement;
     previous.disabled = page.page <= 1;
     next.disabled = page.page >= page.pages;
@@ -147,6 +148,17 @@ export function listView<T>(options: ListViewOptions<T>): HTMLElement {
     where.textContent = `Strona ${page.page} z ${page.pages}`;
   }
 
+  // On a phone the filters under the headings are folded away behind this button (on a computer it is hidden).
+  const filtersButton = button('Filtry', () => filtersButton.setAttribute('aria-expanded', String(table.classList.toggle('show-filters'))), 'secondary');
+  filtersButton.classList.add('filters-toggle');
+  filtersButton.setAttribute('aria-expanded', 'false');
+
   update();
-  return el('div', { class: 'list-view' }, el('div', { class: 'list-tools' }, search, count, clear), el('div', { class: 'table-wrap' }, table), pager);
+  return el(
+    'div',
+    { class: 'list-view' },
+    el('div', { class: 'list-tools' }, search, ...(filterable.length > 0 ? [filtersButton] : []), count, clear),
+    el('div', { class: 'table-wrap' }, table),
+    pager,
+  );
 }

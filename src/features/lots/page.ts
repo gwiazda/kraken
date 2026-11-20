@@ -2,7 +2,7 @@
 // Everything it needs from outside comes through LotsPageDeps (main.ts provides it), so the screen never reaches
 // into sign-in or Google directly. The logic it shows is in model.ts and present.ts, which are tested.
 
-import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
+import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes as explainGoogleError } from '../../ui/googleErrors';
 import { formatPln, parseKg } from '../../core/numbers';
 import { changedFields, emptyLotForm, formFromLot, lotSource, typedPricePerKg, validateLotForm, type Lot, type LotForm, type LotFormErrors } from './model';
@@ -305,7 +305,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         : el(
             'div',
             { class: 'table-wrap' },
-            el(
+            cardTable(el(
               'table',
               { class: 'data-table' },
               el(
@@ -326,7 +326,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
                 ),
               ),
               el('tbody', {}, ...rows.flatMap(rowNodes)),
-            ),
+            )),
           );
 
     const toggle = el('input', { type: 'checkbox', id: 'show-deleted' });

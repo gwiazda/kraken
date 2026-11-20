@@ -49,6 +49,34 @@ export function clickableRow<T extends HTMLTableRowElement>(
   return tr;
 }
 
+/**
+ * A list table that turns into cards on a phone (owner, 2026-11-20; the CSS is under `table.cards` in style.css).
+ * Each cell gets its column heading as `data-label` (shown before the value on a phone), and the first column with a
+ * heading becomes the card's title. Call it again after the rows change (e.g. a new page of a list).
+ */
+export function cardTable(table: HTMLTableElement): HTMLTableElement {
+  table.classList.add('cards');
+  const headings = [...(table.tHead?.rows[0]?.cells ?? [])].map(headingText);
+  const title = headings.findIndex((h) => h !== '');
+  const label = (row: HTMLTableRowElement) => {
+    if (row.cells.length !== headings.length) return; // e.g. the full-width "Delete …?" line
+    [...row.cells].forEach((cell, i) => {
+      cell.dataset['label'] = headings[i] ?? '';
+      cell.classList.toggle('card-title', i === title);
+    });
+  };
+  for (const row of [...(table.tHead?.rows ?? [])].slice(1)) label(row); // the filters under the headings
+  for (const body of table.tBodies) for (const row of body.rows) label(row);
+  return table;
+}
+
+/** A heading's words, without its ⓘ tip or text meant only for screen readers. */
+function headingText(cell: HTMLTableCellElement): string {
+  const copy = cell.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll('.info-tip, .visually-hidden').forEach((n) => n.remove());
+  return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
 /** A gear icon (inline SVG, drawn in the text colour), e.g. for Kraken's own settings. Hidden from screen readers. */
 export function gearIcon(): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';

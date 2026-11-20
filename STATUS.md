@@ -13,18 +13,19 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
   Offer (A4 preview, Save as PDF, "Use their special prices").
 - Every list opens by clicking a row; ⚙ Settings on the right of the menu; Kraken opens on Sales, the first tab.
 - Roasts: search, a filter under every column, pages. Sales works on a phone.
-- **Polish screens**, steps 1–3 merged (#41, #42, #43).
+- **Polish screens**: every screen (#41–#44).
 
 ## In progress
-- **Polish, step 4** (branch `claude/polish-4`): Dostawy, Wypały, Synchronizacja z RoasTime. Also fixes the
-  numbering of the folder steps on the sync screen (it showed 1, 2, 4).
+- **Phone layout for every tab** (branch `claude/mobile-tabs`): lists as cards (Dostawy, Wypały, Produkty, Klienci),
+  Wypały's filters behind "Filtry", Opakowania i rabaty and Planer produktu fit the screen. Price tables and the
+  Oferta preview scroll sideways inside their own box.
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
-2. Phone layout for the other tabs (only Sales is done).
-3. Offer templates (e.g. a Christmas one).
-4. Offer PDF straight to Google Drive (needs a PDF library).
-5. Hand overrides of a discounted price (requirements section 5).
+2. Offer templates (e.g. a Christmas one).
+3. Offer PDF straight to Google Drive (needs a PDF library).
+4. Hand overrides of a discounted price (requirements section 5): probably not needed any more (special prices
+   cover it); owner to decide whether to drop it.
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).

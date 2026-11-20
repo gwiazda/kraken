@@ -3,7 +3,7 @@
 // Everything from outside comes through ClientsPageDeps (main.ts provides it).
 
 import { formatPercent } from '../../domain/percent';
-import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
+import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
@@ -182,12 +182,12 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       el(
         'div',
         { class: 'table-wrap' },
-        el(
+        cardTable(el(
           'table',
           { class: 'data-table' },
           el('thead', {}, el('tr', {}, ...['Nazwa', 'Nazwa w CEIDG', 'NIP', 'E-mail', 'Rabat', ''].map((h) => el('th', { scope: 'col' }, h)))),
           el('tbody', {}, ...list.flatMap((c) => row(c, restorable))),
-        ),
+        )),
       );
 
     render(

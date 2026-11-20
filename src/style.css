@@ -358,6 +358,7 @@ h2 {
 }
 
 .form-section {
+  min-width: 0; /* a fieldset is as wide as its content by default; this lets it fit a phone */
   border: none;
   border-top: 1px solid #2a2a2a;
   margin: 0 0 0.5rem;
@@ -697,7 +698,7 @@ details summary {
 
 .bag-size .data-table {
   width: auto;
-  min-width: 22rem;
+  min-width: min(22rem, 100%);
 }
 
 .inline-form {
@@ -763,7 +764,7 @@ details summary {
 
 .bag-sizes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); /* one column on a phone */
   gap: 0 2rem;
 }
 
@@ -1522,6 +1523,8 @@ body.is-dragging * {
 
 .bean-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0; /* fits a phone even with a long coffee name in its lists */
   gap: 0.4rem;
   padding: 0.55rem 0.75rem;
   border: 1px solid #222;
@@ -1540,6 +1543,10 @@ body.is-dragging * {
 
 .bean-head .btn-link {
   margin-left: auto;
+}
+
+.beans select {
+  max-width: 100%;
 }
 
 .beans select,
@@ -2346,5 +2353,167 @@ select.list-filter {
     font-size: 0.75rem;
     color: var(--grey);
     text-transform: uppercase;
+  }
+}
+
+/* "Filtry": only on a phone, where the filters under the headings are folded away (see table.cards). */
+.filters-toggle {
+  display: none;
+}
+
+/*
+ * Every list on a phone (owner, 2026-11-20): each row is a card. The first column with a heading is the title;
+ * every other cell is a line "HEADING  value" (the heading comes from `data-label`, set by cardTable in ui/dom.ts).
+ * Sales has its own cards (.sales-table).
+ */
+@media (max-width: 640px) {
+  .table-wrap:has(> table.cards) {
+    overflow-x: visible;
+  }
+
+  /* Tables that stay tables (prices, packaging): a little less space around each cell. */
+  .data-table th,
+  .data-table td {
+    padding: 0.45rem 0.4rem;
+  }
+
+  table.cards,
+  table.cards thead,
+  table.cards tbody {
+    display: block;
+  }
+
+  table.cards thead tr:first-child {
+    display: none;
+  }
+
+  .filters-toggle {
+    display: inline-flex;
+  }
+
+  /* The filters, when "Filtry" is open: two side by side, each with its column's name above. */
+  table.cards tr.list-filters {
+    display: none;
+  }
+
+  table.cards.show-filters tr.list-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  table.cards tr.list-filters > td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+
+  table.cards tr.list-filters > td:empty {
+    display: none;
+  }
+
+  table.cards tr.list-filters > td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    color: var(--grey);
+    text-transform: uppercase;
+  }
+
+  table.cards .list-filter,
+  table.cards select.list-filter {
+    min-width: 0;
+  }
+
+  table.cards tbody tr:not(.confirm-row) {
+    display: block;
+    position: relative;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #333;
+    border-radius: 8px;
+  }
+
+  table.cards tbody > tr > td {
+    display: block;
+    padding: 0.15rem 0;
+    border: none;
+    text-align: right;
+    white-space: normal;
+  }
+
+  table.cards tbody > tr > td::before {
+    content: attr(data-label);
+    float: left;
+    margin-right: 1rem;
+    line-height: 1.6;
+    font-size: 0.75rem;
+    color: var(--grey);
+    text-transform: uppercase;
+    text-align: left;
+  }
+
+  /* The card's title: its name, on its own line. */
+  table.cards tbody > tr > td.card-title {
+    padding-right: 2rem; /* room for the Products grip */
+    padding-bottom: 0.35rem;
+    font-weight: 600;
+    font-size: 1.05rem;
+    text-align: left;
+  }
+
+  table.cards tbody > tr > td.card-title::before,
+  table.cards tbody > tr > td[data-label='']::before {
+    content: none;
+  }
+
+  /* A cell with no heading (Delete, Restore): at the bottom right. */
+  table.cards tbody > tr > td[data-label=''] {
+    padding-top: 0.4rem;
+  }
+
+  table.cards tbody > tr > td[data-label='']:empty {
+    display: none;
+  }
+
+  /* The drag grip of Products: top right of the card. */
+  table.cards tbody > tr > td.order-grip {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    width: auto;
+  }
+
+  /* The message row when nothing matches, and the "Delete …?" line under a card. */
+  table.cards tbody > tr > td[colspan] {
+    display: block;
+    text-align: left;
+  }
+
+  table.cards tbody > tr > td[colspan]::before {
+    content: none;
+  }
+
+  table.cards tr.confirm-row:not([hidden]) {
+    display: block;
+    margin: -0.5rem 0 0.75rem;
+  }
+
+  table.cards tr.confirm-row > td {
+    padding: 0.75rem;
+    border-radius: 0 0 8px 8px;
+    line-height: 2.4;
+  }
+
+  /* The whole card lights up, not only its cells. */
+  table.cards tr.row-link:hover > td,
+  table.cards tr.row-link:focus-within > td {
+    background: none;
+  }
+
+  table.cards tr.row-link:hover,
+  table.cards tr.row-link:focus-within {
+    background: #16180a;
   }
 }
