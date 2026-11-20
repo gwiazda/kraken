@@ -17,7 +17,7 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 
 ## In progress
 - **Phone layout for every tab** (branch `claude/mobile-tabs`): lists as cards (Zielone ziarno, Wypały, Produkty, Klienci),
-  Wypały's filters behind "Filtry", Opakowania i rabaty and Planer produktu fit the screen. Price tables and the
+  a ☰ menu in the logo bar, Wypały's filters behind "Filtry", Opakowania i rabaty and Planer produktu fit the screen. Price tables and the
   Oferta preview scroll sideways inside their own box.
 
 ## Next steps (owner decides the order)

@@ -25,6 +25,7 @@ import { sheetProductsRepository, showPlannerPage, showProductsPage, type Planne
 import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { button, el, gearIcon, message, type Child } from './ui/dom';
+import { phoneMenuButton } from './ui/menu';
 import { forgetLists } from './ui/listView';
 import { HOME_SCREEN, type Screen, screenOf, stateFor } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
@@ -145,48 +146,47 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
     if (name === active) b.setAttribute('aria-current', 'page');
     return b;
   };
-  app.replaceChildren(
-    el(
-      'nav',
-      { class: 'app-nav', 'aria-label': 'Kraken' },
-      // Sales first: Kraken opens on it (owner, 2026-11-20).
-      tab('Sprzedaż', 'sales', () => {
-        if (!saving) showSales(info, true, menuMove('sales'));
-      }),
-      tab('Zielone ziarno', 'lots', () => {
-        if (!saving) showLots(info, undefined, true, menuMove('lots'));
-      }),
-      tab('Wypały', 'roasts', () => {
-        if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
-      }),
-      tab('Produkty', 'products', () => {
-        if (!saving) showProducts(info, true, menuMove('products'));
-      }),
-      tab('Planer produktu', 'planner', () => {
-        if (!saving) showPlanner(info, undefined, true, menuMove('planner'));
-      }),
-      tab('Oferta', 'offer', () => {
-        if (!saving) showOffer(info, true, menuMove('offer'));
-      }),
-      tab('Klienci', 'clients', () => {
-        if (!saving) showClients(info, true, menuMove('clients'));
-      }),
-      tab('Opakowania i rabaty', 'packaging', () => {
-        if (!saving) showPackaging(info, true, menuMove('packaging'));
-      }),
-      // Kraken's own settings (sheet, sync, sign-in), apart from the business tabs: on the right, with a gear.
-      (() => {
-        const b = tab('Ustawienia', 'settings', () => {
-          if (!saving) showSettings(info, menuMove('settings'));
-        });
-        b.classList.add('nav-settings');
-        b.title = 'Ustawienia Krakena: arkusz, synchronizacja z RoasTime, logowanie';
-        b.prepend(gearIcon(), ' ');
-        return b;
-      })(),
-    ),
-    page,
+  const links = el(
+    'div',
+    { class: 'nav-links', id: 'nav-links' },
+    // Sales first: Kraken opens on it (owner, 2026-11-20).
+    tab('Sprzedaż', 'sales', () => {
+      if (!saving) showSales(info, true, menuMove('sales'));
+    }),
+    tab('Zielone ziarno', 'lots', () => {
+      if (!saving) showLots(info, undefined, true, menuMove('lots'));
+    }),
+    tab('Wypały', 'roasts', () => {
+      if (!saving) showRoasts(info, undefined, true, menuMove('roasts'));
+    }),
+    tab('Produkty', 'products', () => {
+      if (!saving) showProducts(info, true, menuMove('products'));
+    }),
+    tab('Planer produktu', 'planner', () => {
+      if (!saving) showPlanner(info, undefined, true, menuMove('planner'));
+    }),
+    tab('Oferta', 'offer', () => {
+      if (!saving) showOffer(info, true, menuMove('offer'));
+    }),
+    tab('Klienci', 'clients', () => {
+      if (!saving) showClients(info, true, menuMove('clients'));
+    }),
+    tab('Opakowania i rabaty', 'packaging', () => {
+      if (!saving) showPackaging(info, true, menuMove('packaging'));
+    }),
+    // Kraken's own settings (sheet, sync, sign-in), apart from the business tabs: on the right, with a gear.
+    (() => {
+      const b = tab('Ustawienia', 'settings', () => {
+        if (!saving) showSettings(info, menuMove('settings'));
+      });
+      b.classList.add('nav-settings');
+      b.title = 'Ustawienia Krakena: arkusz, synchronizacja z RoasTime, logowanie';
+      b.prepend(gearIcon(), ' ');
+      return b;
+    })(),
   );
+  const nav = el('nav', { class: 'app-nav', 'aria-label': 'Kraken' }, phoneMenuButton(links), links);
+  app.replaceChildren(nav, page);
   return page;
 }
 
