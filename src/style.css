@@ -1343,9 +1343,15 @@ details summary {
   gap: 0.4rem;
 }
 
+/* ↑ ↓ side by side, never squeezed by a long product name (the name wraps instead). */
+.offer-order-moves {
+  display: flex;
+  flex: none;
+  gap: 0.2rem;
+}
+
 .offer-order-moves .btn {
   padding: 0.1rem 0.5rem;
-  margin-right: 0.2rem;
 }
 
 /* Products page: drag a row by its grip to change the order. */
