@@ -104,9 +104,13 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const useDealsRow = el('p', { class: 'offer-choices', hidden: '' }, el('label', { for: useDeals.id }, useDeals, useDealsLabel));
     /** The picked client's usable special prices (empty: none picked, or none). */
     let deals = new Map<string, number>();
+    /** The client whose name was filled in (to clear it when "Not a client" is chosen again). */
+    let filled = '';
     const pickClient = () => {
       const picked = clients.find((c) => c.id === clientSelect.value);
       if (picked) customer.value = picked.name;
+      else if (filled && customer.value === filled) customer.value = '';
+      filled = picked?.name ?? '';
       deals = picked ? offerDeals(allDeals, picked.id, all) : new Map();
       useDealsRow.hidden = deals.size === 0;
       useDeals.checked = deals.size > 0;
@@ -114,6 +118,16 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       update();
     };
     clientSelect.addEventListener('change', pickClient);
+    // Another name typed over the client's: the offer is for someone else, so their special prices are not used.
+    customer.addEventListener('input', () => {
+      if (clientSelect.value !== '' && customer.value.trim() !== filled) {
+        clientSelect.value = '';
+        filled = '';
+        deals = new Map();
+        useDeals.checked = false;
+        useDealsRow.hidden = true;
+      }
+    });
     const dealsUsed = () => (useDeals.checked ? deals : new Map<string, number>());
     const date = el('input', { id: 'offer-date', type: 'date' });
     date.value = today;
@@ -224,7 +238,9 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     };
 
     const saveAsPdf = () => {
-      const errors = validateOffer(readForm(), dealsUsed().size > 0);
+      const form = readForm();
+      const offer = isValidDate(form.date) ? buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS, dealsUsed()) : null;
+      const errors = validateOffer(form, dealsUsed().size > 0, offer?.withoutPrice ?? []);
       for (const [key, line] of errorLines) line.textContent = errors[key] ?? '';
       if (Object.keys(errors).length > 0) {
         status.replaceChildren(message('Please fix what is marked above.', 'error'));

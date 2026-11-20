@@ -76,4 +76,10 @@ describe('validateOffer', () => {
     expect(validateOffer({ ...ok, tiers: [] }, true)).toEqual({});
     expect(validateOffer({ ...ok, tiers: [] }, false)).toEqual({ tiers: 'Tick at least one discount (they are set under Packaging & discounts).' });
   });
+
+  it('refuses an offer where a ticked product size would have no price at all', () => {
+    expect(validateOffer({ ...ok, tiers: [] }, true, ['KENIA 1 kg', 'PERU 250 g'])).toEqual({
+      tiers: 'No price for KENIA 1 kg, PERU 250 g: there is no special price for it and no discount is ticked. Tick a discount, or untick that product or size.',
+    });
+  });
 });

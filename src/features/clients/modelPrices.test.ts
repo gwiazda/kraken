@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canRestoreDeal,
   changedDealFields,
+  dealPriceChange,
   dealKey,
   dealUnusable,
   dealsOf,
@@ -85,6 +86,14 @@ describe('adding a deal', () => {
     expect(canRestoreDeal(old, [old])).toBe(true);
     expect(canRestoreDeal(old, [old, deal(3)])).toBe(false);
     expect(canRestoreDeal(old, [old, deal(3, { bag_size_g: '1000' })])).toBe(true);
+  });
+
+  it("changes only the price; today's retail price becomes the new starting point when there is one", () => {
+    expect(dealPriceChange(deal(2, { retail_gross_pln_at_deal: '55' }), '36,50', kenia)).toEqual({ ok: true, fields: { price_net_pln: '36.5', retail_gross_pln_at_deal: '59' } });
+    // a product that is deleted, or has no price for that size now: the price can still be changed
+    expect(dealPriceChange(deal(2), '36', { ...kenia, deletedAt: '2026-11-20T10:00:00.000Z' })).toEqual({ ok: true, fields: { price_net_pln: '36' } });
+    expect(dealPriceChange(deal(2, { bag_size_g: '500' }), '36', kenia)).toEqual({ ok: true, fields: { price_net_pln: '36' } });
+    expect(dealPriceChange(deal(2), 'free', kenia)).toEqual({ ok: false, error: 'Enter the price without VAT, e.g. 38 or 38,50.' });
   });
 
   it('an edit writes only what changed', () => {

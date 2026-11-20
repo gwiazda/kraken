@@ -120,5 +120,7 @@ describe('buildOffer', () => {
       ['250 g', 1],
       ['1 kg', 0],
     ]);
+    expect(offer.withoutPrice).toEqual(['Kenia 1 kg']); // the page refuses to save it until fixed
+    expect(offer.banner).toEqual({ title: '', line: '', note: '' }); // no line about discounts that are not there
   });
 });

@@ -27,8 +27,6 @@ export interface DealRow {
   readonly unusable: string;
 }
 
-const money = (grosze: number) => (grosze % 100 === 0 ? formatWholePln(grosze) : formatPln(grosze));
-
 /**
  * A client's deals (not deleted), by product name and size. `discountTenths`: the client's discount (null for
  * none); `bagCosts`: the cost of one bag per product and size (grosze).
@@ -63,13 +61,13 @@ export function dealRows(
       }
       const retailChanged =
         retail !== undefined && deal.retailAtDeal !== null && retail !== deal.retailAtDeal
-          ? `Retail was ${money(deal.retailAtDeal)} when this deal was set, now ${money(retail)}.`
+          ? `Retail was ${formatWholePln(deal.retailAtDeal)} when this deal was set, now ${formatWholePln(retail)}.`
           : '';
       return {
         deal,
         product: product?.name ?? '?',
         size: deal.grams === null ? '?' : formatBagSize(deal.grams),
-        price: deal.netGrosze === null ? '?' : money(deal.netGrosze),
+        price: deal.netGrosze === null ? '?' : formatWholePln(deal.netGrosze),
         insteadOf,
         earn,
         losing,

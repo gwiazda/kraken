@@ -143,6 +143,18 @@ export function validateDeal(
   };
 }
 
+/**
+ * A new price for an existing deal: only the price is checked, so a deal whose product was deleted or has no price
+ * for that size any more can still be changed. The retail price of today becomes its new starting point when there
+ * is one (otherwise the old one is kept).
+ */
+export function dealPriceChange(deal: SpecialPrice, price: string, product: DealProduct | undefined): { ok: true; fields: Record<string, string> } | { ok: false; error: string } {
+  const grosze = parseMoney(price.trim());
+  if (typeof grosze !== 'number' || grosze <= 0) return { ok: false, error: 'Enter the price without VAT, e.g. 38 or 38,50.' };
+  const retail = product && product.deletedAt === '' && deal.grams !== null ? product.prices[deal.grams] : undefined;
+  return { ok: true, fields: { price_net_pln: moneyText(grosze), ...(retail === undefined ? {} : { retail_gross_pln_at_deal: moneyText(retail) }) } };
+}
+
 /** A deleted deal can come back only when the client has no other deal for that product and size. */
 export function canRestoreDeal(deal: SpecialPrice, deals: readonly SpecialPrice[]): boolean {
   return !dealsOf(deals, deal.clientId).some((d) => d.id !== deal.id && d.productId === deal.productId && d.grams === deal.grams);

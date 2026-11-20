@@ -14,7 +14,7 @@ import type { ProductsRepository } from './repo';
 
 export interface ProductsWithCosts {
   readonly products: Product[];
-  /** Per product id: the cost of one bag per size, in grosze (a size missing: it cannot be worked out). */
+  /** Per product id (not deleted ones): the cost of one bag per size, in grosze (a size missing: it cannot be worked out). */
   readonly bagCosts: ReadonlyMap<string, Partial<Record<BagSize, number>>>;
   readonly vatTenths: number;
   readonly discounts: Discount[];
@@ -33,7 +33,7 @@ export async function loadProductsWithCosts(sources: {
 }): Promise<ProductsWithCosts> {
   const [stored, data] = await Promise.all([sources.products.load(), loadPlannerData(sources)]);
   const bagCosts = new Map(
-    stored.products.map((p) => {
+    stored.products.filter((p) => p.deletedAt === '').map((p) => {
       const made = costing(beansOf(stored.beans, p.id).map(formFromBean), data.beanLots, data.packaging, data.settings.vatTenths, data.settings.defaultLossTenths, p.prices);
       return [p.id, costsBySize(made.rows) as Partial<Record<BagSize, number>>] as const;
     }),

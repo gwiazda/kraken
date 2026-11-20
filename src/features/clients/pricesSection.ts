@@ -2,7 +2,7 @@
 // with what they would pay otherwise and what it earns; add, change, delete and restore a deal. It loads on its own
 // (the products and their costs, the deals), so the client form never waits for it, and saves each change at once.
 
-import { formatPln } from '../../core/numbers';
+import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { loadProductsWithCosts, isProductDeleted, sortProducts, type ProductsRepository, type ProductsWithCosts } from '../products';
@@ -10,7 +10,7 @@ import type { CostsRepository } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import type { Client } from './model';
-import { canRestoreDeal, changedDealFields, dealsOf, isDealDeleted, validateDeal, type DealErrors, type DealForm, type SpecialPrice } from './modelPrices';
+import { canRestoreDeal, changedDealFields, dealPriceChange, dealsOf, isDealDeleted, validateDeal, type DealErrors, type DealForm, type SpecialPrice } from './modelPrices';
 import { dealRows } from './presentPrices';
 import type { SpecialPricesRepository } from './repoPrices';
 
@@ -27,8 +27,11 @@ export interface PricesSectionDeps {
   describeError: (error: unknown) => string;
   now: () => Date;
   busy: (on: boolean) => void;
-  /** Google's error with its buttons (sign in again, try again), as on the rest of the page. */
-  errorNodes: (error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void) => Node[];
+  /**
+   * Google's error with its buttons (sign in again, try again), as on the rest of the page. `mayHaveSaved`: after a
+   * save (the page's reload button then says it drops the client form above).
+   */
+  errorNodes: (error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean) => Node[];
 }
 
 const MARGIN_TIP =
@@ -68,9 +71,18 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
       })
       .catch((error: unknown) => {
         if (deps.isIgnorable(error)) return;
-        const again = (e: unknown) => show(...deps.errorNodes(e, () => load(undefined, true), 'Sign in and show special prices', again));
+        const again = (e: unknown) => show(...deps.errorNodes(e, () => load(undefined, true), 'Sign in and show special prices', again, false));
         again(error);
       });
+  }
+
+  /** Reads only the deals again (after a save: the products and their costs have not changed). */
+  function reloadDeals(note: string): Promise<void> {
+    return deps.prices.load().then((stored) => {
+      deals = stored.deals.filter((d) => d.clientId === client.id);
+      problems = [...stored.problems, ...(found?.problems ?? []), ...dealsOf(deals, client.id).flatMap((d) => d.problems)];
+      showDeals(note);
+    });
   }
 
   /** Saves one change inside the click, then reads the deals again. */
@@ -79,12 +91,14 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
     slot.replaceChildren(busy('Saving…'));
     deps.busy(true);
     deps
-      .withGoogle(action)
+      .withGoogle(async () => {
+        await action();
+        await reloadDeals(done);
+      })
       .finally(() => deps.busy(false))
-      .then(() => load(done))
       .catch((error: unknown) => {
         if (deps.isIgnorable(error)) return showDeals();
-        const again = (e: unknown) => showDeals(undefined, deps.errorNodes(e, retry, 'Sign in and try again', again));
+        const again = (e: unknown) => showDeals(undefined, deps.errorNodes(e, retry, 'Sign in and try again', again, true));
         again(error);
       });
   }
@@ -110,14 +124,13 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
         const form = el('form', { class: 'inline-form', novalidate: '' }, input, ' zł ', el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save'), button('Cancel', normal, 'secondary'), errorLine);
         form.addEventListener('submit', (event) => {
           event.preventDefault();
-          const others = dealsOf(deals, client.id).filter((d) => d.id !== r.deal.id);
-          const result = validateDeal({ productId: r.deal.productId, grams: String(r.deal.grams ?? ''), price: input.value }, client.id, products, others);
+          const result = dealPriceChange(r.deal, input.value, products.find((p) => p.id === r.deal.productId));
           if (!result.ok) {
-            errorLine.textContent = Object.values(result.errors).join(' ');
+            errorLine.textContent = result.error;
             return;
           }
-          // A changed deal also takes today's retail price as its new starting point.
           const fields = changedDealFields(r.deal, result.fields);
+          if (Object.keys(fields).length === 0) return normal();
           const go = () => save(() => deps.prices.update(r.deal, fields, deps.now()), `Saved the price for ${r.product} ${r.size}.`, actions, go);
           go();
         });
@@ -185,7 +198,7 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
         const go = () => save(() => deps.prices.restore(d, deps.now()), `Restored the price for ${label}.`, cell, go);
         cell.append(button('Restore', go, 'link'));
       } else cell.append(el('span', { class: 'muted small' }, 'there is a newer price for it'));
-      return el('tr', { class: 'row-deleted' }, el('td', {}, label), el('td', { class: 'num nowrap' }, d.netGrosze === null ? '?' : formatPln(d.netGrosze)), cell);
+      return el('tr', { class: 'row-deleted' }, el('td', {}, label), el('td', { class: 'num nowrap' }, d.netGrosze === null ? '?' : formatWholePln(d.netGrosze)), cell);
     };
 
     show(

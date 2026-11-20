@@ -2,7 +2,7 @@
 // per ticked bag size with the wholesale net price at each ticked discount, the suggested retail price under 250 g,
 // and the banner. Wholesale = the product's main gross ÷ (1 + VAT) − discount, net rounded to whole złoty.
 
-import { formatPln, formatWholePln } from '../../core/numbers';
+import { formatWholePln } from '../../core/numbers';
 import { wholesalePrice } from '../../domain/prices';
 import { formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { dealKey } from '../clients';
@@ -37,12 +37,14 @@ export interface OfferDocument {
   readonly banner: Banner;
   /** For the owner, not on the offer: e.g. a product without a price for a ticked size. */
   readonly warnings: readonly string[];
+  /** Product sizes on the offer with no price line at all (no special price and no discount ticked): "KENIA 1 kg". */
+  readonly withoutPrice: readonly string[];
 }
 
 const RETAIL_SIZE = 250;
 
 /** A special price as its only line: no label (owner: no "Cena specjalna"); "38 zł" or "38,50 zł". */
-const dealRow = (net: number | undefined) => (net === undefined ? undefined : [{ label: '', price: net % 100 === 0 ? formatWholePln(net) : formatPln(net) }]);
+const dealRow = (net: number | undefined) => (net === undefined ? undefined : [{ label: '', price: formatWholePln(net) }]);
 
 /**
  * `deals`: a picked client's special prices (owner, 2026-11-20), product id and size (dealKey) → net grosze, when
@@ -55,6 +57,7 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
   const byId = new Map(products.filter((p) => !isProductDeleted(p)).map((p) => [p.id, p]));
   const ticked = form.productIds.flatMap((id) => byId.get(id) ?? []); // in the owner's order
   const warnings: string[] = [];
+  const withoutPrice: string[] = [];
   const cards = ticked.map((p): OfferCard => {
     const missing = sizes.filter((g) => p.prices[g] === undefined);
     if (sizes.length === 0) {
@@ -82,6 +85,7 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
         },
       ];
     });
+    for (const block of blocks) if (block.rows.length === 0) withoutPrice.push(`${p.name} ${block.size}`);
     return { name: p.name, brewMethod: p.brewMethod, details, blocks };
   });
   return {
@@ -93,5 +97,6 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
     cards,
     banner: form.banner ?? bannerText(tiers, sizes.map(formatBagSize)),
     warnings,
+    withoutPrice,
   };
 }

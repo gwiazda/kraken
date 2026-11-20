@@ -308,7 +308,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       if (!saveButton.disabled) save();
     });
     const prices = client
-      ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true) })
+      ? pricesSection(client, { ...deps, errorNodes: (error, retry, label, show, mayHaveSaved) => errorNodes(error, retry, label, show, mayHaveSaved, 'Reload clients (drops this form)') })
       : el('p', { class: 'muted small' }, 'Save the client first; then click it in the list to add special prices.');
 
     render(
