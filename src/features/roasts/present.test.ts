@@ -39,6 +39,19 @@ describe('roastListRows', () => {
     });
   });
 
+  it('gives the filters the same values as shown: day, grams (roasted rounded to the gram), loss, lot codes, badges', () => {
+    // 1199,6 g roasted is shown as 1,2 kg, so "from 1,2 kg" must find it: the filter gets 1200 g.
+    const [row] = rows([roast('a', { roasted_g: '1199.6', roasted_at: '2026-10-05T08:00:00.000Z' })]);
+    expect(row).toMatchObject({ roasted: '1,2\u00a0kg', roastedGrams: 1200, greenGrams: 1200, day: '2026-10-05', lotCodes: ['KENYA-26-09', 'KENYA-26-10'], marks: [] });
+    expect(row?.lossTenths).toBe(0); // 1200 g → 1199,6 g: under 0,1 %
+    const [sample] = rows([roast('b', { roastime_bean_id: '', sample: 'yes' })]);
+    expect(sample).toMatchObject({ lotCodes: ['Not counted: no coffee chosen'], marks: ['Sample'] });
+    const [needs] = rows([roast('c', { roastime_bean_id: '' })]);
+    expect(needs?.marks).toEqual(['Needs a lot']);
+    const [chosen] = rows([roast('d', { lot_id: 'L2', roasted_at: '2026-09-20T08:00:00.000Z' })]);
+    expect(chosen?.marks).toEqual(['Before delivery', 'Chosen']);
+  });
+
   it('asks for a lot when there is no coffee, unless it is a sample', () => {
     const [plain] = rows([roast('a', { roastime_bean_id: '' })]);
     expect(plain).toMatchObject({ coffee: 'No coffee chosen', lots: 'Not counted: no coffee chosen', counted: false, needsLot: true });

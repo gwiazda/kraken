@@ -27,6 +27,7 @@ import { showRoastimeSync } from './features/roastime';
 import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMetaProblem, inspectSpreadsheet, updatePlan, updateSpreadsheet } from './schema';
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, gearIcon, message, type Child } from './ui/dom';
+import { forgetLists } from './ui/listView';
 import { screenOf, stateFor, type Screen } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
 
@@ -58,6 +59,8 @@ function show(...children: Child[]): void {
 
 /** The connected sheet, while one of its screens is shown. */
 let openSheet: SpreadsheetInfo | null = null;
+/** The sheet whose list filters are remembered (ui/listView.ts); another sheet starts without them. */
+let listsSheetId = '';
 /** The screen shown now (to put it back if Back is pressed while saving). */
 let currentScreen: Screen = 'lots';
 /** True while Kraken saves to Google: Back and the menu wait, so nothing is left running unseen. */
@@ -135,6 +138,8 @@ type MenuTab = 'lots' | 'roasts' | 'products' | 'planner' | 'offer' | 'sales' | 
 
 function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
   resume = null;
+  if (listsSheetId !== info.id) forgetLists(); // another sheet: its lists start without filters
+  listsSheetId = info.id;
   openSheet = info;
   const page = el('section', { class: 'page' });
   const tab = (label: string, name: MenuTab, open: () => void) => {
@@ -611,6 +616,7 @@ function showSettings(info: SpreadsheetInfo, move: HistoryMove = 'push', note?: 
         'Sign out',
         () => {
           signOut();
+          forgetLists();
           showSignIn();
         },
         'secondary',
