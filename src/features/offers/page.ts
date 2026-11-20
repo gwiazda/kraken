@@ -3,7 +3,7 @@
 // in the sheet: the PDF is the record (owner: "keep it simple, only the offer").
 // Everything from outside comes through OfferPageDeps (main.ts provides it).
 
-import { isValidDate, localDate } from '../../core/dates';
+import { formatDate, isValidDate, localDate } from '../../core/dates';
 import { busy, button, el, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, readSettings, type CostSettings, type CostsRepository, type Discount } from '../costs';
@@ -11,7 +11,7 @@ import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { isClientDeleted, offerDeals, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
-import { MAX_TIERS, OFFER_VALID_DAYS, addDays, discountText, polishDate, validateOffer, type OfferErrors, type OfferForm } from './model';
+import { MAX_TIERS, OFFER_VALID_DAYS, addDays, discountText, validateOffer, type OfferErrors, type OfferForm } from './model';
 import { buildOffer } from './present';
 
 export interface OfferPageDeps {
@@ -63,10 +63,10 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
           render(
             ...googleErrorNodes(e, deps, {
               retry: () => load(),
-              retryLabel: 'Sign in and show the offer',
+              retryLabel: 'Zaloguj się i pokaż ofertę',
               show,
-              other: { label: 'Try again', action: () => load(true), mayHaveSaved: false },
-              signedOutNote: 'Nothing was lost.',
+              other: { label: 'Spróbuj ponownie', action: () => load(true), mayHaveSaved: false },
+              signedOutNote: 'Nic nie zostało utracone.',
             }),
           );
         show(error);
@@ -228,7 +228,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const redraw = () => {
       pending = 0;
       const form = readForm();
-      validUntil.textContent = isValidDate(form.date) ? `Valid until ${polishDate(addDays(form.date, OFFER_VALID_DAYS))} (${OFFER_VALID_DAYS} days).` : '';
+      validUntil.textContent = isValidDate(form.date) ? `Valid until ${formatDate(addDays(form.date, OFFER_VALID_DAYS))} (${OFFER_VALID_DAYS} days).` : '';
       if (!isValidDate(form.date)) form.date = today; // the preview needs some date while one is typed
       const offer = buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS, dealsUsed());
       fileName = offer.fileName;

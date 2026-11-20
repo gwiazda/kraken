@@ -1,3 +1,4 @@
+import { formatDate } from '../../core/dates';
 // What an offer shows, as plain text, so it is tested without a browser: the ticked products in the owner's order, a price block
 // per ticked bag size with the wholesale net price at each ticked discount, the suggested retail price under 250 g,
 // and the banner. Wholesale = the product's main gross ÷ (1 + VAT) − discount, net rounded to whole złoty.
@@ -7,7 +8,7 @@ import { wholesalePrice } from '../../domain/prices';
 import { formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { dealKey } from '../clients';
 import { isProductDeleted, type Product } from '../products';
-import { addDays, bannerText, offerFileName, polishDate, tierText, type Banner, type OfferForm } from './model';
+import { addDays, bannerText, offerFileName, tierText, type Banner, type OfferForm } from './model';
 
 export interface OfferPriceBlock {
   /** "250 g" */
@@ -91,8 +92,8 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
   return {
     fileName: offerFileName(form.customer, form.date),
     customer: form.customer.trim().replace(/\s+/g, ' '),
-    date: polishDate(form.date),
-    validUntil: polishDate(addDays(form.date, validDays)),
+    date: formatDate(form.date),
+    validUntil: formatDate(addDays(form.date, validDays)),
     year: form.date.slice(0, 4),
     cards,
     banner: form.banner ?? bannerText(tiers, sizes.map(formatBagSize)),

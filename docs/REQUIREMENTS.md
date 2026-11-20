@@ -11,9 +11,10 @@ Status legend: **[R]** stated requirement · **[P]** Claude's proposal, awaiting
 
 ## 0. General
 
-- **[R] Language:** the whole app is in **English**. When the owners paste Polish text
-  (column names, notes, product names), translate it to English for the UI and code.
-  Polish proper names stay as they are (for example coffee names on the labels, such as "Gwatemala Espresso").
+- **[R] Language (owner, 2026-11-20):** the **screens are in Polish only** (no language switch), with the words in
+  `docs/GLOSSARY-PL.md`; dates on screen as 20.11.2026. The code, the sheet's tab and column names and these docs stay
+  in **English**, so the data never changes because of the language. Polish proper names stay as they are (for
+  example coffee names on the labels, such as "Gwatemala Espresso"). Translated in four steps, starting 2026-11-20.
 - **[R] Users:** two owners, signing in with Google (see `CLAUDE.md`).
 - **[R] Storage:** all data lives in one Google Sheet (see section 7).
 

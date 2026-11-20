@@ -58,7 +58,7 @@ export interface MigrateResult {
   backupName: string | null;
 }
 
-/** "Kraken backup 2026-11-15 (before v2)", using the local date. */
+/** "Kopia zapasowa Krakena 2026-11-15 (przed v2)", using the local date. */
 export function backupName(now: Date, nextVersion: number): string {
   return `Kopia zapasowa Krakena ${localDate(now)} (przed v${nextVersion})`;
 }

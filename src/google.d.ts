@@ -60,6 +60,8 @@ declare namespace google.picker {
     setDeveloperKey(key: string): PickerBuilder;
     setAppId(appId: string): PickerBuilder;
     setTitle(title: string): PickerBuilder;
+    /** The language of the window's own buttons, e.g. "pl". */
+    setLocale(locale: string): PickerBuilder;
     setCallback(callback: (data: ResponseObject) => void): PickerBuilder;
     build(): Picker;
   }

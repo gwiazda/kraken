@@ -119,7 +119,7 @@ test that reads every import line), so CI fails if a rule is broken.
   skips the remembered sheet and goes straight to that screen). The file picker has
   "All spreadsheets" and "Shared with me" tabs.
 - Rules: imports only point down (feature → ui/schema/auth/domain → core → config); pure files (`features/*/model*.ts`
-  and all of `domain/`) may use only their own model files, `core/numbers`, `core/dates` and `domain/`; `auth`, `schema` and each feature are imported
+  and all of `domain/`) may use only their own model files, `core/numbers`, `core/dates`, `core/polish` and `domain/`; `auth`, `schema` and each feature are imported
   only through their `index.ts`; nothing imports `main.ts`; app code imports no npm packages; test helpers (`src/testing/`) only in tests.
 
 - RoasTime files are read with the classic folder chooser (`<input webkitdirectory>`): Chrome's File System Access

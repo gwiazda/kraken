@@ -21,7 +21,7 @@ export interface ErrorOptions {
   retryLabel: string;
   /** Shows a new error (if signing in fails). */
   show: (error: unknown) => void;
-  /** The second button: 'Try again' (nothing was being written) or a reload (a write may have happened). */
+  /** The second button: 'Spróbuj ponownie' (nothing was being written) or a reload (a write may have happened). */
   other: { label: string; action: () => void; mayHaveSaved: boolean };
   /** Shown after "Twoje logowanie Google wygasło." */
   signedOutNote?: string;

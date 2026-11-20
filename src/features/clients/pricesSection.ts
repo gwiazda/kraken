@@ -71,7 +71,7 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
       })
       .catch((error: unknown) => {
         if (deps.isIgnorable(error)) return;
-        const again = (e: unknown) => show(...deps.errorNodes(e, () => load(undefined, true), 'Sign in and show special prices', again, false));
+        const again = (e: unknown) => show(...deps.errorNodes(e, () => load(undefined, true), 'Zaloguj się i pokaż ceny specjalne', again, false));
         again(error);
       });
   }
@@ -98,7 +98,7 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
       .finally(() => deps.busy(false))
       .catch((error: unknown) => {
         if (deps.isIgnorable(error)) return showDeals();
-        const again = (e: unknown) => showDeals(undefined, deps.errorNodes(e, retry, 'Sign in and try again', again, true));
+        const again = (e: unknown) => showDeals(undefined, deps.errorNodes(e, retry, 'Zaloguj się i spróbuj ponownie', again, true));
         again(error);
       });
   }

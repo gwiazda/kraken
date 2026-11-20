@@ -25,5 +25,6 @@ describe('plural', () => {
   it('writes the number with its word', () => {
     expect(count(5, 'torebka', 'torebki', 'torebek')).toBe('5 torebek');
     expect(count(1, 'torebka', 'torebki', 'torebek')).toBe('1 torebka');
+    expect(count(1.5, 'torebka', 'torebki', 'torebek')).toBe('1,5 torebki'); // a fraction: comma, and the "few" form
   });
 });

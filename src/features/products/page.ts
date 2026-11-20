@@ -144,13 +144,13 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** "Create product from this" opens the form once; a later reload (e.g. after a failed save) shows the list. */
   let pendingCreate = create;
 
-  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Reload products'): Node[] {
+  function errorNodes(error: unknown, retry: () => void, retryLabel: string, show: (e: unknown) => void, mayHaveSaved: boolean, reloadLabel = 'Odśwież produkty'): Node[] {
     return googleErrorNodes(error, deps, {
       retry,
       retryLabel,
       show,
-      ...(mayHaveSaved ? {} : { signedOutNote: 'Nothing was lost.' }),
-      other: { label: mayHaveSaved ? reloadLabel : 'Try again', action: () => load(undefined, true), mayHaveSaved },
+      ...(mayHaveSaved ? {} : { signedOutNote: 'Nic nie zostało utracone.' }),
+      other: { label: mayHaveSaved ? reloadLabel : 'Spróbuj ponownie', action: () => load(undefined, true), mayHaveSaved },
     });
   }
 
@@ -190,7 +190,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
-        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Sign in and show products', show, false));
+        const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Zaloguj się i pokaż produkty', show, false));
         show(error);
       });
   }
@@ -213,7 +213,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
         const working = kind === 'remove' ? `Deleting ${product.name}…` : `Restoring ${product.name}…`;
-        const label = kind === 'remove' ? `Sign in and delete ${product.name}` : `Sign in and restore ${product.name}`;
+        const label = kind === 'remove' ? `Zaloguj się i usuń ${product.name}` : `Zaloguj się i przywróć ${product.name}`;
         const show = (e: unknown) => showList(undefined, errorNodes(e, () => change(product, kind, () => render(el('p', {}, busy(working)))), label, show, true));
         show(error);
       });
@@ -248,7 +248,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         return;
       }
       if (deps.isIgnorable(error)) return showList('The order was not saved.');
-      const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Sign in and reload products', show, true, 'Reload products'));
+      const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Zaloguj się i odśwież produkty', show, true, 'Odśwież produkty'));
       show(error);
     });
   }
@@ -725,7 +725,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           setBusy(false);
           if (deps.isIgnorable(error)) return;
           const show = (e: unknown) => {
-            banner.replaceChildren(...errorNodes(e, save, 'Sign in and save', show, true, 'Reload products (drops this form)'));
+            banner.replaceChildren(...errorNodes(e, save, 'Zaloguj się i zapisz', show, true, 'Odśwież produkty (bez tego formularza)'));
             banner.scrollIntoView({ block: 'nearest' });
           };
           show(error);

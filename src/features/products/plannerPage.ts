@@ -88,10 +88,10 @@ export function showPlannerPage(root: HTMLElement, deps: PlannerPageDeps, start:
           render(
             ...googleErrorNodes(e, deps, {
               retry: () => load(),
-              retryLabel: 'Sign in and open the Product planner',
+              retryLabel: 'Zaloguj się i otwórz planer produktu',
               show,
-              other: { label: 'Try again', action: () => load(true), mayHaveSaved: false },
-              signedOutNote: 'Nothing was lost.',
+              other: { label: 'Spróbuj ponownie', action: () => load(true), mayHaveSaved: false },
+              signedOutNote: 'Nic nie zostało utracone.',
             }),
           );
         show(error);

@@ -39,6 +39,7 @@ export async function pickSpreadsheet(accessToken: string): Promise<string | nul
       .setDeveloperKey(GOOGLE_PICKER_API_KEY)
       .setAppId(GOOGLE_PROJECT_NUMBER)
       .setTitle('Wybierz swój arkusz Krakena')
+      .setLocale('pl') // Google's own buttons (Wybierz, Anuluj, search) in Polish too
       .setCallback((data) => {
         if (data.action === 'loaded') return; // the window has opened; wait for the user
         picker.dispose();
