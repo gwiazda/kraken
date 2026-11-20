@@ -42,7 +42,7 @@ describe('bagSizeViews', () => {
     expect(views[0]).toMatchObject({ itemsText: 'missing cost', unreadable: true });
     expect(unplaced).toEqual([old]);
     expect(problems).toEqual([
-      '1 bag cost item is for a bag size Kraken does not use, so it is left out. Delete it under "Bag costs & settings" and add it again to 250 g, 500 g or 1 kg.',
+      '1 bag cost item is for a bag size Kraken does not use, so it is left out. Delete it under Packaging & discounts and add it again to 250 g, 500 g or 1 kg.',
       'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Click it under Packaging & discounts to correct it.',
     ]);
   });

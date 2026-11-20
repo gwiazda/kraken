@@ -1,5 +1,5 @@
 // The Products screen (owner, 2026-11-17/18), the one place for prices:
-// - the list: name, brew method, origin and main prices; click a name to open the product;
+// - the list: name, brew method, origin and main prices; click a row to open the product, drag ⠿ to order them;
 // - a product's page: main (retail) gross prices and the wholesale prices at each discount, its offer details;
 // - the form: details, and the planner (planner.ts, shared with the Product planner tab): the beans it is made of and its
 //   main prices with suggestions and earnings.
@@ -429,7 +429,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         el(
           'td',
           {},
-          el('strong', {}, p.name),
+          restorable ? el('span', {}, p.name) : el('strong', {}, p.name),
           ...(p.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, p.brewMethod)] : []),
           ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : []),
         ),
@@ -437,7 +437,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         ...BAG_SIZES_G.map((g) => el('td', { class: 'num nowrap' }, price(p, g))),
         ...(restorable ? [actions] : []),
       );
-      return restorable ? tr : clickableRow(tr, () => openFromList(p), `Open ${p.name}`);
+      // While the new order is saving, openFromList waits for it and then opens the product.
+      return restorable ? tr : clickableRow(tr, () => openFromList(p), `Open ${p.name}`, { whileSaving: true });
     };
 
     const table = (list: readonly Product[], restorable: boolean) =>

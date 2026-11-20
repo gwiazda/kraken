@@ -162,7 +162,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         actions.replaceChildren(button('Delete', ask, 'link'));
       };
       /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
-      const statusCell = el('td', { class: 'nowrap' });
+      const statusCell = el('td', { class: 'nowrap no-row-click' });
       if (sale.kind !== 'sale') statusCell.append(el('span', { class: 'muted' }, '—'));
       else {
         const select = el('select', { class: `status-select status-${sale.status ?? ''}`, 'aria-label': `Invoice status: ${r.who}` });
@@ -235,6 +235,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         ),
           () => showForm(sale),
           `Open the ${r.kindLabel.toLowerCase()} of ${r.date}${r.who ? ` (${r.who})` : ''}`,
+          { asking: () => !extra.hidden },
         ),
         extra,
       ];

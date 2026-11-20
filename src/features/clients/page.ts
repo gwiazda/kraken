@@ -174,7 +174,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
           el('td', { class: 'nowrap' }, discountLabel(c)),
           actions,
         );
-      if (!restorable) clickableRow(tr, () => showForm(c), `Open ${c.name}`);
+      if (!restorable) clickableRow(tr, () => showForm(c), `Open ${c.name}`, { asking: () => !confirmRow.hidden });
       return [tr, confirmRow];
     };
 

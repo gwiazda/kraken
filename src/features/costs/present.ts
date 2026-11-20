@@ -30,7 +30,7 @@ export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[];
   const unplaced = active.filter((c) => !ids.includes(c.bagSizeId));
   if (unplaced.length > 0) {
     problems.push(
-      `${unplaced.length} bag cost item${unplaced.length === 1 ? ' is' : 's are'} for a bag size Kraken does not use, so ${unplaced.length === 1 ? 'it is' : 'they are'} left out. Delete ${unplaced.length === 1 ? 'it' : 'them'} under "Bag costs & settings" and add ${unplaced.length === 1 ? 'it' : 'them'} again to 250 g, 500 g or 1 kg.`,
+      `${unplaced.length} bag cost item${unplaced.length === 1 ? ' is' : 's are'} for a bag size Kraken does not use, so ${unplaced.length === 1 ? 'it is' : 'they are'} left out. Delete ${unplaced.length === 1 ? 'it' : 'them'} under Packaging & discounts and add ${unplaced.length === 1 ? 'it' : 'them'} again to 250 g, 500 g or 1 kg.`,
     );
   }
   const views = BAG_SIZES_G.map((grams): BagSizeView => {

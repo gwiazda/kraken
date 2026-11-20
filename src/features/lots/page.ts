@@ -295,7 +295,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         no.focus(); // keyboard users land on the question; the safe answer first
       };
       normal();
-      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', lot: row.lot }), `Open ${row.code}`);
+      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', lot: row.lot }), `Open ${row.code}`, { asking: () => !confirmRow.hidden });
       return [tr, confirmRow];
     }
 

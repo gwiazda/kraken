@@ -169,7 +169,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         no.focus();
       };
       normal();
-      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', roast: row.roast }), `Open the roast ${row.name} (${row.when})`);
+      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', roast: row.roast }), `Open the roast ${row.name} (${row.when})`, { asking: () => !confirmRow.hidden });
       return [tr, confirmRow];
     }
 
