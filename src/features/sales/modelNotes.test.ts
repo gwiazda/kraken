@@ -29,7 +29,7 @@ describe('sample notes', () => {
 
   it('needs a date and some text', () => {
     expect(validateNote({ date: '2026-11-25', text: '  Called  ' }, 'S1')).toEqual({ ok: true, fields: { sale_id: 'S1', date: '2026-11-25', text: 'Called' } });
-    expect(validateNote({ date: '', text: 'Called' }, 'S1')).toEqual({ ok: false, error: 'Wpisz datę notatki, np. 25.11.2026.' });
+    expect(validateNote({ date: '', text: 'Called' }, 'S1')).toEqual({ ok: false, error: 'Wybierz datę notatki.' });
     expect(validateNote({ date: '2026-11-25', text: ' ' }, 'S1')).toEqual({ ok: false, error: 'Wpisz notatkę, np. „Dzwoniłem, smakowała im Kenia”.' });
     expect(validateNote({ date: '2026-11-25', text: 'x'.repeat(1001) }, 'S1')).toEqual({ ok: false, error: 'Najwyżej 1000 znaków.' });
   });

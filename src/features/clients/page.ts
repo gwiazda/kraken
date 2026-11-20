@@ -124,7 +124,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
 
   /** "15 % (Do 10 kg)", or the stored value with a note when it is not one of the discounts any more. */
   const discountLabel = (c: Client) => {
-    if (c.discountTenths === null) return c.discountText ? `"${c.discountText}"` : '—';
+    if (c.discountTenths === null) return c.discountText ? `„${c.discountText}”` : '—';
     if (!discountsKnown) return formatPercent(c.discountTenths);
     const known = discounts.find((d) => d.tenths === c.discountTenths);
     return known ? `${formatPercent(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${formatPercent(c.discountTenths)} (spoza Twoich rabatów)`;
@@ -156,7 +156,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       };
       const ask = () => {
         actions.replaceChildren();
-        const no = button('No', normal, 'secondary');
+        const no = button('Nie', normal, 'secondary');
         confirmRow.replaceChildren(
           el('td', { colspan: '6' }, el('span', {}, `Usunąć ${c.name}? Można go później przywrócić. `), button('Tak, usuń', () => change(c, 'remove', inRow('Usuwam…')), 'primary'), ' ', no),
         );

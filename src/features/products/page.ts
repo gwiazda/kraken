@@ -532,7 +532,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       actions.replaceChildren(button('Try in Product planner', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
     };
     const ask = () => {
-      const no = button('No', normal, 'secondary');
+      const no = button('Nie', normal, 'secondary');
       const yes = () =>
         change(product, 'remove', () => {
           lockPage();

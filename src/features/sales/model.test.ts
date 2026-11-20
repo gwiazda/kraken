@@ -100,7 +100,7 @@ describe('validateSale', () => {
     expect(result).toEqual({
       ok: false,
       errors: {
-        date: 'Wpisz datę, np. 19.11.2026.',
+        date: 'Wybierz datę.',
         client: 'Wybierz klienta (nowych dodasz w zakładce Klienci).',
         line: [
           'Pozycja 1: wybierz produkt, wybierz wielkość torebki, wpisz liczbę torebek (od 1 do 999).',

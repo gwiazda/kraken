@@ -40,7 +40,8 @@ describe('saleRows', () => {
     expect(bagsText([{ bags: 3, free: false }, { bags: 1, free: true }])).toBe('4 torebki (1 gratis)');
     expect(bagsText([{ bags: 5, free: false }])).toBe('5 torebek');
     expect(bagsText([{ bags: 22, free: false }])).toBe('22 torebki');
-    expect(bagsText([{ bags: 8, free: false }], true)).toBe('8 opakowań'); // a sample: any amount, so packs
+    expect(bagsText([{ bags: 8, free: false }], 'sample')).toBe('8 opakowań'); // a sample: any amount, so packs
+    expect(bagsText([{ bags: 3, free: true }], 'own_use')).toBe('3 torebki'); // free counts only for a sale
     expect(bagsText([])).toBe('');
   });
 });

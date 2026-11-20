@@ -29,6 +29,9 @@ export const KIND_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Sprzeda�
 /** "Data sprzedaży", "Data próbki": the label of an entry's date (Polish needs the right form of the word). */
 export const DATE_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Data sprzedaży', sample: 'Data próbki', own_use: 'Data wydania' };
 
+/** The heading of an entry's page: "Sprzedaż z 20.11.2026", "Wydanie na własny użytek z 20.11.2026". */
+export const HEADING_LABELS: Readonly<Record<SaleKind, string>> = { sale: 'Sprzedaż', sample: 'Próbka', own_use: 'Wydanie na własny użytek' };
+
 export const STATUS_LABELS: Readonly<Record<InvoiceStatus, string>> = { to_issue: 'Faktura do wystawienia', issued: 'Faktura wystawiona', paid: 'Opłacona' };
 
 export interface Sale {
@@ -232,7 +235,7 @@ export function validateSale(
   productIds: readonly string[],
 ): { ok: true; fields: Record<string, string>; lines: Record<string, string>[] } | { ok: false; errors: SaleErrors } {
   const errors: SaleErrors = { line: form.lines.map(() => undefined) };
-  if (!isValidDate(form.date)) errors.date = 'Wpisz datę, np. 19.11.2026.';
+  if (!isValidDate(form.date)) errors.date = 'Wybierz datę.';
   const place = form.place.trim().replace(/\s+/g, ' ');
   const reason = form.reason.trim().replace(/\s+/g, ' ');
   if (form.kind === 'sale' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta (nowych dodasz w zakładce Klienci).';

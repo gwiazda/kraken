@@ -177,7 +177,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       };
       const ask = () => {
         cell.replaceChildren();
-        const no = button('No', () => normal(true), 'secondary');
+        const no = button('Nie', () => normal(true), 'secondary');
         confirmRow.replaceChildren(
           el(
             'td',

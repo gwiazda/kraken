@@ -273,7 +273,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
       // A second click confirms. Deleting only hides the lot (it can be restored), so one short question is enough.
       const ask = () => {
         cell.replaceChildren();
-        const no = button('No', () => normal(true), 'secondary');
+        const no = button('Nie', () => normal(true), 'secondary');
         confirmRow.replaceChildren(
           el(
             'td',

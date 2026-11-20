@@ -12,6 +12,7 @@ import { isClientDeleted, sortClients, type Client, type ClientsRepository } fro
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
   DATE_LABELS,
+  HEADING_LABELS,
   KIND_LABELS,
   STATUS_LABELS,
   changedSaleFields,
@@ -234,7 +235,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         statusCell.append(select);
       }
       const ask = () => {
-        const no = button('No', normal, 'secondary');
+        const no = button('Nie', normal, 'secondary');
         inline(
           el('span', {}, `Usunąć ten wpis (${r.kindLabel.toLowerCase()}, ${r.date})? Można go później przywrócić. `),
           button('Tak, usuń', () => act(actions, 'Usuwam…', () => deps.repo.remove(sale, deps.now()), 'Usunięto. Można to przywrócić w „Usunięte wpisy”.'), 'primary'),
@@ -298,7 +299,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             el(
               'table',
               { class: 'data-table sales-table' },
-              el('thead', {}, el('tr', {}, ...['Data', 'Rodzaj', 'Klient / miejsce', 'Produkty', 'Torebki', 'Faktura', 'Wystawiona', ''].map((h) => el('th', { scope: 'col' }, h)))),
+              el('thead', {}, el('tr', {}, ...['Data', 'Rodzaj', 'Klient / miejsce', 'Produkty', 'Ilość', 'Faktura', 'Wystawiona', ''].map((h) => el('th', { scope: 'col' }, h)))),
               el('tbody', {}, ...rows.flatMap(row)),
             ),
           ),
@@ -405,7 +406,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     };
 
     const showTotal = () => {
-      const text = bagsText(form.lines.map((l) => ({ bags: typedBags(l.bags), free: form.kind === 'sale' && l.free })), form.kind === 'sample');
+      const text = bagsText(form.lines.map((l) => ({ bags: typedBags(l.bags), free: l.free })), form.kind);
       totalLine.replaceChildren(...(text ? ['Razem: ', el('strong', {}, text)] : []));
     };
 
@@ -423,7 +424,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ? el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: gramy`, autocomplete: 'off' })
           : el('select', { 'aria-label': `Pozycja ${i + 1}: wielkość torebki` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
         size.value = line.grams;
-        const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: liczba torebek`, autocomplete: 'off' });
+        const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: ${sample ? 'liczba opakowań' : 'liczba torebek'}`, autocomplete: 'off' });
         bags.value = line.bags;
         const free = el('input', { type: 'checkbox', 'aria-label': `Pozycja ${i + 1}: gratis` });
         free.checked = line.free;
@@ -606,7 +607,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     renderLines();
     render(
       el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
-      el('h2', {}, sale ? `${sale.kind ? KIND_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
+      el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
       ...(sale ? [el('dl', { class: 'product-details sale-facts' }, ...saleFacts(sale).flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]))] : []),
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),
       banner,

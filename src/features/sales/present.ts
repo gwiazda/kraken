@@ -73,7 +73,7 @@ export function saleRows(
         kindLabel: sale.kind ? KIND_LABELS[sale.kind] : '?',
         who,
         items: items || '—',
-        bags: bagsText(own, sale.kind === 'sample'),
+        bags: bagsText(own, sale.kind),
         invoiceDate: formatDate(invoiceDate),
         createdBy: sale.createdBy,
       };
@@ -83,12 +83,12 @@ export function saleRows(
 
 /**
  * "4 torebki (1 gratis)", "1 torebka", "5 torebek"; for a sample (any amount, not a bag size) "8 opakowań"; '' without
- * lines.
+ * lines. Free bags count only for a sale (`kind`): samples and own use are never invoiced anyway.
  */
-export function bagsText(lines: readonly { bags: number | null; free: boolean }[], sample = false): string {
+export function bagsText(lines: readonly { bags: number | null; free: boolean }[], kind: SaleKind | null = 'sale'): string {
   if (lines.length === 0) return '';
-  const { bags, free } = bagCount(lines);
-  const counted = sample ? count(bags, 'opakowanie', 'opakowania', 'opakowań') : count(bags, 'torebka', 'torebki', 'torebek');
+  const { bags, free } = bagCount(kind === 'sale' ? lines : lines.map((l) => ({ ...l, free: false })));
+  const counted = kind === 'sample' ? count(bags, 'opakowanie', 'opakowania', 'opakowań') : count(bags, 'torebka', 'torebki', 'torebek');
   return `${counted}${free > 0 ? ` (${free} gratis)` : ''}`;
 }
 
