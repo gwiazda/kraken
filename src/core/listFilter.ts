@@ -140,9 +140,9 @@ export function choicesOf<T>(rows: readonly T[], values: (row: T) => readonly st
   return [...counts].map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value, 'pl'));
 }
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
 
-/** The months in a 'month' column (YYYY-MM, newest first) with their names ("November 2026") and counts. */
+/** The months in a 'month' column (YYYY-MM, newest first) with their names ("Listopad 2026") and counts. */
 export function monthsOf<T>(rows: readonly T[], value: (row: T) => string): { value: string; label: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const row of rows) {

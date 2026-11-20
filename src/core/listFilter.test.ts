@@ -87,8 +87,8 @@ describe('the lists to choose from', () => {
 
   it('gives the months, newest first, with their names', () => {
     expect(monthsOf(rows, (r) => r.date)).toEqual([
-      { value: '2026-11', label: 'November 2026', count: 2 },
-      { value: '2026-10', label: 'October 2026', count: 2 },
+      { value: '2026-11', label: 'Listopad 2026', count: 2 },
+      { value: '2026-10', label: 'Październik 2026', count: 2 },
     ]);
   });
 });

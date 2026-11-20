@@ -48,9 +48,9 @@ describe('describeMetaProblem', () => {
   });
 
   it.each([
-    [{ kind: 'not-kraken' } as const, 'not a Kraken sheet'],
-    [{ kind: 'app-outdated', schemaVersion: 7 } as const, 'newer version of Kraken'],
-    [{ kind: 'needs-migration', schemaVersion: 0 } as const, 'backup copy first'],
+    [{ kind: 'not-kraken' } as const, 'nie jest arkusz Krakena'],
+    [{ kind: 'app-outdated', schemaVersion: 7 } as const, 'nowszą wersję Krakena'],
+    [{ kind: 'needs-migration', schemaVersion: 0 } as const, 'wcześniejszej kopii zapasowej'],
   ])('explains %o', (meta, text) => {
     expect(describeMetaProblem(meta)).toContain(text);
   });
@@ -106,9 +106,9 @@ describe('updateSpreadsheet', () => {
 
     expect(result.fromVersion).toBe(1);
     expect(result.toVersion).toBe(APP_SCHEMA_VERSION);
-    expect(result.backupName).toMatch(/^Kraken backup \d{4}-\d{2}-\d{2} \(before v2\)$/);
+    expect(result.backupName).toMatch(/^Kopia zapasowa Krakena \d{4}-\d{2}-\d{2} \(przed v2\)$/);
     expect(google.files.size).toBe(2);
-    expect(progress[0]).toContain('backup copy');
+    expect(progress[0]).toContain('kopię zapasową');
     expect((await inspectSpreadsheet(google, ID)).meta).toEqual({ kind: 'ok', schemaVersion: APP_SCHEMA_VERSION });
   });
 });

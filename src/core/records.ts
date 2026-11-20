@@ -56,9 +56,9 @@ export function columnLetters(column: number): string {
 export function readHeaders(tab: string, values: readonly (readonly unknown[])[], needed: readonly string[]): string[] {
   const headers = (values[0] ?? []).map((cell) => cellText(cell).trim());
   const missing = needed.filter((name) => !headers.includes(name));
-  if (missing.length > 0) throw new TableError(`Tab "${tab}" is missing the column(s): ${missing.join(', ')}.`);
+  if (missing.length > 0) throw new TableError(`W zakładce „${tab}” brakuje kolumn: ${missing.join(', ')}.`);
   const duplicates = headers.filter((name, i) => name !== '' && headers.indexOf(name) !== i);
-  if (duplicates.length > 0) throw new TableError(`Tab "${tab}" has the column(s) ${[...new Set(duplicates)].join(', ')} more than once.`);
+  if (duplicates.length > 0) throw new TableError(`Zakładka „${tab}” ma kolumny ${[...new Set(duplicates)].join(', ')} więcej niż raz.`);
   return headers;
 }
 
@@ -77,9 +77,9 @@ export function parseTable(tab: string, values: readonly (readonly unknown[])[],
     });
     const id = (fields[ID] ?? '').trim();
     if (id === '') {
-      problems.push(`Row ${row} of "${tab}" has no ID, so Kraken ignores it. Was it typed in by hand?`);
+      problems.push(`Wiersz ${row} zakładki „${tab}” nie ma identyfikatora (ID), więc Kraken go pomija. Czy został wpisany ręcznie?`);
     } else if (seen.has(id)) {
-      problems.push(`Row ${row} of "${tab}" has the same ID as row ${seen.get(id)}, so Kraken ignores it.`);
+      problems.push(`Wiersz ${row} zakładki „${tab}” ma ten sam identyfikator co wiersz ${seen.get(id)}, więc Kraken go pomija.`);
     } else {
       seen.set(id, row);
       records.push({ row, fields });
@@ -100,7 +100,7 @@ function refuseSafetyColumns(fields: Fields): void {
 
 function refuseUnknownColumns(tab: string, headers: readonly string[], fields: Fields): void {
   const unknown = Object.keys(fields).filter((name) => !headers.includes(name));
-  if (unknown.length > 0) throw new TableError(`Tab "${tab}" has no column(s) ${unknown.join(', ')}, so Kraken saved nothing.`);
+  if (unknown.length > 0) throw new TableError(`Zakładka „${tab}” nie ma kolumn ${unknown.join(', ')}, więc Kraken niczego nie zapisał.`);
 }
 
 const same = (a: string | undefined, b: string | undefined) => (a ?? '') === (b ?? '');
@@ -116,11 +116,11 @@ export function planChange(current: Fields, loaded: Fields, changes: Fields): { 
     if (!same(value, loaded[name])) write[name] = value;
   }
   if (!same(current.updated_at, loaded.updated_at)) {
-    return { conflict: 'Someone else changed this record in the meantime. Reload the page to see their change, then try again.' };
+    return { conflict: 'Ktoś inny w międzyczasie zmienił ten wpis. Odśwież stronę, aby zobaczyć tę zmianę, i spróbuj ponownie.' };
   }
   const touchedByHand = Object.keys(write).filter((name) => !same(current[name], loaded[name]));
   if (touchedByHand.length > 0) {
-    return { conflict: `Someone changed ${touchedByHand.join(', ')} directly in the sheet in the meantime. Reload the page, then try again.` };
+    return { conflict: `Ktoś w międzyczasie zmienił w arkuszu ${touchedByHand.join(', ')}. Odśwież stronę i spróbuj ponownie.` };
   }
   return { write };
 }
@@ -239,7 +239,7 @@ export function sheetRecordTable(
     const time = now.toISOString();
     const planned = list.map((item) => {
       const record = records.find((r) => (r.fields[ID] ?? '').trim() === item.id.trim());
-      if (!record) throw new ConflictError(`A record is no longer in "${tab}". Reload the page.`);
+      if (!record) throw new ConflictError(`Jednego z wpisów nie ma już w zakładce „${tab}”. Odśwież stronę.`);
       const plan = planChange(record.fields, item.loaded, item.changes);
       if ('conflict' in plan) throw new ConflictError(plan.conflict);
       const write: Record<string, string> = Object.keys(plan.write).length === 0 ? {} : { ...plan.write, updated_at: time };
@@ -269,8 +269,8 @@ export function sheetRecordTable(
       const idNow = String(rowsNow.get(record.row)?.[idColumn] ?? '').trim();
       if (idNow !== (record.fields[ID] ?? '').trim()) {
         throw new Error(
-          `Kraken saved into row ${record.row} of "${tab}", but that row now holds another record (rows were moved in the sheet at the same moment). ` +
-            'Open the sheet and use File → Version history to check that row.',
+          `Kraken zapisał do wiersza ${record.row} zakładki „${tab}”, ale ten wiersz zawiera teraz inny wpis (w tej samej chwili w arkuszu przesunięto wiersze). ` +
+            'Otwórz arkusz i sprawdź ten wiersz w Plik → Historia wersji.',
         );
       }
     }

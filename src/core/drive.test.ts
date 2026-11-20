@@ -11,7 +11,7 @@ describe('whoAmI', () => {
   });
 
   it.each([{}, { user: {} }, { user: { emailAddress: '' } }, { user: { emailAddress: 42 } }])('refuses a reply without an email: %j', async (body) => {
-    await expect(whoAmI(fakeClient([{ body }]))).rejects.toThrow('did not say who is signed in');
+    await expect(whoAmI(fakeClient([{ body }]))).rejects.toThrow('nie podał, kto jest zalogowany');
   });
 
   it('passes Google errors on', async () => {
@@ -28,6 +28,6 @@ describe('copyFile', () => {
   });
 
   it('refuses a reply without an ID', async () => {
-    await expect(copyFile(fakeClient([{ body: {} }]), 'orig-1', 'x')).rejects.toThrow('did not return the ID');
+    await expect(copyFile(fakeClient([{ body: {} }]), 'orig-1', 'x')).rejects.toThrow('nie podał identyfikatora');
   });
 });

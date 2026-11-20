@@ -2,7 +2,7 @@
 // with ticked products, bag sizes and discounts, saved as a PDF with Chrome's "Save as PDF". The offer is in Polish
 // (for Polish customers); Kraken's screens stay in English. Pure: no Google, no screen.
 
-import { isValidDate } from '../../core/dates';
+import { formatDate, isValidDate } from '../../core/dates';
 
 export { addDays } from '../../core/dates';
 
@@ -49,11 +49,8 @@ export const TIER_LABEL_MAX = 12;
 /** At most this many characters in each part of the banner. */
 export const BANNER_MAX = 300;
 
-/** "2026-11-16" → "16.11.2026" (the Polish way). */
-export function polishDate(date: string): string {
-  const [y, m, d] = date.split('-');
-  return `${d}.${m}.${y}`;
-}
+/** "2026-11-16" → "16.11.2026" (the Polish way; the one rule in core/dates). */
+export const polishDate = formatDate;
 
 /** The customer's name as it goes into a file name: no characters a file name cannot have, single spaces. */
 export function cleanName(customer: string): string {

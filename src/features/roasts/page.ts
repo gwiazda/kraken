@@ -240,7 +240,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
             columns: ROAST_COLUMNS,
             text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'by hand' : '', ...r.marks].join(' '),
             rowNodes,
-            noun: ['roast', 'roasts'],
+            names: { rows: 'wypały', none: 'Nie ma jeszcze wypałów.' },
           }),
     );
   }

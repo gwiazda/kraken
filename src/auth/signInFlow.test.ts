@@ -33,7 +33,7 @@ describe('SignInFlow', () => {
     const { flow, tokens, late, request } = setup();
     const result = flow.start(request);
     flow.handlePopupError('popup_closed');
-    await expect(result).rejects.toThrow('second click');
+    await expect(result).rejects.toThrow('drugiego kliknięcia');
 
     flow.handleToken(goodReply, true); // the token Google delivers a moment later
     expect(tokens.get()).toBe('tok');
@@ -44,7 +44,7 @@ describe('SignInFlow', () => {
     const { flow, tokens, late, request } = setup();
     const result = flow.start(request);
     flow.handlePopupError('popup_closed');
-    await expect(result).rejects.toThrow('second click');
+    await expect(result).rejects.toThrow('drugiego kliknięcia');
 
     flow.handleToken(goodReply, false);
     expect(tokens.get()).toBeNull();
@@ -103,8 +103,8 @@ describe('SignInFlow', () => {
   });
 
   it.each([
-    ['popup_closed', 'Google needs a second click'],
-    ['popup_failed_to_open', 'blocked'],
+    ['popup_closed', 'Google potrzebuje drugiego kliknięcia'],
+    ['popup_failed_to_open', 'zablokował'],
     ['unknown', 'unknown'],
   ])('explains popup error %s', async (type, text) => {
     const { flow, request } = setup();

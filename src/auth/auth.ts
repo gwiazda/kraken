@@ -42,7 +42,7 @@ export function onLateReply(listener: (outcome: LateOutcome) => void): void {
 /** Opens the Google sign-in popup. Must be called directly from a click, or the browser blocks the popup. */
 export function signIn(): Promise<void> {
   const client = tokenClient;
-  if (!client) return Promise.reject(new Error('Google sign-in is still loading. Try again in a moment.'));
+  if (!client) return Promise.reject(new Error('Logowanie Google jeszcze się wczytuje. Spróbuj za chwilę.'));
   // prompt '' = ask for consent only the first time; after that the popup just confirms the account.
   return flow.start(() => client.requestAccessToken({ prompt: '' }));
 }
@@ -50,7 +50,7 @@ export function signIn(): Promise<void> {
 /** The current access token. Throws a 'signed-out' error if there is none or it expired (about 1 hour). */
 export function getToken(): string {
   const token = tokens.get();
-  if (!token) throw new SheetsError('signed-out', 401, 'Not signed in, or the sign-in expired.');
+  if (!token) throw new SheetsError('signed-out', 401, 'Nie jesteś zalogowany albo logowanie wygasło.');
   return token;
 }
 

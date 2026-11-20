@@ -14,10 +14,10 @@ export interface TokenReply {
 }
 
 export const MISSING_SCOPE_MESSAGE =
-  'Kraken did not get permission to use its Google Sheet. Click "Sign in with Google" again and, on Google\'s screen, ' +
-  'tick the box that lets Kraken see and edit the Google Drive files you use with it.';
+  'Kraken nie dostał zgody na korzystanie ze swojego arkusza Google. Kliknij ponownie „Zaloguj się przez Google” i na ekranie Google ' +
+  'zaznacz pole, które pozwala Krakenowi widzieć i edytować pliki z Dysku Google, których z nim używasz.';
 
-export const UNUSABLE_PASS_MESSAGE = 'Google sent a sign-in pass Kraken could not use. Click "Sign in with Google" again.';
+export const UNUSABLE_PASS_MESSAGE = 'Google przysłał przepustkę logowania, której Kraken nie może użyć. Kliknij ponownie „Zaloguj się przez Google”.';
 
 /** A sign-in attempt replaced by a newer one (for example a double click). Not an error to show. */
 export class SignInSuperseded extends Error {
@@ -38,11 +38,11 @@ export function popupErrorMessage(type: string): string {
   // during the "allow" screens, reports popup_closed and never sends the pass. Google still saves the "allow",
   // so the second click works. (Diagnosed with the test-version sign-in log, 2026-11-09.)
   if (type === 'popup_closed') {
-    return 'First time signing in? Google needs a second click: click "Sign in with Google" again. ' +
-      '(If you closed the Google window yourself, just click it again too.)';
+    return 'Logujesz się pierwszy raz? Google potrzebuje drugiego kliknięcia: kliknij ponownie „Zaloguj się przez Google”. ' +
+      '(Jeśli to Ty zamknąłeś okno Google, też po prostu kliknij jeszcze raz.)';
   }
-  if (type === 'popup_failed_to_open') return 'Chrome blocked the Google sign-in window. Allow popups for this site and try again.';
-  return `Google sign-in failed (${type}). Try again.`;
+  if (type === 'popup_failed_to_open') return 'Chrome zablokował okno logowania Google. Zezwól tej stronie na wyskakujące okna i spróbuj ponownie.';
+  return `Logowanie Google nie powiodło się (${type}). Spróbuj ponownie.`;
 }
 
 /** What a late reply from Google means: signed in after all, or a failure to show to the user. */
@@ -89,7 +89,7 @@ export class SignInFlow {
 
     if (reply.error || !reply.access_token) {
       this.log(`Google replied with an error: ${reply.error ?? 'no pass'}${when}`);
-      this.fail(waiting, new Error(reply.error_description ?? reply.error ?? 'Google sign-in failed. Try again.'));
+      this.fail(waiting, new Error(reply.error_description ?? reply.error ?? 'Logowanie Google nie powiodło się. Spróbuj ponownie.'));
       return;
     }
     if (!scopesGranted) {

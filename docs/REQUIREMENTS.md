@@ -541,7 +541,7 @@ their own click. With the keyboard: Tab to a row, Enter opens it.
 
 **[R] Built (2026-11-15): migrations.** When Kraken opens a sheet with an older data version, it shows what will change
 and the backup's name, and does nothing until someone clicks **Update now**. Then, in the browser: (1) a full copy named
-"Kraken backup YYYY-MM-DD (before vN)" is made in Google Drive and checked against the sheet (same tabs, same number of rows, same header rows; not
+"Kopia zapasowa Krakena YYYY-MM-DD (przed vN)" is made in Google Drive and checked against the sheet (same tabs, same number of rows, same header rows; not
 every cell, because formulas like `=TODAY()` can show a different value in the copy); (2) the
 migration runs; (3) Kraken checks every old tab has the same number of rows and the new headers are there; (4) only then
 `schema_version` is raised. A failure at any point leaves the version as it was; clicking Update now again is safe (steps

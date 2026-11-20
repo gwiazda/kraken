@@ -1,0 +1,40 @@
+# Polish words on Kraken's screens
+
+Kraken's screens are in Polish (owner, 2026-11-20). Use these words everywhere, so a thing is always called the same.
+The code, the sheet's tab and column names and the docs stay in English.
+
+| English (code, docs) | Polish (screens) |
+|---|---|
+| Sales (tab) / a sale | Sprzedaż / sprzedaż |
+| Sample | Próbka |
+| Own use | Na własny użytek |
+| Lots (tab) / a lot | Dostawy / dostawa |
+| Roasts (tab) / a roast | Wypały / wypał |
+| Green (coffee) / roasted | zielona / palona |
+| Roast loss | ubytek |
+| Products / a product | Produkty / produkt |
+| Product planner | Planer produktu |
+| Offer | Oferta |
+| Clients / a client | Klienci / klient |
+| Packaging & discounts | Opakowania i rabaty |
+| Settings (Kraken settings) | Ustawienia (Ustawienia Krakena) |
+| Sync with RoasTime | Synchronizuj z RoasTime |
+| Bag (of coffee) / bags | torebka / torebki, torebek |
+| Free (bag) | gratis |
+| Invoice to be issued / issued / paid | Faktura do wystawienia / wystawiona / opłacona |
+| Special prices | Ceny specjalne |
+| Follow-up notes | Notatki |
+| Gross margin | Marża brutto |
+| Net / gross | netto / brutto |
+| Wholesale / retail | hurt (hurtowa) / detal (detaliczna) |
+| Discount | rabat |
+| Add / Save / Save changes / Cancel | Dodaj / Zapisz / Zapisz zmiany / Anuluj |
+| Delete / Restore / Show deleted | Usuń / Przywróć / Pokaż usunięte |
+| Search / Clear filters | Szukaj / Wyczyść filtry |
+| Previous / Next / Page 2 of 4 / Per page | Poprzednia / Następna / Strona 2 z 4 / Na stronie |
+| Sign in with Google / Sign out | Zaloguj się przez Google / Wyloguj się |
+| Sheet / Change sheet / Update now | arkusz / Zmień arkusz / Aktualizuj teraz |
+| Backup copy | kopia zapasowa |
+
+Dates on screen: 20.11.2026 (`formatDate`), 20.11.2026 09:30 with time (`formatDateTime`). Words after a number:
+`core/polish.ts` (1 wypał, 2 wypały, 5 wypałów).

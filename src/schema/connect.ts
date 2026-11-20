@@ -47,10 +47,10 @@ export function describeMetaProblem(meta: MetaCheck): string | null {
     case 'ok':
       return null;
     case 'not-kraken':
-      return 'This is not a Kraken sheet. Choose the Kraken sheet (if it was shared with you, look under "Shared with me").';
+      return 'To nie jest arkusz Krakena. Wybierz arkusz Krakena (jeśli ktoś Ci go udostępnił, szukaj w „Udostępnione dla mnie”).';
     case 'app-outdated':
-      return `This sheet was updated by a newer version of Kraken (data version ${meta.schemaVersion}). Reload this page with Cmd+Shift+R to get the latest version. Kraken will not change the sheet until then.`;
+      return `Ten arkusz został zaktualizowany przez nowszą wersję Krakena (wersja danych ${meta.schemaVersion}). Odśwież tę stronę skrótem Cmd+Shift+R, aby wczytać najnowszą wersję. Do tego czasu Kraken nie zmieni arkusza.`;
     case 'needs-migration':
-      return `This sheet has an older data version (${meta.schemaVersion}) and needs an update before use. Kraken will not change it without making a backup copy first.`;
+      return `Ten arkusz ma starszą wersję danych (${meta.schemaVersion}) i przed użyciem wymaga aktualizacji. Kraken nie zmieni go bez wcześniejszej kopii zapasowej.`;
   }
 }
