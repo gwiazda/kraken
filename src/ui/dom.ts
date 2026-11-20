@@ -16,6 +16,13 @@ export function button(label: string, onClick: () => void, variant: 'primary' | 
   return b;
 }
 
+/** A name in a list that opens its page (Products, Clients): reads like the text around it (left-aligned, wraps). */
+export function nameLink(label: string, onClick: () => void): HTMLButtonElement {
+  const b = button(label, onClick, 'link');
+  b.classList.add('name-link');
+  return b;
+}
+
 export function message(text: string, kind: 'info' | 'error' = 'info'): HTMLParagraphElement {
   return el('p', { class: kind === 'error' ? 'message message-error' : 'message muted', role: kind === 'error' ? 'alert' : 'status' }, text);
 }

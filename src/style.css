@@ -751,7 +751,10 @@ details summary {
 
 /* ---- Products (owner, 2026-11-18: the one place for prices; keep it neat) ---- */
 
-.product-table td:first-child .btn-link {
+/* A name in a list that opens its page (Products, Clients): left-aligned and bold, wrapping like text. */
+.btn-link.name-link {
+  padding: 0;
+  text-align: left;
   font-weight: 600;
   font-size: 1rem;
 }

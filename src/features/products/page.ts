@@ -7,7 +7,7 @@
 
 import { formatWholePln } from '../../core/numbers';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, el, infoTip, message, nameLink } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { DEFAULT_SETTINGS, activeDiscounts, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
@@ -429,7 +429,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         el(
           'td',
           {},
-          restorable ? el('span', {}, p.name) : button(p.name, () => openFromList(p), 'link'),
+          restorable ? el('span', {}, p.name) : nameLink(p.name, () => openFromList(p)),
           ...(p.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, p.brewMethod)] : []),
           ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : []),
         ),

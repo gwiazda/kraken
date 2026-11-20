@@ -3,7 +3,7 @@
 // Everything from outside comes through ClientsPageDeps (main.ts provides it).
 
 import { formatPercent } from '../../domain/percent';
-import { busy, button, el, infoTip, message } from '../../ui/dom';
+import { busy, button, el, infoTip, message, nameLink } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
@@ -168,7 +168,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         el(
           'tr',
           restorable ? { class: 'row-deleted' } : {},
-          el('td', {}, restorable ? el('strong', {}, c.name) : button(c.name, () => showForm(c), 'link'), ...(c.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: c.problems.join(' ') }, 'Check')] : [])),
+          el('td', {}, restorable ? el('strong', {}, c.name) : nameLink(c.name, () => showForm(c)), ...(c.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: c.problems.join(' ') }, 'Check')] : [])),
           el('td', {}, c.registeredName || el('span', { class: 'muted' }, '—')),
           el('td', { class: 'nowrap' }, c.nip ? formatNip(c.nip) : el('span', { class: 'muted' }, '—')),
           el('td', {}, c.email || el('span', { class: 'muted' }, '—')),
