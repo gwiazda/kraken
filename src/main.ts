@@ -28,7 +28,7 @@ import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMe
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, gearIcon, message, type Child } from './ui/dom';
 import { forgetLists } from './ui/listView';
-import { screenOf, stateFor, type Screen } from './ui/history';
+import { HOME_SCREEN, type Screen, screenOf, stateFor } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -62,7 +62,7 @@ let openSheet: SpreadsheetInfo | null = null;
 /** The sheet whose list filters are remembered (ui/listView.ts); another sheet starts without them. */
 let listsSheetId = '';
 /** The screen shown now (to put it back if Back is pressed while saving). */
-let currentScreen: Screen = 'lots';
+let currentScreen: Screen = HOME_SCREEN;
 /** True while Kraken saves to Google: Back and the menu wait, so nothing is left running unseen. */
 let saving = false;
 /** History moves Kraken makes itself (stepping back over a closed form or import) whose popstate must be ignored. */
@@ -127,10 +127,10 @@ window.addEventListener('popstate', (event) => {
     // A form cannot be brought back with Forward: that entry becomes the list.
     if (screen === 'roast-form') window.history.replaceState(stateFor('roasts'), '', '#roasts');
     showRoasts(info, undefined, false, 'none');
-  } else {
+  } else if (screen === 'lots' || screen === 'lot-form') {
     if (screen === 'lot-form') window.history.replaceState(stateFor('lots'), '', '#lots');
     showLots(info, undefined, false, 'none');
-  }
+  } else showSales(info, false, 'none'); // the home screen
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */
@@ -151,6 +151,10 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
     el(
       'nav',
       { class: 'app-nav', 'aria-label': 'Kraken' },
+      // Sales first: Kraken opens on it (owner, 2026-11-20).
+      tab('Sales', 'sales', () => {
+        if (!saving) showSales(info, true, menuMove('sales'));
+      }),
       tab('Lots', 'lots', () => {
         if (!saving) showLots(info, undefined, true, menuMove('lots'));
       }),
@@ -165,9 +169,6 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Offer', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
-      }),
-      tab('Sales', 'sales', () => {
-        if (!saving) showSales(info, true, menuMove('sales'));
       }),
       tab('Clients', 'clients', () => {
         if (!saving) showClients(info, true, menuMove('clients'));
@@ -334,7 +335,7 @@ async function connect(id: string, note?: string): Promise<void> {
       return;
     }
     remember(info.id);
-    showLots(info, note, false, 'replace');
+    showSales(info, false, 'replace', note); // Sales first (owner, 2026-11-20: the partner records sales on the go)
   });
 }
 
@@ -484,7 +485,8 @@ function showProducts(info: SpreadsheetInfo, fromClick = false, move: HistoryMov
 }
 
 /** The Sales page (owner, 2026-11-19): sales, samples, own use, and the invoices to issue. */
-function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push'): void {
+/** The Sales page; also the page Kraken opens with (owner, 2026-11-20). `note`: e.g. after an update of the sheet. */
+function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove = 'push', note?: string): void {
   record('sales', move);
   showSalesPage(
     showApp(info, 'sales'),
@@ -500,7 +502,7 @@ function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
         leave('sale-form');
       },
     },
-    undefined,
+    note,
     fromClick,
   );
 }

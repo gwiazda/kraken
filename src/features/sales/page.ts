@@ -171,7 +171,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     };
 
     const row = (r: SaleRow) => {
-      const actions = el('td', { class: 'row-actions nowrap' });
+      const actions = el('td', { class: 'row-actions nowrap c-actions' });
       const extra = el('tr', { class: 'confirm-row', hidden: '' });
       const sale = r.sale;
       const inline = (...children: (Node | string)[]) => {
@@ -186,7 +186,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         actions.replaceChildren(button('Delete', ask, 'link'));
       };
       /** The invoice status as a dropdown: any status to any other; after saving the list shows all entries. */
-      const statusCell = el('td', { class: 'nowrap no-row-click' });
+      const statusCell = el('td', { class: `nowrap no-row-click c-status${sale.kind === 'sale' ? '' : ' c-empty'}` });
       if (sale.kind !== 'sale') statusCell.append(el('span', { class: 'muted' }, '—'));
       else {
         const select = el('select', { class: `status-select status-${sale.status ?? ''}`, 'aria-label': `Invoice status: ${r.who}` });
@@ -248,18 +248,18 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el(
           'tr',
           {},
-          el('td', { class: 'nowrap' }, r.date),
-          el('td', { class: 'nowrap' }, el('span', { class: `badge kind-${r.kind ?? 'unknown'}` }, r.kindLabel)),
+          el('td', { class: 'nowrap c-date' }, r.date),
+          el('td', { class: 'nowrap c-kind' }, el('span', { class: `badge kind-${r.kind ?? 'unknown'}` }, r.kindLabel)),
           el(
             'td',
-            {},
+            { class: 'c-who' },
             r.who || el('span', { class: 'muted' }, '—'),
             ...(sale.kind === 'sample' && newestNotes.has(sale.id) ? [el('span', { class: 'last-note' }, newestNotes.get(sale.id) ?? '')] : []),
           ),
-          el('td', {}, r.items),
-          el('td', { class: 'num nowrap' }, r.bags || el('span', { class: 'muted' }, '—')),
+          el('td', { class: 'c-items' }, r.items),
+          el('td', { class: 'num nowrap c-bags' }, r.bags || el('span', { class: 'muted' }, '—')),
           statusCell,
-          el('td', { class: 'nowrap' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
+          el('td', { class: `nowrap c-issued${r.invoiceDate ? '' : ' c-empty'}`, 'data-label': 'Issued on' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
           actions,
         ),
           () => showForm(sale),
@@ -273,9 +273,16 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     render(
       el(
         'div',
-        { class: 'page-head' },
+        { class: 'page-head sales-head' },
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
+        // On a phone: always at hand in the corner, also after scrolling (owner, 2026-11-20: used at the cafés).
+        (() => {
+          const fab = button('+ Add', () => showForm(null));
+          fab.classList.add('fab-add');
+          fab.title = 'Add a sale, sample or own use';
+          return fab;
+        })(),
       ),
       el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid". Choosing "Invoice issued" asks for the date it was issued (today unless you change it); it shows under "Issued on". A mistake can be undone the same way. Samples and own use have no invoice.')),
       ...(note ? [message(note)] : []),
@@ -444,11 +451,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         return el(
           'tr',
           {},
-          el('td', {}, product),
-          el('td', { class: 'nowrap' }, size, ...(sample ? [' g'] : [])),
-          el('td', {}, bags),
-          ...(sale_ ? [el('td', { class: 'nowrap' }, el('label', { class: 'free-label' }, free, ' free'))] : []),
-          el('td', {}, form.lines.length > 1 ? remove : ''),
+          el('td', { class: 'l-product' }, product),
+          el('td', { class: 'nowrap l-size', 'data-label': sample ? 'Amount' : 'Size' }, size, ...(sample ? [' g'] : [])),
+          el('td', { class: 'l-bags', 'data-label': sample ? 'Packs' : 'Bags' }, bags),
+          ...(sale_ ? [el('td', { class: 'nowrap l-free' }, el('label', { class: 'free-label' }, free, ' free'))] : []),
+          el('td', { class: 'l-remove' }, form.lines.length > 1 ? remove : ''),
         );
       });
       linesHolder.replaceChildren(

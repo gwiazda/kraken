@@ -2131,3 +2131,220 @@ select.list-filter {
 .list-size {
   margin-left: auto;
 }
+
+/* ---- Phones (owner, 2026-11-20: the partner uses Sales at the cafés) ---- */
+.fab-add {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /*
+   * 16px text in every field, so the iPhone does not zoom in when one is tapped. "!important": many fields set
+   * their own smaller size (a table's 0.95rem, the list filters' 0.8rem), and on a phone this must win over all.
+   */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
+  .sales-head .head-actions .btn {
+    display: none; /* on Sales the floating "+ Add" takes its place */
+  }
+
+  .fab-add {
+    display: inline-flex;
+    align-items: center;
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 50;
+    padding: 0.75rem 1.25rem;
+    border-radius: 999px;
+    font-size: 1.05rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  }
+
+  .page:has(.fab-add) {
+    padding-bottom: 5rem; /* the last card is never hidden behind "+ Add" (only Sales has it) */
+  }
+
+  /* The Sales list as cards: date and kind on top, then who, what, how many, the invoice and Delete. */
+  .sales-table,
+  .sales-table tbody {
+    display: block;
+  }
+
+  .sales-table thead {
+    display: none;
+  }
+
+  .sales-table tr.row-link {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'date kind'
+      'who who'
+      'items items'
+      'bags bags'
+      'status actions'
+      'issued issued';
+    gap: 0.25rem 0.75rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #333;
+    border-radius: 8px;
+  }
+
+  /* The whole card lights up, not only its cells. */
+  .sales-table tr.row-link:hover > td,
+  .sales-table tr.row-link:focus-within > td {
+    background: none;
+  }
+
+  .sales-table tr.row-link:hover,
+  .sales-table tr.row-link:focus-within {
+    background: #16180a;
+  }
+
+  .sales-table tr.row-link > td {
+    display: block;
+    padding: 0;
+    border: none;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .sales-table .c-date {
+    grid-area: date;
+    color: var(--grey);
+  }
+
+  .sales-table .c-kind {
+    grid-area: kind;
+    justify-self: end;
+  }
+
+  .sales-table .c-who {
+    grid-area: who;
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+
+  .sales-table .c-items {
+    grid-area: items;
+  }
+
+  .sales-table .c-bags {
+    grid-area: bags;
+    color: var(--grey);
+  }
+
+  .sales-table .c-status {
+    grid-area: status;
+  }
+
+  .sales-table .c-issued {
+    grid-area: issued;
+    align-self: center;
+    color: var(--grey);
+  }
+
+  .sales-table .c-issued::before {
+    content: attr(data-label) ': ';
+  }
+
+  .sales-table .c-empty {
+    display: none !important;
+  }
+
+  .sales-table .c-actions {
+    grid-area: actions;
+    justify-self: end;
+    align-self: center;
+  }
+
+  /* The question or date box under a card ("Delete …?"); hidden again after No or Cancel. */
+  .sales-table tr.confirm-row:not([hidden]) {
+    display: block;
+    margin: -0.5rem 0 0.75rem;
+  }
+
+  .sales-table tr.confirm-row > td {
+    display: block;
+    border-top: none;
+    border-bottom: none;
+  }
+
+  .sales-table .status-select {
+    min-height: 44px;
+  }
+
+  /* The product lines of the form: the product on its own line, then size, bags and free side by side. */
+  .sale-lines,
+  .sale-lines tbody {
+    display: block;
+  }
+
+  .sale-lines thead {
+    display: none;
+  }
+
+  .sale-lines tr {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    grid-template-areas:
+      'product product product product'
+      'size bags free remove';
+    gap: 0.5rem 0.75rem;
+    align-items: end;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #333;
+  }
+
+  .sale-lines tr > td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+
+  .sale-lines .l-product {
+    grid-area: product;
+  }
+
+  .sale-lines .l-product select {
+    width: 100%;
+  }
+
+  .sale-lines .l-size {
+    grid-area: size;
+  }
+
+  .sale-lines .l-bags {
+    grid-area: bags;
+  }
+
+  .sale-lines .l-free {
+    grid-area: free;
+    align-self: end;
+    line-height: 44px; /* level with the boxes next to it */
+  }
+
+  .sale-lines .l-remove {
+    grid-area: remove;
+    align-self: center;
+  }
+
+  .sale-lines .l-size::before,
+  .sale-lines .l-bags::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    color: var(--grey);
+    text-transform: uppercase;
+  }
+}
