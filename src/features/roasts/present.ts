@@ -17,6 +17,8 @@ export interface RoastListRow {
   readonly loss: string;
   /** "KENYA-26-09" or "KENYA-26-09 0,5 kg + KENYA-26-11 0,7 kg", or why it is not counted. */
   readonly lots: string;
+  /** For the Lot filter: the codes of the lots it is counted in, or why it is not counted ("Not counted: …"). */
+  readonly lotCodes: readonly string[];
   readonly counted: boolean;
   /** No coffee and no lot, and not marked as a sample: the owner should choose a lot (or mark it as a sample). */
   readonly needsLot: boolean;
@@ -56,13 +58,16 @@ export function roastListRows(roasts: readonly Roast[], lots: readonly Lot[], al
       const counted = allocated !== undefined && allocated.status !== 'not-counted';
       const chosenLot = roast.lotId !== '' ? lotById.get(roast.lotId) : undefined;
       let lotsText = DASH;
+      let lotCodes: string[] = [];
       if (allocated && allocated.status !== 'not-counted') {
+        lotCodes = allocated.parts.map((p) => lotById.get(p.lotId)?.code ?? '?');
         lotsText =
           allocated.parts.length === 1
             ? (lotById.get(allocated.parts[0]?.lotId ?? '')?.code ?? DASH)
             : allocated.parts.map((p) => `${lotById.get(p.lotId)?.code ?? '?'} ${formatKg(p.grams)}`).join(' + ');
       } else if (allocated) {
         lotsText = NOT_COUNTED[allocated.reason];
+        lotCodes = [lotsText];
       }
       return {
         roast,
@@ -73,6 +78,7 @@ export function roastListRows(roasts: readonly Roast[], lots: readonly Lot[], al
         roasted: roast.roastedDecigrams === null ? DASH : formatKg(Math.round(roast.roastedDecigrams / 10)),
         loss: formatLoss(roastLossPermille(roast)),
         lots: lotsText,
+        lotCodes,
         counted,
         needsLot: allocated?.status === 'not-counted' && allocated.reason !== 'no-green-weight' && !roast.sample,
         chosen: allocated?.status === 'chosen',

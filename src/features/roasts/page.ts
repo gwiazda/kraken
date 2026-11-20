@@ -3,9 +3,13 @@
 
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
+import { listView } from '../../ui/listView';
+import { localDate } from '../../core/dates';
+import { parseKg } from '../../core/numbers';
+import type { ListColumn } from '../../core/listFilter';
 import { isDeleted, type Lot, type LotsRepository } from '../lots';
 import { allocate } from './allocation';
-import { emptyRoastForm, formFromRoast, fromRoastime, validateRoastForm, type Roast, type RoastForm, type RoastFormErrors } from './model';
+import { emptyRoastForm, formFromRoast, fromRoastime, roastLossPermille, validateRoastForm, type Roast, type RoastForm, type RoastFormErrors } from './model';
 import { roastListRows, type RoastListRow } from './present';
 import type { RoastsRepository } from './repo';
 
@@ -28,6 +32,36 @@ export interface RoastsPageDeps {
 }
 
 type Mode = { kind: 'add' } | { kind: 'edit'; roast: Roast };
+
+/** kg as typed ("1,2") → grams; null when it cannot be read. */
+const typedKg = (typed: string) => {
+  const grams = parseKg(typed.trim());
+  return typeof grams === 'number' ? grams : null;
+};
+
+/** How each column of the Roasts list is filtered (owner, 2026-11-20: every column, and a search bar). */
+const ROAST_COLUMNS: readonly (ListColumn<RoastListRow> | null)[] = [
+  { kind: 'month', key: 'month', label: 'month roasted', value: (r) => (r.roast.roastedAt ? localDate(r.roast.roastedAt) : '') },
+  { kind: 'text', key: 'name', label: 'name', value: (r) => r.name },
+  { kind: 'choice', key: 'coffee', label: 'coffee', values: (r) => [r.coffee] },
+  { kind: 'range', key: 'green', label: 'green kg', value: (r) => r.roast.greenGrams, parse: typedKg },
+  { kind: 'range', key: 'roasted', label: 'roasted kg', value: (r) => (r.roast.roastedDecigrams === null ? null : r.roast.roastedDecigrams / 10), parse: typedKg },
+  {
+    kind: 'range',
+    key: 'loss',
+    label: 'loss %',
+    value: (r) => {
+      const permille = roastLossPermille(r.roast);
+      return permille === null ? null : permille / 10;
+    },
+    parse: (typed) => {
+      const n = Number(typed.trim().replace(',', '.'));
+      return typed.trim() === '' || !Number.isFinite(n) ? null : n;
+    },
+  },
+  { kind: 'choice', key: 'lot', label: 'lot', values: (r) => r.lotCodes },
+  null,
+];
 
 export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: string, fromClick = false): void {
   let roasts: Roast[] = [];
@@ -204,16 +238,15 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       ),
       rows.length === 0
         ? el('p', { class: 'muted' }, 'No roasts yet. Bring in the roasting log with "Sync with RoasTime" under Settings, or click "Add roast".')
-        : el(
-            'div',
-            { class: 'table-wrap' },
-            el(
-              'table',
-              { class: 'data-table' },
-              el('thead', {}, el('tr', {}, ...['Roasted', 'Name', 'Coffee', 'Green', 'Roasted', 'Loss', 'Lot', ''].map((h) => el('th', { scope: 'col' }, h)))),
-              el('tbody', {}, ...rows.flatMap(rowNodes)),
-            ),
-          ),
+        : listView({
+            key: 'roasts',
+            rows,
+            columns: ROAST_COLUMNS,
+            headers: ['Roasted', 'Name', 'Coffee', 'Green', 'Roasted', 'Loss', 'Lot', ''],
+            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'by hand' : '', r.sample ? 'sample' : ''].join(' '),
+            rowNodes,
+            noun: ['roast', 'roasts'],
+          }),
     );
   }
 

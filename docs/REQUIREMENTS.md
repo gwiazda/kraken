@@ -488,6 +488,13 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
 
 ---
 
+**[R] Search, filters and pages (owner, 2026-11-20):** a list has a **search bar** (looks in every column; capitals,
+accents and the Polish ł ignored) and a **filter under every column heading**: a list of the values (e.g. coffee,
+lot), a month list for dates, a "contains" box for names, "from – to" boxes for numbers (kg, %). **25 per page**
+with Previous / Next and "Showing 1–25 of 89", changeable to 50 / 100 / All. What is typed or chosen is
+**remembered until the page is reloaded**; "Clear filters" resets it. One shared piece (`core/listFilter.ts`,
+`ui/listView.ts`). Built on Roasts first; the other tabs follow once the owner is happy with it.
+
 **[R] Lists (owner, 2026-11-20):** on every tab a row opens its page (or its edit form) when clicked anywhere; there
 are no Edit or Details buttons. Buttons in the row (Delete, Restore), the status dropdown and the drag grip keep
 their own click. With the keyboard: Tab to a row, Enter opens it.
