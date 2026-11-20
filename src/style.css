@@ -2149,8 +2149,8 @@ select.list-filter {
     min-height: 44px;
   }
 
-  .head-actions .btn {
-    display: none; /* the floating "+ Add" takes its place */
+  .sales-head .head-actions .btn {
+    display: none; /* on Sales the floating "+ Add" takes its place */
   }
 
   .fab-add {

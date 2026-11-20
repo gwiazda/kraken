@@ -273,7 +273,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     render(
       el(
         'div',
-        { class: 'page-head' },
+        { class: 'page-head sales-head' },
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
         // On a phone: always at hand in the corner, also after scrolling (owner, 2026-11-20: used at the cafés).
