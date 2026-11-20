@@ -151,6 +151,10 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
     el(
       'nav',
       { class: 'app-nav', 'aria-label': 'Kraken' },
+      // Sales first: Kraken opens on it (owner, 2026-11-20).
+      tab('Sales', 'sales', () => {
+        if (!saving) showSales(info, true, menuMove('sales'));
+      }),
       tab('Lots', 'lots', () => {
         if (!saving) showLots(info, undefined, true, menuMove('lots'));
       }),
@@ -165,9 +169,6 @@ function showApp(info: SpreadsheetInfo, active: MenuTab): HTMLElement {
       }),
       tab('Offer', 'offer', () => {
         if (!saving) showOffer(info, true, menuMove('offer'));
-      }),
-      tab('Sales', 'sales', () => {
-        if (!saving) showSales(info, true, menuMove('sales'));
       }),
       tab('Clients', 'clients', () => {
         if (!saving) showClients(info, true, menuMove('clients'));
