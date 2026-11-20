@@ -58,29 +58,29 @@ describe('validateOffer', () => {
 
   it('says what is missing', () => {
     expect(validateOffer({ customer: ' / ', date: '2026-02-30', productIds: [], sizes: [], tiers: [], banner: null })).toEqual({
-      customer: 'Enter who the offer is for.',
-      date: 'Enter the offer date.',
-      products: 'Tick at least one product.',
-      sizes: 'Tick at least one bag size.',
-      tiers: 'Tick at least one discount (they are set under Packaging & discounts).',
+      customer: 'Wpisz, dla kogo jest oferta.',
+      date: 'Wybierz datę oferty.',
+      products: 'Zaznacz co najmniej jeden produkt.',
+      sizes: 'Zaznacz co najmniej jedną wielkość torebki.',
+      tiers: 'Zaznacz co najmniej jeden rabat (ustawiasz je w zakładce Opakowania i rabaty).',
     });
-    expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'x'.repeat(13) }] })).toEqual({ tiers: 'The name "xxxxxxxxxxxxx" is longer than 12 characters, so it does not fit next to the prices. Shorten it under Packaging & discounts.' });
+    expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'x'.repeat(13) }] })).toEqual({ tiers: 'Nazwa „xxxxxxxxxxxxx” ma więcej niż 12 znaków, więc nie zmieści się przy cenach. Skróć ją w zakładce Opakowania i rabaty.' });
     expect(validateOffer({ ...ok, tiers: [{ tenths: 150, label: 'Powyżej 20kg' }] })).toEqual({});
     const five = [100, 150, 200, 250, 300].map((tenths) => ({ tenths, label: '' }));
-    expect(validateOffer({ ...ok, tiers: five })).toEqual({ tiers: 'Tick at most 4 discounts, so the offer stays readable.' });
+    expect(validateOffer({ ...ok, tiers: five })).toEqual({ tiers: 'Zaznacz najwyżej 4 rabaty, żeby oferta była czytelna.' });
     expect(validateOffer({ ...ok, tiers: five.slice(0, 4) })).toEqual({});
-    expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(301), note: '' } })).toEqual({ banner: 'Each part of the banner can have at most 300 characters.' });
+    expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(301), note: '' } })).toEqual({ banner: 'Każda część baneru może mieć najwyżej 300 znaków.' });
     expect(validateOffer({ ...ok, banner: { title: '', line: 'x'.repeat(300), note: '' } })).toEqual({});
   });
 
   it("needs no standard discount when a client's special prices are used (only their prices on the offer)", () => {
     expect(validateOffer({ ...ok, tiers: [] }, true)).toEqual({});
-    expect(validateOffer({ ...ok, tiers: [] }, false)).toEqual({ tiers: 'Tick at least one discount (they are set under Packaging & discounts).' });
+    expect(validateOffer({ ...ok, tiers: [] }, false)).toEqual({ tiers: 'Zaznacz co najmniej jeden rabat (ustawiasz je w zakładce Opakowania i rabaty).' });
   });
 
   it('refuses an offer where a ticked product size would have no price at all', () => {
     expect(validateOffer({ ...ok, tiers: [] }, true, ['KENIA 1 kg', 'PERU 250 g'])).toEqual({
-      tiers: 'No price for KENIA 1 kg, PERU 250 g: there is no special price for it and no discount is ticked. Tick a discount, or untick that product or size.',
+      tiers: 'Brak ceny dla: KENIA 1 kg, PERU 250 g; nie ma dla nich ceny specjalnej, a żaden rabat nie jest zaznaczony. Zaznacz rabat albo odznacz ten produkt lub wielkość.',
     });
   });
 });

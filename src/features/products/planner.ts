@@ -41,7 +41,7 @@ export async function loadPlannerData(sources: {
     return { settings: found.settings, discounts: found.discounts, beanLots: found.lots, packaging: found.packaging, problems: [...costs.problems, ...found.problems] };
   } catch (error) {
     if (sources.isSignedOut(error) || sources.isIgnorable(error)) throw error;
-    const problem = `The packaging, discounts and lots could not be read (${sources.describeError(error)}); the default VAT and discounts are used.`;
+    const problem = `Nie udało się wczytać opakowań, rabatów i dostaw (${sources.describeError(error)}); używane są domyślne VAT i rabaty.`;
     return { settings: DEFAULT_SETTINGS, discounts: activeDiscounts([]).discounts, beanLots: [], packaging: new Map(), problems: [problem] };
   }
 }
@@ -67,7 +67,7 @@ export interface Planner {
 
 /** A bean's name for the screen: its lot, or the planned bean's name, else "Bean 2". */
 export function beanName(form: BeanForm, i: number, beanLots: readonly BeanLot[]): string {
-  return form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Bean ${i + 1}`) : form.plannedName.trim() || `Bean ${i + 1}`;
+  return form.kind === 'lot' ? (beanLots.find((l) => l.lotId === form.lotId)?.label ?? `Ziarno ${i + 1}`) : form.plannedName.trim() || `Ziarno ${i + 1}`;
 }
 
 export function createPlanner(
@@ -139,14 +139,14 @@ export function createPlanner(
     shareInputs = [];
     legendNames = [];
     if (beanForms.length < 2) {
-      splitHolder.replaceChildren(...(beanForms.length === 1 ? [el('p', { class: 'muted small' }, 'One bean: it is 100 % of the bag. Add another to make a blend.')] : []));
+      splitHolder.replaceChildren(...(beanForms.length === 1 ? [el('p', { class: 'muted small' }, 'Jedno ziarno: to 100 % torebki. Dodaj kolejne, aby zrobić mieszankę.')] : []));
       return;
     }
     const bar = el('div', { class: 'split-bar', 'aria-hidden': 'true' });
     parts = beanForms.map((_, i) => el('span', { class: `split-part bean-colour-${i + 1}` }));
     bar.append(...parts);
     dividers = dividersOf(shares()).map((_, k) => {
-      const range = el('input', { type: 'range', min: '0', max: '100', step: '1', class: 'split-divider', 'aria-label': `Divider between bean ${k + 1} and bean ${k + 2}` });
+      const range = el('input', { type: 'range', min: '0', max: '100', step: '1', class: 'split-divider', 'aria-label': `Granica między ziarnem ${k + 1} a ziarnem ${k + 2}` });
       range.addEventListener('input', () => {
         applyShares(moveDivider(shares(), k, Number(range.value)));
         showSplit();
@@ -181,8 +181,8 @@ export function createPlanner(
     beansHolder.replaceChildren(
       ...beanForms.map((form, i) => {
         const row = el('div', { class: `bean-row bean-${i + 1}` });
-        const kind = el('select', { id: `bean-${i}-kind`, 'aria-label': `Bean ${i + 1}: where it comes from` });
-        kind.append(el('option', { value: 'lot' }, 'A lot from Lots'), el('option', { value: 'planned' }, 'A planned bean (not bought yet)'));
+        const kind = el('select', { id: `bean-${i}-kind`, 'aria-label': `Ziarno ${i + 1}: skąd pochodzi` });
+        kind.append(el('option', { value: 'lot' }, 'Dostawa z zakładki Dostawy'), el('option', { value: 'planned' }, 'Planowane ziarno (jeszcze niekupione)'));
         kind.value = form.kind;
         kind.addEventListener('change', () => {
           form.kind = kind.value === 'planned' ? 'planned' : 'lot';
@@ -191,9 +191,9 @@ export function createPlanner(
         });
         const what: Node[] = [];
         if (form.kind === 'lot') {
-          const lot = el('select', { id: `bean-${i}-lot`, 'aria-label': `Bean ${i + 1}: lot` });
-          lot.append(el('option', { value: '' }, 'Choose a lot…'));
-          for (const l of beanLots) lot.append(el('option', { value: l.lotId }, `${l.label} · ${l.greenPerKg === null ? 'no price yet' : `${formatPln(Math.round(l.greenPerKg))} per kg`}`));
+          const lot = el('select', { id: `bean-${i}-lot`, 'aria-label': `Ziarno ${i + 1}: dostawa` });
+          lot.append(el('option', { value: '' }, 'Wybierz dostawę…'));
+          for (const l of beanLots) lot.append(el('option', { value: l.lotId }, `${l.label} · ${l.greenPerKg === null ? 'jeszcze bez ceny' : `${formatPln(Math.round(l.greenPerKg))} za kg`}`));
           lot.value = form.lotId;
           lot.addEventListener('change', () => {
             form.lotId = lot.value;
@@ -213,14 +213,14 @@ export function createPlanner(
             return el('label', { class: 'bean-field', for: node.id }, el('span', { class: 'bean-field-label' }, label), node);
           };
           what.push(
-            input('plannedName', 'Name', { placeholder: 'e.g. Etiopia offer' }),
-            input('plannedPrice', 'Price per kg (zł)', { inputmode: 'decimal', class: 'input-money', placeholder: 'e.g. 52,50' }),
-            input('plannedLoss', 'Roast loss %', { inputmode: 'decimal', class: 'input-short', placeholder: String(settings.defaultLossTenths / 10).replace('.', ',') }),
-            infoTip('The price you were quoted for 1 kg of green beans, with delivery and without VAT. Leave the roast loss empty to use your usual one.'),
+            input('plannedName', 'Nazwa', { placeholder: 'np. Etiopia z oferty' }),
+            input('plannedPrice', 'Cena za kg (zł)', { inputmode: 'decimal', class: 'input-money', placeholder: 'np. 52,50' }),
+            input('plannedLoss', 'Ubytek przy paleniu %', { inputmode: 'decimal', class: 'input-short', placeholder: String(settings.defaultLossTenths / 10).replace('.', ',') }),
+            infoTip('Cena z oferty za 1 kg zielonego ziarna, z dostawą i bez VAT. Zostaw ubytek pusty, aby użyć zwykłego.'),
           );
         }
         const remove = button(
-          'Remove',
+          'Usuń',
           () => {
             const removed = beanForms[i]?.sharePercent ?? 0;
             beanForms = beanForms.filter((_, k) => k !== i);
@@ -232,13 +232,13 @@ export function createPlanner(
           },
           'link',
         );
-        row.append(el('div', { class: 'bean-head' }, el('span', { class: `dot bean-colour-${i + 1}` }), el('strong', {}, `Bean ${i + 1}`), kind, remove), el('div', { class: 'bean-what' }, ...what));
+        row.append(el('div', { class: 'bean-head' }, el('span', { class: `dot bean-colour-${i + 1}` }), el('strong', {}, `Ziarno ${i + 1}`), kind, remove), el('div', { class: 'bean-what' }, ...what));
         return row;
       }),
       ...(beanForms.length < MAX_BEANS
         ? [
             button(
-              beanForms.length === 0 ? 'Choose a bean' : 'Add another bean',
+              beanForms.length === 0 ? 'Wybierz ziarno' : 'Dodaj kolejne ziarno',
               () => {
                 const even = evenShares(beanForms.length + 1);
                 const added: BeanForm = { kind: 'lot', lotId: '', plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: 0 };
@@ -257,12 +257,12 @@ export function createPlanner(
   const beansSection = el(
     'fieldset',
     { class: 'form-section' },
-    el('legend', {}, 'Made of'),
+    el('legend', {}, 'Skład'),
     el(
       'p',
       { class: 'muted small' },
-      `Up to ${MAX_BEANS} beans: lots you have, or a planned bean you are thinking of buying. `,
-      infoTip('Drag a white divider on the bar to change how much of the bag each bean is, or type the percentage. The shares always add up to 100 %.'),
+      `Najwyżej ${MAX_BEANS} ziarna: dostawy, które masz, albo planowane ziarno, które myślisz kupić. `,
+      infoTip('Przeciągnij białą granicę na pasku, aby zmienić, ile torebki stanowi każde ziarno, albo wpisz procent. Udziały zawsze dają razem 100 %.'),
     ),
     splitHolder,
     beansHolder,
@@ -315,7 +315,7 @@ export function createPlanner(
     if (!extra) return;
     wholesaleHolder.replaceChildren(
       Object.keys(prices).length === 0
-        ? el('p', { class: 'muted small' }, 'Type a price above to see the wholesale prices.')
+        ? el('p', { class: 'muted small' }, 'Wpisz cenę powyżej, aby zobaczyć ceny hurtowe.')
         : pricesTable(priceRows(prices, discounts.map((d) => d.tenths), settings.vatTenths, costsBySize(rows)), discounts),
     );
     for (const { grams, b } of sizeButtons) {
@@ -327,7 +327,7 @@ export function createPlanner(
       products = extra.products.map((p) => compareRow({ ...p, isPlan: false }, compareSize, ...compareArgs));
       productRows.set(compareSize, products);
     }
-    const plan = compareRow({ name: 'This plan', isPlan: true, beans: beanForms, prices }, compareSize, ...compareArgs);
+    const plan = compareRow({ name: 'Ten plan', isPlan: true, beans: beanForms, prices }, compareSize, ...compareArgs);
     compareHolder.replaceChildren(compareTable(sortCompared([plan, ...products]), discounts));
   };
   const extraNode = extra
@@ -337,7 +337,7 @@ export function createPlanner(
         el(
           'section',
           { class: 'product-card' },
-          el('h3', {}, 'Wholesale prices ', infoTip(`What a business customer would pay for your prices above: without VAT, minus their discount, rounded to whole złoty. Under each price: what you would earn on one bag and the gross margin. ${MARGIN_TIP}`)),
+          el('h3', {}, 'Ceny hurtowe ', infoTip(`Ile zapłaciłaby firma przy Twoich cenach powyżej: netto, minus jej rabat, zaokrąglone do pełnych złotych. Pod każdą ceną: ile zarobisz na torebce i marża brutto. ${MARGIN_TIP}`)),
           wholesaleHolder,
         ),
         el(
@@ -346,10 +346,10 @@ export function createPlanner(
           el(
             'h3',
             {},
-            'Compare with your products ',
-            infoTip(`Your plan next to the products you have, for one bag size, sorted by what they earn. Each wholesale column shows what one bag earns at that discount and the gross margin; the discounts are the ones set under Packaging & discounts. ${MARGIN_TIP}`),
+            'Porównaj ze swoimi produktami ',
+            infoTip(`Twój plan obok Twoich produktów, dla jednej wielkości torebki, od najbardziej zarabiającego. Każda kolumna hurtowa pokazuje, ile zarabiasz na torebce przy tym rabacie, i marżę brutto; rabaty pochodzą z zakładki Opakowania i rabaty. ${MARGIN_TIP}`),
           ),
-          el('p', { class: 'compare-sizes small' }, 'Bag size: ', ...sizeButtons.flatMap(({ b }) => [b, ' '])),
+          el('p', { class: 'compare-sizes small' }, 'Wielkość torebki: ', ...sizeButtons.flatMap(({ b }) => [b, ' '])),
           compareHolder,
         ),
       )
@@ -362,7 +362,7 @@ export function createPlanner(
     showExtra(made.rows, prices);
     madeOfLine.replaceChildren(...(made.madeOf ? [made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])] : []));
     madeOfLine.hidden = !made.madeOf;
-    perKgTitle.textContent = `Why ${made.perKg.replace(' of roasted coffee', '')}?`;
+    perKgTitle.textContent = `Skąd ${made.perKg.replace(' palonej kawy', '')}?`;
     perKgList.replaceChildren(...made.perKgSteps.map((step) => el('li', {}, step)));
     perKgBox.hidden = made.perKgSteps.length === 0;
     notesHolder.replaceChildren(...made.notes.map((n) => el('p', { class: 'muted small' }, n)));
@@ -375,7 +375,7 @@ export function createPlanner(
           'button',
           { type: 'button', class: 'chip', 'aria-pressed': String(input.value.trim() === value) },
           el('strong', {}, sug.text),
-          el('span', { class: 'chip-note' }, `${sug.markup} · earns ${sug.earnings}${sug.margin ? ` · margin ${sug.margin}` : ''}`),
+          el('span', { class: 'chip-note' }, `${sug.markup} · zarabiasz ${sug.earnings}${sug.margin ? ` · marża ${sug.margin}` : ''}`),
         );
         chip.addEventListener('click', () => {
           input.value = value;
@@ -387,11 +387,11 @@ export function createPlanner(
       const earn = earnHolders.get(grams);
       if (earn) {
         earn.texts.replaceChildren(
-          ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `You lose ${r.earnings.replace('−', '')} per bag` : `You earn ${r.earnings} per bag`)] : []),
-          ...(r.margin ? [el('span', { class: r.marginLosing ? 'earn losing' : 'earn' }, ` · gross margin ${r.margin} `)] : []),
+          ...(r.earnings ? [el('span', { class: r.losing ? 'earn losing' : 'earn' }, r.losing ? `Tracisz ${r.earnings.replace('−', '')} na torebce` : `Zarabiasz ${r.earnings} na torebce`)] : []),
+          ...(r.margin ? [el('span', { class: r.marginLosing ? 'earn losing' : 'earn' }, ` · marża brutto ${r.margin} `)] : []),
         );
         earn.tip.hidden = r.margin === '';
-        earn.cost.textContent = r.cost ? ` (a bag costs you ${r.cost})` : '';
+        earn.cost.textContent = r.cost ? ` (torebka kosztuje Cię ${r.cost})` : '';
         earn.box.hidden = !r.earnings && !r.margin && !r.cost;
       }
       const how = howHolders.get(grams);
@@ -412,7 +412,7 @@ export function createPlanner(
     const earn = el('div', { class: 'price-earn', hidden: '' }, texts, tip, cost);
     earnHolders.set(grams, { box: earn, texts, tip, cost });
     const list = el('ol', { class: 'how-steps' });
-    const box = el('details', { class: 'how' }, el('summary', {}, 'How is this worked out?'), list);
+    const box = el('details', { class: 'how' }, el('summary', {}, 'Jak to jest liczone?'), list);
     howHolders.set(grams, { box, list });
     return el(
       'div',
@@ -435,7 +435,7 @@ export function createPlanner(
       { class: 'muted small' },
       options.pricesIntro,
       infoTip(
-        'For 250 g, Kraken suggests two, two and a half or three times what the bag costs you, with VAT. Bigger bags follow your 250 g price: as many small bags as fit, with the packaging of one big bag. "Earns" is what is left for you after the cost of the bag, without VAT; the margin is that part of the price without VAT, in percent.',
+        'Dla 250 g Kraken proponuje dwa, dwa i pół albo trzy razy tyle, ile kosztuje Cię torebka, z VAT. Większe torebki idą za Twoją ceną 250 g: tyle małych torebek, ile się zmieści, z opakowaniem jednej dużej. „Zarabiasz” to to, co zostaje Ci po koszcie torebki, netto; marża to ta część ceny netto w procentach.',
       ),
     ),
     summary,

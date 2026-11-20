@@ -12,6 +12,11 @@
   box-sizing: border-box;
 }
 
+/* "hidden" always hides, even where a class sets display (e.g. the Offer's "Use special prices" line). */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--black);

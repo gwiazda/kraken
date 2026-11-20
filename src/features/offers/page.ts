@@ -37,14 +37,14 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
   function load(fromClick = false): void {
-    render(el('p', {}, busy('Loading products…')));
+    render(el('p', {}, busy('Wczytuję produkty…')));
     // The clients and their special prices are extra: if they cannot be read, the offer still works (typed name).
     const extra = () =>
       Promise.all([deps.clients.load(), deps.prices.load()]).then(
         ([c, p]) => ({ clients: c.clients, deals: p.deals, problems: [...c.problems, ...p.problems] }),
         (error: unknown) => {
           if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-          return { clients: [] as Client[], deals: [] as SpecialPrice[], problems: [`The clients and their special prices could not be read (${deps.describeError(error)}); type the customer's name.`] };
+          return { clients: [] as Client[], deals: [] as SpecialPrice[], problems: [`Nie udało się wczytać klientów i ich cen specjalnych (${deps.describeError(error)}); wpisz nazwę odbiorcy.`] };
         },
       );
     const all = () => Promise.all([deps.products.load(), deps.costs.load(), extra()]);
@@ -96,9 +96,9 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       return { box, node: el('label', { for: id }, box, label) };
     };
 
-    const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'e.g. Kawiarnia Pod Lipą' });
+    const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'np. Kawiarnia Pod Lipą' });
     // Pick a client (their name fills in; their special prices can be used) or type any name (not a client yet).
-    const clientSelect = el('select', { id: 'offer-client' }, el('option', { value: '' }, 'Not a client (type the name)'), ...clients.map((c) => el('option', { value: c.id }, c.name)));
+    const clientSelect = el('select', { id: 'offer-client' }, el('option', { value: '' }, 'Nie klient (wpisz nazwę)'), ...clients.map((c) => el('option', { value: c.id }, c.name)));
     const useDeals = el('input', { type: 'checkbox', id: 'offer-use-deals' });
     const useDealsLabel = el('span', {});
     const useDealsRow = el('p', { class: 'offer-choices', hidden: '' }, el('label', { for: useDeals.id }, useDeals, useDealsLabel));
@@ -114,7 +114,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       deals = picked ? offerDeals(allDeals, picked.id, all) : new Map();
       useDealsRow.hidden = deals.size === 0;
       useDeals.checked = deals.size > 0;
-      useDealsLabel.textContent = ` Use ${picked?.name ?? ''}'s special prices (${deals.size}): that size shows only their price`;
+      useDealsLabel.textContent = ` Użyj cen specjalnych: ${picked?.name ?? ''} (${deals.size}); ta wielkość pokaże tylko ich cenę`;
       update();
     };
     clientSelect.addEventListener('change', pickClient);
@@ -135,7 +135,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
 
     const productBoxes = products.map((p) => {
       const sizes = BAG_SIZES_G.filter((g) => p.prices[g] !== undefined).map(formatBagSize);
-      const hint = [p.brewMethod, sizes.length > 0 ? sizes.join(', ') : 'no prices'].filter((t) => t).join(' · ');
+      const hint = [p.brewMethod, sizes.length > 0 ? sizes.join(', ') : 'bez cen'].filter((t) => t).join(' · ');
       return { id: p.id, name: p.name, ...checkbox(`offer-product-${p.id}`, true, el('span', {}, p.name, ' ', el('span', { class: 'muted small' }, `(${hint})`))) };
     });
     /** The products in the order they appear on the offer (owner, 2026-11-17: ↑ ↓ to change it). */
@@ -157,8 +157,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
           const down = button('↓', move(1), 'secondary');
           up.disabled = i === 0;
           down.disabled = i === order.length - 1;
-          up.setAttribute('aria-label', `Move ${b.name} up`);
-          down.setAttribute('aria-label', `Move ${b.name} down`);
+          up.setAttribute('aria-label', `Przesuń ${b.name} w górę`);
+          down.setAttribute('aria-label', `Przesuń ${b.name} w dół`);
           if (focus?.id === b.id) queueMicrotask(() => ((focus.up && !up.disabled) || down.disabled ? up : down).focus());
           return el('li', {}, el('span', { class: 'offer-order-moves' }, up, down), b.node);
         }),
@@ -169,7 +169,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     // The discounts from Packaging & discounts, with their names. At most MAX_TIERS on one offer (each adds a price
     // line to every card), so the first ones are ticked and the rest wait until one is unticked.
     const tierRows = discounts.map((d, i) => {
-      const { box, node } = checkbox(`offer-tier-${d.tenths}`, i < MAX_TIERS, el('span', {}, el('strong', {}, discountText(d.tenths).replace('-', '−')), ' ', d.name || el('span', { class: 'muted' }, '(no name)')));
+      const { box, node } = checkbox(`offer-tier-${d.tenths}`, i < MAX_TIERS, el('span', {}, el('strong', {}, discountText(d.tenths).replace('-', '−')), ' ', d.name || el('span', { class: 'muted' }, '(bez nazwy)')));
       return { tenths: d.tenths, name: d.name, box, node };
     });
     const limitTiers = () => {
@@ -194,7 +194,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const bannerLine = el('textarea', { id: 'offer-banner-line', rows: '2' });
     const bannerNote = el('textarea', { id: 'offer-banner-note', rows: '2' });
     const bannerReset = button(
-      'Back to the standard text',
+      'Wróć do tekstu standardowego',
       () => {
         bannerEdited = false;
         update();
@@ -228,7 +228,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     const redraw = () => {
       pending = 0;
       const form = readForm();
-      validUntil.textContent = isValidDate(form.date) ? `Valid until ${formatDate(addDays(form.date, OFFER_VALID_DAYS))} (${OFFER_VALID_DAYS} days).` : '';
+      validUntil.textContent = isValidDate(form.date) ? `Ważna do ${formatDate(addDays(form.date, OFFER_VALID_DAYS))} (${OFFER_VALID_DAYS} dni).` : '';
       if (!isValidDate(form.date)) form.date = today; // the preview needs some date while one is typed
       const offer = buildOffer(products, form, settings.vatTenths, OFFER_VALID_DAYS, dealsUsed());
       fileName = offer.fileName;
@@ -243,7 +243,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       const errors = validateOffer(form, dealsUsed().size > 0, offer?.withoutPrice ?? []);
       for (const [key, line] of errorLines) line.textContent = errors[key] ?? '';
       if (Object.keys(errors).length > 0) {
-        status.replaceChildren(message('Please fix what is marked above.', 'error'));
+        status.replaceChildren(message('Popraw to, co jest zaznaczone powyżej.', 'error'));
         return;
       }
       status.replaceChildren();
@@ -264,55 +264,55 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     };
 
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Offer')),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Oferta')),
       el(
         'p',
         { class: 'muted small' },
-        `The offer is in Polish. Wholesale prices are net, worked out from each product's main gross price (−discount, rounded to whole złoty). Nothing is saved in Kraken: the PDF is the offer.`,
+        `Ceny hurtowe są netto, liczone od głównej ceny brutto każdego produktu (minus rabat, zaokrąglone do pełnych złotych). Kraken niczego nie zapisuje: ofertą jest plik PDF.`,
       ),
       ...problems.map((text) => message(text, 'error')),
       section(
-        'For',
+        'Dla kogo',
         el(
           'div',
           { class: 'fields' },
-          ...(clients.length > 0 ? [el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: clientSelect.id }, 'Client')), clientSelect)] : []),
-          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Customer *')), customer, errorLine('customer')),
-          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Offer date *')), date, validUntil, errorLine('date')),
+          ...(clients.length > 0 ? [el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: clientSelect.id }, 'Klient')), clientSelect)] : []),
+          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Odbiorca *')), customer, errorLine('customer')),
+          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Data oferty *')), date, validUntil, errorLine('date')),
         ),
         useDealsRow,
       ),
       section(
-        'Products',
+        'Produkty',
         ...(products.length === 0
-          ? [el('p', { class: 'muted' }, 'No products yet. ', button('Add them on the Products page', deps.openProducts, 'link'))]
+          ? [el('p', { class: 'muted' }, 'Nie ma jeszcze produktów. ', button('Dodaj je w zakładce Produkty', deps.openProducts, 'link'))]
           : [
-              el('p', { class: 'muted small' }, 'Tick what goes on the offer; ↑ ↓ set the order.'),
+              el('p', { class: 'muted small' }, 'Zaznacz, co trafia do oferty; ↑ ↓ ustawiają kolejność.'),
               productList,
-              el('p', { class: 'small' }, button('Select all', selectAll(true), 'link'), ' · ', button('Select none', selectAll(false), 'link')),
+              el('p', { class: 'small' }, button('Zaznacz wszystkie', selectAll(true), 'link'), ' · ', button('Odznacz wszystkie', selectAll(false), 'link')),
             ]),
         errorLine('products'),
       ),
-      section('Bag sizes', el('div', { class: 'offer-choices' }, ...sizeBoxes.map((b) => b.node)), errorLine('sizes')),
+      section('Wielkości torebek', el('div', { class: 'offer-choices' }, ...sizeBoxes.map((b) => b.node)), errorLine('sizes')),
       section(
-        'Discounts',
+        'Rabaty',
         el(
           'p',
           { class: 'muted small' },
-          `Up to ${MAX_TIERS} on one offer, so it stays readable. The name is shown next to each price, e.g. "Do 10 kg (-15%)". Add or change discounts under Packaging & discounts. With a client's special prices you may untick them all: then only their prices are shown (untick the products without one).`,
+          `Najwyżej ${MAX_TIERS} na jednej ofercie, żeby była czytelna. Nazwa jest przy każdej cenie, np. „Do 10 kg (-15%)”. Rabaty dodasz lub zmienisz w zakładce Opakowania i rabaty. Przy cenach specjalnych klienta możesz odznaczyć wszystkie: wtedy widać tylko jego ceny (odznacz produkty bez nich).`,
         ),
-        ...(tierRows.length > 0 ? [el('div', { class: 'offer-choices' }, ...tierRows.map((t) => t.node))] : [el('p', { class: 'muted' }, 'No discounts yet: add them under Packaging & discounts.')]),
+        ...(tierRows.length > 0 ? [el('div', { class: 'offer-choices' }, ...tierRows.map((t) => t.node))] : [el('p', { class: 'muted' }, 'Nie ma jeszcze rabatów: dodaj je w zakładce Opakowania i rabaty.')]),
         errorLine('tiers'),
       ),
       section(
-        'Banner at the bottom',
-        el('p', { class: 'muted small' }, 'Made from the ticked discounts and sizes. Change it here if needed; an empty line is left out.'),
+        'Baner na dole',
+        el('p', { class: 'muted small' }, 'Tworzony z zaznaczonych rabatów i wielkości. W razie potrzeby zmień go tutaj; pusta linia jest pomijana.'),
         el(
           'div',
           { class: 'fields' },
-          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerTitle.id }, 'Title')), bannerTitle),
-          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerLine.id }, 'Main line')), bannerLine),
-          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerNote.id }, 'Small print')), bannerNote),
+          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerTitle.id }, 'Tytuł')), bannerTitle),
+          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerLine.id }, 'Główna linia')), bannerLine),
+          el('div', { class: 'field field-wide' }, el('div', { class: 'label-row' }, el('label', { for: bannerNote.id }, 'Drobny druk')), bannerNote),
         ),
         el('p', { class: 'small' }, bannerReset),
         errorLine('banner'),
@@ -320,16 +320,16 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       el(
         'div',
         { class: 'actions' },
-        button('Save as PDF', saveAsPdf),
+        button('Zapisz jako PDF', saveAsPdf),
       ),
       el(
         'p',
         { class: 'muted small' },
-        'Chrome opens its print window: choose "Save as PDF" as the destination, then Save. The file name is already filled in.',
+        'Chrome otworzy okno drukowania: jako miejsce docelowe wybierz „Zapisz jako PDF”, potem Zapisz. Nazwa pliku jest już wpisana.',
       ),
       status,
       warnings,
-      el('h3', {}, 'Preview'),
+      el('h3', {}, 'Podgląd'),
       preview,
     );
     redraw();

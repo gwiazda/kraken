@@ -30,7 +30,7 @@ describe('bagSizeViews', () => {
     const { views, problems } = bagSizeViews([cost('250', 'Bag', '1.2'), cost('250', 'Label', '0.3'), cost('250', 'Old', '9', '2026-11-16'), cost('1000', 'Bag', '2')]);
     expect(views.map((v) => [v.label, v.itemsText])).toEqual([
       ['250 g', '1,50\u00a0zł'],
-      ['500 g', 'missing cost'],
+      ['500 g', 'brak kosztu'],
       ['1 kg', '2,00\u00a0zł'],
     ]);
     expect(problems).toEqual([]);
@@ -39,11 +39,11 @@ describe('bagSizeViews', () => {
   it('marks a size with a cost it cannot read as missing, and reports items of a size Kraken does not use', () => {
     const old = cost('3f2a-old-size', 'Label', '0.3');
     const { views, unplaced, problems } = bagSizeViews([cost('250', 'Bag', 'about 1 zł'), old]);
-    expect(views[0]).toMatchObject({ itemsText: 'missing cost', unreadable: true });
+    expect(views[0]).toMatchObject({ itemsText: 'brak kosztu', unreadable: true });
     expect(unplaced).toEqual([old]);
     expect(problems).toEqual([
-      '1 bag cost item is for a bag size Kraken does not use, so it is left out. Delete it under Packaging & discounts and add it again to 250 g, 500 g or 1 kg.',
-      'The cost "about 1 zł" of Bag (250 g) cannot be read, so that bag size shows "missing cost". Click it under Packaging & discounts to correct it.',
+      'Pozycje kosztów opakowań (1) dotyczą wielkości torebki, której Kraken nie używa, więc są pomijane. Usuń je w zakładce Opakowania i rabaty i dodaj ponownie do 250 g, 500 g albo 1 kg.',
+      'Nie da się odczytać kosztu „about 1 zł” (Bag, 250 g), więc ta wielkość torebki pokazuje „brak kosztu”. Kliknij go w zakładce Opakowania i rabaty, aby poprawić.',
     ]);
   });
 });
@@ -55,11 +55,11 @@ describe('lotCards', () => {
     const { cards } = lotCards([lot('L1')], [], [], sizes, DEFAULT_SETTINGS);
     expect(cards[0]).toMatchObject({
       title: 'KENYA-L1 · Kegwa',
-      subtitle: 'delivered 2026-09-08 · Kenya',
+      subtitle: 'dostarczona 08.09.2026 · Kenya',
       missing: '',
       greenPerKg: '77,00\u00a0zł / kg',
       loss: '15 %',
-      lossSource: 'usual loss: no roasts with both weights yet',
+      lossSource: 'zwykły ubytek: brak wypałów z obiema wagami',
       roastedFromKg: '0,85\u00a0kg',
       roastedPerKg: '90,59\u00a0zł / kg',
     });
@@ -77,37 +77,37 @@ describe('lotCards', () => {
           { markup: '3×', suggestedGrossGrosze: 8900, suggestedGross: '89\u00a0zł', suggestedNet: '72,36\u00a0zł', net: '72,44\u00a0zł', gross: '89,10\u00a0zł' },
         ],
       },
-      { grams: 500, label: '500 g', coffee: '45,29\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
-      { grams: 1000, label: '1 kg', coffee: '90,59\u00a0zł', items: 'missing cost', total: 'missing cost', missing: true, prices: [] },
+      { grams: 500, label: '500 g', coffee: '45,29\u00a0zł', items: 'brak kosztu', total: 'brak kosztu', missing: true, prices: [] },
+      { grams: 1000, label: '1 kg', coffee: '90,59\u00a0zł', items: 'brak kosztu', total: 'brak kosztu', missing: true, prices: [] },
     ]);
   });
 
   it('uses the average loss of the lot roasts, and the owner value over it', () => {
     const roasts = [roast('R1', '1000', '850'), roast('R2', '1000', '830')];
-    expect(lotCards([lot('L1')], roasts, [], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '16 %', lossSource: 'average of 2 roasts' });
+    expect(lotCards([lot('L1')], roasts, [], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '16 %', lossSource: 'średnia z 2 wypałów' });
     const own = lotCostFromFields({ id: 'O', lot_id: 'L1', roast_loss_percent: '14.2' }, 2);
-    expect(lotCards([lot('L1')], roasts, [own], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '14,2 %', lossSource: 'your own', ownLoss: own });
+    expect(lotCards([lot('L1')], roasts, [own], sizes, DEFAULT_SETTINGS).cards[0]).toMatchObject({ loss: '14,2 %', lossSource: 'własny', ownLoss: own });
   });
 
   it('reports roasts whose weights give a loss that makes no sense, and uses the default', () => {
     const { cards, problems } = lotCards([lot('L1')], [roast('R1', '1000', '1200')], [], sizes, DEFAULT_SETTINGS);
-    expect(cards[0]).toMatchObject({ loss: '15\u00a0%', lossSource: 'usual loss: the roast weights do not make sense' });
-    expect(problems).toEqual(['The roasts of KENYA-L1 give a roast loss below 0 % or of 100 % or more, so the default loss is used. Check their weights on the Roasts page.']);
+    expect(cards[0]).toMatchObject({ loss: '15\u00a0%', lossSource: 'zwykły ubytek: wagi wypałów są niesensowne' });
+    expect(problems).toEqual(['Wypały dostawy KENYA-L1 dają ubytek poniżej 0 % albo 100 % i więcej, więc używany jest zwykły ubytek. Sprawdź ich wagi w zakładce Wypały.']);
   });
 
   it('falls back to the average when the saved loss cannot be read, and says so', () => {
     const odd = lotCostFromFields({ id: 'O', lot_id: 'L1', roast_loss_percent: 'a lot' }, 2);
     const { cards, problems } = lotCards([lot('L1')], [], [odd], sizes, DEFAULT_SETTINGS);
-    expect(cards[0]?.lossSource).toBe('usual loss: no roasts with both weights yet');
-    expect(problems).toEqual(['The roast loss "a lot" saved for KENYA-L1 cannot be read; the average of its roasts is used instead.']);
+    expect(cards[0]?.lossSource).toBe('zwykły ubytek: brak wypałów z obiema wagami');
+    expect(problems).toEqual(['Nie da się odczytać ubytku „a lot” zapisanego dla KENYA-L1; zamiast niego używana jest średnia z jej wypałów.']);
   });
 
   it('says what is missing instead of calculating, newest delivery first, without deleted lots', () => {
     const lots = [lot('A', { coffee_price_net_pln: '' }), lot('B', { delivery_date: '2026-10-01', quantity_kg: '' }), lot('C', { deleted_at: '2026-11-01T00:00:00.000Z' })];
     const { cards } = lotCards(lots, [], [], sizes, DEFAULT_SETTINGS);
     expect(cards.map((c) => [c.lot.id, c.missing])).toEqual([
-      ['B', 'Quantity missing: add the kg delivered on the Lots page (click the lot).'],
-      ['A', 'Price missing: click "Add price" below.'],
+      ['B', 'Brak ilości: wpisz dostarczone kg w zakładce Dostawy (kliknij dostawę).'],
+      ['A', 'Brak ceny: kliknij „Dodaj cenę” poniżej.'],
     ]);
     expect(cards[0]?.bags).toEqual([]);
   });
@@ -152,14 +152,14 @@ describe('lotLosses (for the Lots page)', () => {
     const roasts = [roast('R1', '1000', '850', { roastime_bean_id: 'BA' }), roast('R2', '1000', '830', { roastime_bean_id: 'BA' })];
     const { losses, problems } = lotLosses(data, [lot('A', { roastime_bean_id: 'BA' }), lot('B', { roastime_bean_id: 'BB' }), lot('C', { roastime_bean_id: 'BC' })], roasts);
     expect(problems).toEqual([]);
-    expect(losses.get('A')).toEqual({ lossTenths: 160, source: 'average of 2 roasts', own: '' });
-    expect(losses.get('B')).toEqual({ lossTenths: 142, source: 'your own', own: '14.2' });
-    expect(losses.get('C')).toEqual({ lossTenths: 150, source: 'usual loss: no roasts with both weights yet', own: '' });
+    expect(losses.get('A')).toEqual({ lossTenths: 160, source: 'średnia z 2 wypałów', own: '' });
+    expect(losses.get('B')).toEqual({ lossTenths: 142, source: 'własny', own: '14.2' });
+    expect(losses.get('C')).toEqual({ lossTenths: 150, source: 'zwykły ubytek: brak wypałów z obiema wagami', own: '' });
   });
 
   it('reports a saved loss it cannot read, so the owner can correct it on the Lots page', () => {
     const odd = lotCostFromFields({ id: 'O', lot_id: 'A', roast_loss_percent: 'a lot' }, 2);
     const { problems } = lotLosses({ settings: [], costs: [], lotCosts: [odd], discounts: [], problems: [] }, [lot('A')], []);
-    expect(problems).toEqual(['The roast loss "a lot" saved for KENYA-A cannot be read; the average of its roasts is used instead.']);
+    expect(problems).toEqual(['Nie da się odczytać ubytku „a lot” zapisanego dla KENYA-A; zamiast niego używana jest średnia z jej wypałów.']);
   });
 });

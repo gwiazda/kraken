@@ -112,26 +112,26 @@ export function validateBeans(
 ): { ok: true; fields: Record<string, string>[] } | { ok: false; errors: BeanErrors[]; shares: string } {
   const errors: BeanErrors[] = forms.map(() => ({}));
   let shares = '';
-  if (forms.length > MAX_BEANS) shares = `A product can be made of at most ${MAX_BEANS} beans.`;
+  if (forms.length > MAX_BEANS) shares = `Produkt może się składać najwyżej z ${MAX_BEANS} ziaren.`;
   const total = forms.reduce((sum, f) => sum + f.sharePercent, 0);
   if (forms.length > 0 && (total !== 100 || forms.some((f) => !Number.isInteger(f.sharePercent) || f.sharePercent < 1))) {
-    shares = 'The shares must add up to 100 %, each at least 1 %.';
+    shares = 'Udziały muszą dawać razem 100 %, każdy co najmniej 1 %.';
   }
   const fields = forms.map((form, i) => {
     const e = errors[i] ?? {};
     const base = { position: String(i + 1), share_percent: String(form.sharePercent) };
     if (form.kind === 'lot') {
-      if (form.lotId === '') e.lotId = 'Choose a lot.';
-      else if (forms.some((other, j) => j < i && other.kind === 'lot' && other.lotId === form.lotId)) e.lotId = 'This lot is already in the product.';
+      if (form.lotId === '') e.lotId = 'Wybierz dostawę.';
+      else if (forms.some((other, j) => j < i && other.kind === 'lot' && other.lotId === form.lotId)) e.lotId = 'Ta dostawa jest już w produkcie.';
       return { ...base, lot_id: form.lotId, planned_name: '', planned_price_per_kg_pln: '', planned_roast_loss_percent: '' };
     }
     const name = form.plannedName.trim().replace(/\s+/g, ' ');
-    if (name === '') e.plannedName = 'Give it a name, e.g. Etiopia offer.';
-    else if (name.length > PLANNED_NAME_MAX) e.plannedName = `At most ${PLANNED_NAME_MAX} characters.`;
+    if (name === '') e.plannedName = 'Nadaj mu nazwę, np. Etiopia z oferty.';
+    else if (name.length > PLANNED_NAME_MAX) e.plannedName = `Najwyżej ${PLANNED_NAME_MAX} znaków.`;
     const price = typedBeanPrice(form.plannedPrice);
-    if (price === null) e.plannedPrice = 'Enter the price per kg in zł, with delivery and without VAT, e.g. 52,50.';
+    if (price === null) e.plannedPrice = 'Wpisz cenę za kg w zł, z dostawą i bez VAT, np. 52,50.';
     const loss = form.plannedLoss.trim() === '' ? null : percentTenths(form.plannedLoss.trim());
-    if (form.plannedLoss.trim() !== '' && loss === null) e.plannedLoss = 'Enter a percentage from 1 to 99, e.g. 16, or leave it empty.';
+    if (form.plannedLoss.trim() !== '' && loss === null) e.plannedLoss = 'Wpisz procent od 1 do 99, np. 16, albo zostaw puste.';
     return {
       ...base,
       lot_id: '',

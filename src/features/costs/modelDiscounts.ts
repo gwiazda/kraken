@@ -62,15 +62,15 @@ export function activeDiscounts(rows: readonly DiscountRow[]): { discounts: Disc
   const discounts: Discount[] = [];
   for (const row of rows.filter((r) => r.deletedAt === '')) {
     if (row.tenths === null) {
-      problems.push(`The discount "${row.percentText}" in row ${row.row} of the Discounts tab cannot be read, so it is left out.`);
+      problems.push(`Nie da się odczytać rabatu „${row.percentText}” w wierszu ${row.row} zakładki „Discounts”, więc jest pominięty.`);
       continue;
     }
     if (discounts.some((d) => d.tenths === row.tenths)) {
-      problems.push(`The Discounts tab has ${percentText(row.tenths).replace('.', ',')} % twice (row ${row.row}); Kraken uses the first.`);
+      problems.push(`Zakładka „Discounts” ma dwa razy ${percentText(row.tenths).replace('.', ',')} % (wiersz ${row.row}); Kraken używa pierwszego.`);
       continue;
     }
     if (row.name.length > DISCOUNT_NAME_MAX) {
-      problems.push(`The discount name "${row.name}" in row ${row.row} of the Discounts tab is longer than ${DISCOUNT_NAME_MAX} characters, so it will not fit on the offer. Click it here to shorten it.`);
+      problems.push(`Nazwa rabatu „${row.name}” w wierszu ${row.row} zakładki „Discounts” ma więcej niż ${DISCOUNT_NAME_MAX} znaków, więc nie zmieści się w ofercie. Kliknij ją tutaj, aby skrócić.`);
     }
     discounts.push({ row, tenths: row.tenths, name: row.name });
   }
@@ -89,10 +89,10 @@ export function validateDiscount(
 ): { ok: true; tenths: number; name: string; fields: Record<string, string> } | { ok: false; errors: Partial<DiscountForm> } {
   const errors: Partial<DiscountForm> = {};
   const tenths = percentFromCell(form.percent.trim());
-  if (typeof tenths !== 'number' || tenths === 0) errors.percent = 'Enter a discount from 1 to 99, e.g. 20.';
-  else if (others.some((d) => d.tenths === tenths)) errors.percent = 'This discount is already in the list.';
+  if (typeof tenths !== 'number' || tenths === 0) errors.percent = 'Wpisz rabat od 1 do 99, np. 20.';
+  else if (others.some((d) => d.tenths === tenths)) errors.percent = 'Ten rabat jest już na liście.';
   const name = form.name.trim().replace(/\s+/g, ' ');
-  if (name.length > DISCOUNT_NAME_MAX) errors.name = `At most ${DISCOUNT_NAME_MAX} characters, so it fits next to the prices on the offer.`;
+  if (name.length > DISCOUNT_NAME_MAX) errors.name = `Najwyżej ${DISCOUNT_NAME_MAX} znaków, żeby zmieściło się przy cenach w ofercie.`;
   if (typeof tenths !== 'number' || Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, tenths, name, fields: { percent: percentText(tenths), name } };
 }

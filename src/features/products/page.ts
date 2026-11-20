@@ -71,21 +71,21 @@ interface FieldSpec {
 /** The text fields; the Polish words in brackets are the labels on the offer. */
 const SECTIONS: readonly { title: string; fields: readonly FieldSpec[] }[] = [
   {
-    title: 'Product',
+    title: 'Produkt',
     fields: [
-      { key: 'name', label: 'Name on the offer', hint: 'e.g. Gwatemala, Kenia Filtr', required: true },
-      { key: 'brewMethod', label: 'Brew method', hint: 'e.g. Espresso, Filtr', list: BREW_METHODS },
+      { key: 'name', label: 'Nazwa w ofercie', hint: 'np. Gwatemala, Kenia Filtr', required: true },
+      { key: 'brewMethod', label: 'Metoda parzenia', hint: 'np. Espresso, Filtr', list: BREW_METHODS },
     ],
   },
   {
-    title: 'Details on the offer',
+    title: 'Szczegóły w ofercie',
     fields: [
-      { key: 'country', label: 'Country (Kraj)' },
-      { key: 'region', label: 'Region (Region)' },
-      { key: 'altitude', label: 'Altitude (Wysokość uprawy)', hint: 'e.g. 1900-2200 m n.p.m.' },
-      { key: 'processing', label: 'Processing (Obróbka)', hint: 'e.g. Washed, Natural' },
-      { key: 'variety', label: 'Variety (Odmiana)' },
-      { key: 'flavourProfile', label: 'Flavour profile (Profil smakowy)', hint: 'e.g. Migdał, biała czekolada' },
+      { key: 'country', label: 'Kraj' },
+      { key: 'region', label: 'Region' },
+      { key: 'altitude', label: 'Wysokość uprawy', hint: 'np. 1900-2200 m n.p.m.' },
+      { key: 'processing', label: 'Obróbka', hint: 'np. Washed, Natural' },
+      { key: 'variety', label: 'Odmiana' },
+      { key: 'flavourProfile', label: 'Profil smakowy', hint: 'np. Migdał, biała czekolada' },
     ],
   },
 ];
@@ -156,7 +156,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   /** Loads everything, then shows the list, or the product `openId` (after saving it). */
   function load(note?: string, fromClick = false, openId?: string): void {
-    render(el('p', {}, busy('Loading products…')));
+    render(el('p', {}, busy('Wczytuję produkty…')));
     // Never read the sheet while the order is being saved: the read could miss it and show the old order.
     if (saves.running > 0) {
       void saves.idle().then(() => {
@@ -207,12 +207,12 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       .withGoogle(() => (kind === 'remove' ? deps.repo.remove(product, deps.now()) : deps.repo.restore(product, deps.now())))
       .finally(() => setBusy(false))
       .then(() => {
-        if (root.isConnected) load(kind === 'remove' ? `Deleted ${product.name}. It can be restored under "Deleted products".` : `Restored ${product.name}.`);
+        if (root.isConnected) load(kind === 'remove' ? `Usunięto ${product.name}. Można go przywrócić w „Usunięte produkty”.` : `Przywrócono ${product.name}.`);
       })
       .catch((error: unknown) => {
         if (!root.isConnected) return;
         if (deps.isIgnorable(error)) return showList();
-        const working = kind === 'remove' ? `Deleting ${product.name}…` : `Restoring ${product.name}…`;
+        const working = kind === 'remove' ? `Usuwam ${product.name}…` : `Przywracam ${product.name}…`;
         const label = kind === 'remove' ? `Zaloguj się i usuń ${product.name}` : `Zaloguj się i przywróć ${product.name}`;
         const show = (e: unknown) => showList(undefined, errorNodes(e, () => change(product, kind, () => render(el('p', {}, busy(working)))), label, show, true));
         show(error);
@@ -233,21 +233,21 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     showList();
     if (focus) root.querySelector<HTMLElement>(`[data-grip="${CSS.escape(productId)}"]`)?.focus();
     setBusy(true);
-    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
+    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Zapisuję kolejność…'));
     void saves.save(order, deps.withGoogle).then((result) => {
       setBusy(false);
       if (result.kind === 'saved') {
-        if (orderNote?.isConnected && saves.running === 0) orderNote.textContent = 'Order saved.';
+        if (orderNote?.isConnected && saves.running === 0) orderNote.textContent = 'Kolejność zapisana.';
         return;
       }
       if (result.kind === 'skipped') return; // the failed save before it already went back and said why
       products = stored; // back to the order last saved
       const error = result.error;
       if (!orderNote?.isConnected) {
-        orderProblem = deps.isIgnorable(error) ? 'The order was not saved.' : `The order was not saved: ${deps.describeError(error)}`;
+        orderProblem = deps.isIgnorable(error) ? 'Kolejność nie została zapisana.' : `Kolejność nie została zapisana: ${deps.describeError(error)}`;
         return;
       }
-      if (deps.isIgnorable(error)) return showList('The order was not saved.');
+      if (deps.isIgnorable(error)) return showList('Kolejność nie została zapisana.');
       const show = (e: unknown) => showList(undefined, errorNodes(e, () => load(undefined, true), 'Zaloguj się i odśwież produkty', show, true, 'Odśwież produkty'));
       show(error);
     });
@@ -256,7 +256,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
   /** Opens a product from the list; while the order is being saved, first waits for it (a second or so). */
   function openFromList(product: Product): void {
     if (saves.running === 0) return showProduct(product);
-    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Saving the order…'));
+    if (orderNote?.isConnected) orderNote.replaceChildren(busy('Zapisuję kolejność…'));
     void saves.idle().then((ok) => {
       // Only if it worked and the list is still shown: a failed save shows its message instead.
       if (ok && orderNote?.isConnected) showProduct(products.find((p) => p.id === product.id) ?? product);
@@ -383,7 +383,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
   function showList(note?: string, error?: Node[]): void {
     deps.formClosed();
-    orderNote = el('span', { class: 'muted small order-note', role: 'status' }, saves.running > 0 ? busy('Saving the order…') : '');
+    orderNote = el('span', { class: 'muted small order-note', role: 'status' }, saves.running > 0 ? busy('Zapisuję kolejność…') : '');
     const shownProblem = orderProblem;
     orderProblem = '';
     const sorted = sortProducts(products);
@@ -399,7 +399,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       const actions = el('td', { class: 'row-actions nowrap' });
       /** The grip: drag it (mouse or finger) to another row, or focus it and press ↑ / ↓. */
       const grip = () => {
-        const handle = el('span', { class: 'drag-handle', 'data-grip': p.id, tabindex: '0', role: 'button', 'aria-label': `Move ${p.name}: drag, or press the up and down arrow keys`, title: 'Drag to change the order' }, '⠿');
+        const handle = el('span', { class: 'drag-handle', 'data-grip': p.id, tabindex: '0', role: 'button', 'aria-label': `Przesuń ${p.name}: przeciągnij albo użyj strzałek w górę i w dół`, title: 'Przeciągnij, aby zmienić kolejność' }, '⠿');
         handle.addEventListener('keydown', (event) => {
           if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
           event.preventDefault();
@@ -418,9 +418,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         const restore = () =>
           change(p, 'restore', () => {
             lockPage();
-            actions.replaceChildren(busy('Restoring…'));
+            actions.replaceChildren(busy('Przywracam…'));
           });
-        actions.append(button('Restore', restore, 'link'));
+        actions.append(button('Przywróć', restore, 'link'));
       }
       const tr = el(
         'tr',
@@ -431,14 +431,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           {},
           restorable ? el('span', {}, p.name) : el('strong', {}, p.name),
           ...(p.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, p.brewMethod)] : []),
-          ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Check')] : []),
+          ...(p.problems.length > 0 ? [' ', el('span', { class: 'badge badge-warn', title: p.problems.join(' ') }, 'Sprawdź')] : []),
         ),
         el('td', {}, origin(p) || el('span', { class: 'muted' }, '—')),
         ...BAG_SIZES_G.map((g) => el('td', { class: 'num nowrap' }, price(p, g))),
         ...(restorable ? [actions] : []),
       );
       // While the new order is saving, openFromList waits for it and then opens the product.
-      return restorable ? tr : clickableRow(tr, () => openFromList(p), `Open ${p.name}`, { whileSaving: true });
+      return restorable ? tr : clickableRow(tr, () => openFromList(p), `Otwórz ${p.name}`, { whileSaving: true });
     };
 
     const table = (list: readonly Product[], restorable: boolean) =>
@@ -454,9 +454,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             el(
               'tr',
               {},
-              ...(restorable ? [] : [el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Order'))]),
-              el('th', { scope: 'col' }, 'Product'),
-              el('th', { scope: 'col' }, 'Origin'),
+              ...(restorable ? [] : [el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Kolejność'))]),
+              el('th', { scope: 'col' }, 'Produkt'),
+              el('th', { scope: 'col' }, 'Pochodzenie'),
               ...BAG_SIZES_G.map((g) => el('th', { scope: 'col', class: 'num' }, formatBagSize(g))),
               ...(restorable ? [el('th', { scope: 'col' }, '')] : []),
             ),
@@ -466,12 +466,12 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
 
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Products'), el('div', { class: 'head-actions' }, button('Add product', () => showForm(null)))),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Produkty'), el('div', { class: 'head-actions' }, button('Dodaj produkt', () => showForm(null)))),
       el(
         'p',
         { class: 'muted small' },
-        'Main prices, gross (retail). Click a product to see its wholesale prices. ',
-        infoTip('Drag a product by its ⠿ to set the order of your products. The Offer uses the same order (you can still change it there for one offer), and so do the lists on other pages. New products go to the end.'),
+        'Główne ceny brutto (detal). Kliknij produkt, aby zobaczyć ceny hurtowe. ',
+        infoTip('Przeciągnij produkt za ⠿, aby ustawić kolejność produktów. Oferta korzysta z tej samej kolejności (tam możesz ją zmienić dla jednej oferty), tak samo listy na innych stronach. Nowe produkty trafiają na koniec.'),
         ' ',
         orderNote,
       ),
@@ -480,8 +480,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       ...(shownProblem ? [message(shownProblem, 'error')] : []),
       ...problems.map((text) => message(text, 'error')),
       ...active.filter((p) => p.problems.length > 0).map((p) => message(p.problems.join(' '), 'error')),
-      active.length === 0 ? el('p', { class: 'muted' }, 'No products yet. Click "Add product".') : table(active, false),
-      ...(deleted.length > 0 ? [el('details', { class: 'small deleted-products' }, el('summary', {}, `Deleted products (${deleted.length})`), table(deleted, true))] : []),
+      active.length === 0 ? el('p', { class: 'muted' }, 'Nie ma jeszcze produktów. Kliknij „Dodaj produkt”.') : table(active, false),
+      ...(deleted.length > 0 ? [el('details', { class: 'small deleted-products' }, el('summary', {}, `Usunięte produkty (${deleted.length})`), table(deleted, true))] : []),
     );
   }
 
@@ -505,7 +505,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const costCard = el(
       'section',
       { class: 'product-card' },
-      el('h3', {}, 'Cost and earnings ', infoTip(`What one bag costs you (the coffee from its beans plus the packaging), what you earn on it at the retail price, without VAT, and the gross margin. ${MARGIN_TIP}`)),
+      el('h3', {}, 'Koszt i zarobek ', infoTip(`Ile kosztuje Cię jedna torebka (kawa z jej ziaren plus opakowanie), ile na niej zarabiasz przy cenie detalicznej, netto, i marża brutto. ${MARGIN_TIP}`)),
       ...(made.madeOf
         ? [
             el('p', { class: 'made-of' }, made.madeOf, ...(made.perKg ? [el('span', { class: 'muted' }, ` · ${made.perKg}`)] : [])),
@@ -514,14 +514,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             el(
               'details',
               { class: 'how' },
-              el('summary', {}, 'How is this worked out?'),
+              el('summary', {}, 'Jak to jest liczone?'),
               ...(made.perKgSteps.length > 0 ? [el('ol', { class: 'how-steps' }, ...made.perKgSteps.map((step) => el('li', {}, step)))] : []),
               ...made.rows
                 .filter((r) => r.steps.length > 0)
                 .map((r) => el('div', {}, el('strong', {}, r.size), el('ol', { class: 'how-steps' }, ...r.steps.map((step) => el('li', {}, step))))),
             ),
           ]
-        : [el('p', { class: 'muted' }, 'Choose the beans this product is made of (Edit) to see what a bag costs and earns.')]),
+        : [el('p', { class: 'muted' }, 'Wybierz ziarna, z których jest ten produkt (Edytuj), aby zobaczyć koszt i zarobek na torebce.')]),
     );
 
     const details = productDetails(product);
@@ -529,22 +529,22 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const confirm = el('div', {});
     const normal = () => {
       confirm.replaceChildren();
-      actions.replaceChildren(button('Try in Product planner', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edit', () => showForm(product), 'secondary'), button('Delete', ask, 'secondary'));
+      actions.replaceChildren(button('Sprawdź w planerze', () => deps.openPlanner(plannerStartOf(product)), 'secondary'), button('Edytuj', () => showForm(product), 'secondary'), button('Usuń', ask, 'secondary'));
     };
     const ask = () => {
       const no = button('Nie', normal, 'secondary');
       const yes = () =>
         change(product, 'remove', () => {
           lockPage();
-          confirm.replaceChildren(el('p', {}, busy('Deleting…')));
+          confirm.replaceChildren(el('p', {}, busy('Usuwam…')));
         });
-      confirm.replaceChildren(el('p', { class: 'message muted' }, `Delete ${product.name}? It can be restored later from the list. `, button('Yes, delete', yes, 'primary'), ' ', no));
+      confirm.replaceChildren(el('p', { class: 'message muted' }, `Usunąć ${product.name}? Można go później przywrócić z listy. `, button('Tak, usuń', yes, 'primary'), ' ', no));
       no.focus();
     };
     normal();
 
     render(
-      el('p', { class: 'small back-link' }, button('← All products', () => showList(), 'link')),
+      el('p', { class: 'small back-link' }, button('← Wszystkie produkty', () => showList(), 'link')),
       el('div', { class: 'page-head' }, el('h2', {}, product.name, ...(product.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, product.brewMethod)] : [])), actions),
       confirm,
       ...(note ? [message(note)] : []),
@@ -555,9 +555,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         el(
           'h3',
           {},
-          'Prices ',
+          'Ceny ',
           infoTip(
-            'Retail is what a shop customer pays, with VAT. Wholesale is what a business pays: the retail price without VAT, made cheaper by their discount and rounded to whole złoty.',
+            'Detal to cena dla klienta w sklepie, z VAT. Hurt to cena dla firmy: cena detaliczna netto, obniżona o jej rabat i zaokrąglona do pełnych złotych.',
           ),
         ),
         pricesHolder,
@@ -566,9 +566,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       el(
         'section',
         { class: 'product-card' },
-        el('h3', {}, 'On the offer'),
+        el('h3', {}, 'W ofercie'),
         details.length === 0
-          ? el('p', { class: 'muted' }, 'No details yet. Click Edit to add them.')
+          ? el('p', { class: 'muted' }, 'Brak szczegółów. Kliknij Edytuj, aby je dodać.')
           : el('dl', { class: 'product-details' }, ...details.flatMap((d) => [el('dt', {}, d.label), el('dd', {}, d.value)])),
       ),
     );
@@ -589,9 +589,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             'tr',
             {},
             el('th', { scope: 'col' }, ''),
-            el('th', { scope: 'col', class: 'num' }, 'Cost of one bag'),
-            el('th', { scope: 'col', class: 'num' }, 'You earn per bag'),
-            el('th', { scope: 'col', class: 'num' }, 'Gross margin ', infoTip(MARGIN_TIP)),
+            el('th', { scope: 'col', class: 'num' }, 'Koszt jednej torebki'),
+            el('th', { scope: 'col', class: 'num' }, 'Zarabiasz na torebce'),
+            el('th', { scope: 'col', class: 'num' }, 'Marża brutto ', infoTip(MARGIN_TIP)),
           ),
         ),
         el(
@@ -603,7 +603,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               {},
               el('th', { scope: 'row' }, r.size),
               el('td', { class: 'num nowrap' }, el('strong', { class: 'price-main' }, r.cost || '—'), ...(r.parts ? [el('span', { class: 'price-other' }, r.parts)] : [])),
-              el('td', { class: `num nowrap${r.losing ? ' losing' : ''}` }, r.earnings ? el('strong', { class: 'price-main' }, r.earnings) : el('span', { class: 'muted' }, r.cost ? 'no retail price' : '—')),
+              el('td', { class: `num nowrap${r.losing ? ' losing' : ''}` }, r.earnings ? el('strong', { class: 'price-main' }, r.earnings) : el('span', { class: 'muted' }, r.cost ? 'brak ceny detalicznej' : '—')),
               el('td', { class: `num nowrap${r.marginLosing ? ' losing' : ''}` }, r.margin ? el('strong', { class: 'price-main' }, r.margin) : el('span', { class: 'muted' }, '—')),
             ),
           ),
@@ -646,15 +646,15 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     // The beans and the prices: the planner, the same piece as the Product planner tab (one place for both, owner 2026-11-19).
     const existingBeans = product ? beansOf(beans, product.id) : [];
     const planner = createPlanner({ settings, beanLots, packaging }, startFrom ?? plannerStartOf(product), {
-      pricesTitle: 'Main prices, with VAT',
-      pricesIntro: 'What a shop customer pays. Click a suggestion or type your own; empty: not offered. ',
+      pricesTitle: 'Główne ceny, z VAT',
+      pricesIntro: 'Ile płaci klient w sklepie. Kliknij propozycję albo wpisz własną; puste: nie w ofercie. ',
     });
 
     const banner = el('div', { class: 'form-banner' });
-    const label = product ? 'Save changes' : 'Save product';
+    const label = product ? 'Zapisz zmiany' : 'Zapisz produkt';
     const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
     const back = () => (product ? showProduct(product) : showList());
-    const cancelButton = button('Cancel', back, 'secondary');
+    const cancelButton = button('Anuluj', back, 'secondary');
     const readForm = (): ProductForm => {
       const prices = planner.prices();
       const text = Object.fromEntries(TEXT_KEYS.map((key) => [key, inputs[key].value])) as Pick<ProductForm, TextKey>;
@@ -673,7 +673,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const setBusy = (working: boolean) => {
       saveButton.disabled = working;
       cancelButton.disabled = working;
-      saveButton.replaceChildren(working ? busy('Saving…') : label);
+      saveButton.replaceChildren(working ? busy('Zapisuję…') : label);
     };
 
     /** The product once its row is saved: if the beans then fail, a retry saves only the beans (never a second product). */
@@ -688,7 +688,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       );
       if (!result.ok || !beanCheck.ok) {
         showErrors(result.ok ? {} : result.errors);
-        banner.replaceChildren(message('Please fix what is marked below.', 'error'));
+        banner.replaceChildren(message('Popraw to, co jest zaznaczone poniżej.', 'error'));
         return;
       }
       showErrors({});
@@ -719,7 +719,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         })
         .finally(() => setBusy(false))
         .then((id) => {
-          if (root.isConnected) load(`Saved ${result.fields['name'] ?? ''}.`, false, id);
+          if (root.isConnected) load(`Zapisano ${result.fields['name'] ?? ''}.`, false, id);
         })
         .catch((error: unknown) => {
           setBusy(false);
@@ -745,9 +745,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     });
 
     render(
-      el('p', { class: 'small back-link' }, button(product ? `← ${product.name}` : '← All products', back, 'link')),
-      el('h2', {}, product ? `Edit ${product.name}` : 'Add product'),
-      el('p', { class: 'muted small' }, 'Fields marked * are required. Empty details are left out of the offer.'),
+      el('p', { class: 'small back-link' }, button(product ? `← ${product.name}` : '← Wszystkie produkty', back, 'link')),
+      el('h2', {}, product ? `Edytuj ${product.name}` : 'Dodaj produkt'),
+      el('p', { class: 'muted small' }, 'Pola oznaczone * są wymagane. Puste szczegóły są pomijane w ofercie.'),
       ...(product ? product.problems.map((text) => message(text, 'error')) : []),
       banner,
       formNode,

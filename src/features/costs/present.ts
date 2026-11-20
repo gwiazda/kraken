@@ -1,7 +1,9 @@
 // The cost calculation as plain text (bag costs per size, lot cards for suggestions and roast loss), so it is tested without a browser. Joins the lots, the roasts
 // (for the average roast loss) and the cost tabs, and runs the calculation.
 
+import { formatDate } from '../../core/dates';
 import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
+import { plural } from '../../core/polish';
 import { isDeleted, sortLots, type Lot } from '../lots';
 import { allocate, type Roast } from '../roasts';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
@@ -17,7 +19,7 @@ export interface BagSizeView {
   readonly id: string;
   readonly label: string;
   readonly costs: readonly BagCost[];
-  /** Net cost of the items together, e.g. "1,15 zł"; "missing cost" when none are entered. */
+  /** Net cost of the items together, e.g. "1,15 zł"; "brak kosztu" when none are entered. */
   readonly itemsText: string;
   readonly unreadable: boolean;
 }
@@ -30,7 +32,7 @@ export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[];
   const unplaced = active.filter((c) => !ids.includes(c.bagSizeId));
   if (unplaced.length > 0) {
     problems.push(
-      `${unplaced.length} bag cost item${unplaced.length === 1 ? ' is' : 's are'} for a bag size Kraken does not use, so ${unplaced.length === 1 ? 'it is' : 'they are'} left out. Delete ${unplaced.length === 1 ? 'it' : 'them'} under Packaging & discounts and add ${unplaced.length === 1 ? 'it' : 'them'} again to 250 g, 500 g or 1 kg.`,
+      `Pozycje kosztów opakowań (${unplaced.length}) dotyczą wielkości torebki, której Kraken nie używa, więc są pomijane. Usuń je w zakładce Opakowania i rabaty i dodaj ponownie do 250 g, 500 g albo 1 kg.`,
     );
   }
   const views = BAG_SIZES_G.map((grams): BagSizeView => {
@@ -38,10 +40,10 @@ export function bagSizeViews(costs: readonly BagCost[]): { views: BagSizeView[];
     const own = active.filter((c) => c.bagSizeId === id);
     const unreadable = own.some((c) => c.costGrosze === null);
     for (const c of own.filter((c) => c.costGrosze === null)) {
-      problems.push(`The cost "${c.costText}" of ${c.item || 'an item'} (${formatBagSize(grams)}) cannot be read, so that bag size shows "missing cost". Click it under Packaging & discounts to correct it.`);
+      problems.push(`Nie da się odczytać kosztu „${c.costText}” (${c.item || 'pozycja'}, ${formatBagSize(grams)}), więc ta wielkość torebki pokazuje „brak kosztu”. Kliknij go w zakładce Opakowania i rabaty, aby poprawić.`);
     }
     const sum = own.reduce((total, c) => total + (c.costGrosze ?? 0), 0);
-    return { grams, id, label: formatBagSize(grams), costs: own, itemsText: own.length === 0 || unreadable ? 'missing cost' : formatPln(sum), unreadable };
+    return { grams, id, label: formatBagSize(grams), costs: own, itemsText: own.length === 0 || unreadable ? 'brak kosztu' : formatPln(sum), unreadable };
   });
   return { views, unplaced, problems };
 }
@@ -51,7 +53,7 @@ export interface BagLine {
   readonly label: string;
   readonly coffee: string;
   readonly items: string;
-  /** "missing cost" when the size has no (readable) cost items. */
+  /** "brak kosztu" when the size has no (readable) cost items. */
   readonly total: string;
   readonly missing: boolean;
   /**
@@ -125,14 +127,14 @@ export function lotCards(
   const cards = active.map((lot): LotCard => {
     const own = lotCosts.find((c) => c.deletedAt === '' && c.lotId === lot.id);
     if (own && own.lossTenths === null && own.lossText !== '') {
-      problems.push(`The roast loss "${own.lossText}" saved for ${lot.code} cannot be read; the average of its roasts is used instead.`);
+      problems.push(`Nie da się odczytać ubytku „${own.lossText}” zapisanego dla ${lot.code}; zamiast niego używana jest średnia z jej wypałów.`);
     }
     const lotShares = shares.get(lot.id) ?? [];
     const average = averageLoss(lotShares);
     const weighed = lotShares.filter((s) => s.roastedDecigrams !== null && s.roastedDecigrams > 0 && s.partGrams > 0).length;
     const nonsense = average === null && weighed > 0;
     if (nonsense && !(own && own.lossTenths !== null)) {
-      problems.push(`The roasts of ${lot.code} give a roast loss below 0 % or of 100 % or more, so the default loss is used. Check their weights on the Roasts page.`);
+      problems.push(`Wypały dostawy ${lot.code} dają ubytek poniżej 0 % albo 100 % i więcej, więc używany jest zwykły ubytek. Sprawdź ich wagi w zakładce Wypały.`);
     }
     const { loss, source } = chooseLoss(own?.lossTenths ?? null, average, settings);
     const price = lot.coffeePriceGrosze === null ? null : lot.coffeePriceGrosze + (lot.deliveryCostGrosze ?? 0);
@@ -140,16 +142,16 @@ export function lotCards(
     const lossTenths = Math.round(loss * 1000);
     const lossSource =
       source.kind === 'own'
-        ? 'your own'
+        ? 'własny'
         : source.kind === 'average'
-          ? `average of ${source.roasts} roast${source.roasts === 1 ? '' : 's'}`
+          ? `średnia z ${source.roasts} ${plural(source.roasts, 'wypału', 'wypałów', 'wypałów')}`
           : nonsense
-            ? 'usual loss: the roast weights do not make sense'
-            : 'usual loss: no roasts with both weights yet';
+            ? 'zwykły ubytek: wagi wypałów są niesensowne'
+            : 'zwykły ubytek: brak wypałów z obiema wagami';
     const base = {
       lot,
       title: `${lot.code} · ${lot.name}`,
-      subtitle: [lot.deliveryDate && `delivered ${lot.deliveryDate}`, lot.country].filter((t) => t).join(' · '),
+      subtitle: [lot.deliveryDate && `dostarczona ${formatDate(lot.deliveryDate)}`, lot.country].filter((t) => t).join(' · '),
       loss: formatPercent(lossTenths),
       lossTenths,
       lossSource,
@@ -158,8 +160,8 @@ export function lotCards(
     if (!calc) {
       const missing =
         lot.coffeePriceGrosze === null
-          ? 'Price missing: click "Add price" below.'
-          : 'Quantity missing: add the kg delivered on the Lots page (click the lot).';
+          ? 'Brak ceny: kliknij „Dodaj cenę” poniżej.'
+          : 'Brak ilości: wpisz dostarczone kg w zakładce Dostawy (kliknij dostawę).';
       return { ...base, missing, greenPerKg: '', greenPerKgGrosze: null, roastedFromKg: '', roastedPerKg: '', bags: [] };
     }
     return {
@@ -173,8 +175,8 @@ export function lotCards(
         grams: bag.grams,
         label: sizes[i]?.label ?? formatBagSize(bag.grams),
         coffee: money(bag.coffee),
-        items: bag.items === null ? 'missing cost' : money(bag.items),
-        total: bag.total === null ? 'missing cost' : money(bag.total),
+        items: bag.items === null ? 'brak kosztu' : money(bag.items),
+        total: bag.total === null ? 'brak kosztu' : money(bag.total),
         missing: bag.total === null,
         prices: bag.prices.map((p) => ({
           markup: formatMarkup(p.markupHundredths),

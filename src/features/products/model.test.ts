@@ -37,8 +37,8 @@ describe('reading a product', () => {
     const odd = product(3, { price_250_gross_pln: 'about 45', price_1000_gross_pln: '0' });
     expect(odd.prices).toEqual({});
     expect(odd.problems).toEqual([
-      'The 250 g price "about 45" of Gwatemala cannot be read, so that size has no price. Edit the product to correct it.',
-      'The 1 kg price "0" of Gwatemala cannot be read, so that size has no price. Edit the product to correct it.',
+      'Nie da się odczytać ceny za 250 g „about 45” (Gwatemala), więc ta wielkość nie ma ceny. Popraw ją w produkcie.',
+      'Nie da się odczytać ceny za 1 kg „0” (Gwatemala), więc ta wielkość nie ma ceny. Popraw ją w produkcie.',
     ]);
   });
 
@@ -126,11 +126,11 @@ describe('the product form', () => {
     expect(validateProductForm(form)).toEqual({
       ok: false,
       errors: {
-        name: 'Enter the name shown on the offer, e.g. Gwatemala.',
-        region: 'At most 200 characters.',
-        price250: 'Enter the gross price in zł, e.g. 45, or leave it empty.',
-        price500: 'Enter the gross price in zł, e.g. 45, or leave it empty.',
-        price1000: 'That is more than 10 000 zł per bag; please check.',
+        name: 'Wpisz nazwę widoczną w ofercie, np. Gwatemala.',
+        region: 'Najwyżej 200 znaków.',
+        price250: 'Wpisz cenę brutto w zł, np. 45, albo zostaw puste.',
+        price500: 'Wpisz cenę brutto w zł, np. 45, albo zostaw puste.',
+        price1000: 'To ponad 10 000 zł za torebkę; sprawdź, proszę.',
       },
     });
   });

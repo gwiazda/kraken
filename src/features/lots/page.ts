@@ -248,7 +248,7 @@ export function showLotsPage(root: HTMLElement, deps: LotsPageDeps, note?: strin
         el('td', { class: 'num nowrap' }, row.quantity),
         el('td', { class: `num nowrap${row.overdrawn ? ' overdrawn' : ''}` }, row.stockLeft),
         el('td', { class: 'num nowrap' }, row.pricePerKg || (row.deleted || row.lot.coffeePriceGrosze !== null ? '—' : el('span', { class: 'badge badge-warn' }, 'Add price'))),
-        el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossNote === 'your own' ? [el('span', { class: 'muted small' }, ' (own)')] : [])),
+        el('td', { class: 'num nowrap', ...(row.lossNote ? { title: row.lossNote } : {}) }, row.loss || '—', ...(row.lossOwn ? [el('span', { class: 'muted small' }, ' (own)')] : [])),
         el('td', {}, row.supplier),
         el('td', { class: 'nowrap' }, el('span', { class: row.source === 'RoasTime' ? 'badge badge-muted' : 'muted small' }, row.source)),
         cell,

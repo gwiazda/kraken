@@ -6,11 +6,11 @@ import { discountHeader, type CompareRow, type PriceCell, type PriceRow } from '
 
 /** What gross margin means, in plain words (owner, 2026-11-19: clear and transparent), for every tooltip that shows it. */
 export const MARGIN_TIP =
-  'Gross margin: the part of the price without VAT that stays with you after paying for the bag (its coffee and packaging). 50 % means that of every 100 zł without VAT, 50 zł is yours. The higher, the better; below 0 % you lose money on every bag.';
+  'Marża brutto: część ceny netto, która zostaje Ci po zapłaceniu za torebkę (kawę i opakowanie). 50 % znaczy, że z każdych 100 zł netto 50 zł jest Twoje. Im wyżej, tym lepiej; poniżej 0 % tracisz na każdej torebce.';
 
 /** A wholesale column's header: the discount's name on top, then "−15 %". */
 const discountTh = (d: { tenths: number; name: string }) =>
-  el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Wholesale', el('br'), discountHeader(d.tenths));
+  el('th', { scope: 'col', class: 'num' }, d.name ? el('span', { class: 'col-name' }, d.name) : 'Hurt', el('br'), discountHeader(d.tenths));
 
 function priceCell(cell: Pick<PriceCell, 'main' | 'earn' | 'margin' | 'losing' | 'marginLosing'> & { other?: string }, extra = ''): HTMLTableCellElement {
   return el(
@@ -38,7 +38,7 @@ export function pricesTable(rows: readonly PriceRow[], discounts: readonly { ten
           'tr',
           {},
           el('th', { scope: 'col' }, ''),
-          el('th', { scope: 'col', class: 'num col-retail' }, 'Retail ', infoTip(`What a shop customer pays, with VAT. Under each price, once the cost of a bag is known: what one bag earns (without VAT) and the gross margin. ${MARGIN_TIP}`)),
+          el('th', { scope: 'col', class: 'num col-retail' }, 'Detal ', infoTip(`Ile płaci klient w sklepie, z VAT. Pod każdą ceną, gdy znany jest koszt torebki: ile zarabiasz na torebce (netto) i marża brutto. ${MARGIN_TIP}`)),
           ...discounts.map(discountTh),
         ),
       ),
@@ -69,9 +69,9 @@ export function compareTable(rows: readonly CompareRow[], discounts: readonly { 
         el(
           'tr',
           {},
-          el('th', { scope: 'col' }, 'Product'),
-          el('th', { scope: 'col', class: 'num' }, 'Cost of a bag ', infoTip('What one bag costs you: the coffee from its beans plus the packaging, without VAT.')),
-          el('th', { scope: 'col', class: 'num' }, 'Retail price ', infoTip(`What a shop customer pays, with VAT. The wholesale columns show the price after each discount, without VAT. Under each price: what one bag earns at it and the gross margin. ${MARGIN_TIP}`)),
+          el('th', { scope: 'col' }, 'Produkt'),
+          el('th', { scope: 'col', class: 'num' }, 'Koszt torebki ', infoTip('Ile kosztuje Cię jedna torebka: kawa z jej ziaren plus opakowanie, netto.')),
+          el('th', { scope: 'col', class: 'num' }, 'Cena detaliczna ', infoTip(`Ile płaci klient w sklepie, z VAT. Kolumny hurtowe pokazują cenę po każdym rabacie, netto. Pod każdą ceną: ile zarabiasz na torebce i marża brutto. ${MARGIN_TIP}`)),
           ...discounts.map(discountTh),
         ),
       ),
@@ -82,7 +82,7 @@ export function compareTable(rows: readonly CompareRow[], discounts: readonly { 
           el(
             'tr',
             r.isPlan ? { class: 'compare-plan' } : {},
-            el('th', { scope: 'row' }, r.isPlan ? '▶ This plan' : r.name),
+            el('th', { scope: 'row' }, r.isPlan ? '▶ Ten plan' : r.name),
             el('td', { class: 'num nowrap' }, r.cost || muted(r.note)),
             priceCell({ ...r, main: r.price }),
             ...r.atDiscounts.map((a) => priceCell({ ...a, main: a.price })),

@@ -26,6 +26,8 @@ export interface LotListRow {
   readonly loss: string;
   /** Where it comes from: "average of 23 roasts", "your own", … */
   readonly lossNote: string;
+  /** True when the loss is the owner's own number for this lot (not the average of its roasts). */
+  readonly lossOwn: boolean;
   /** Problems with this lot's cells, one sentence each. */
   readonly problems: readonly string[];
   /** Deleted lots are only listed with "Show deleted", greyed out, with Restore. */
@@ -68,6 +70,7 @@ export function lotListRows(lots: readonly Lot[], showDeleted = false, stock: St
       pricePerKg: perKg === null ? '' : formatPln(perKg),
       loss: loss ? formatLoss(loss.lossTenths) : '',
       lossNote: loss?.source ?? '',
+      lossOwn: loss !== undefined && loss.own !== '',
       problems: lot.problems,
       deleted: isDeleted(lot),
       deletedNote: isDeleted(lot) ? deletedNote(lot.deletedAt) : '',

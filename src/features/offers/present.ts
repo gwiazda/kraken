@@ -63,8 +63,8 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
     const missing = sizes.filter((g) => p.prices[g] === undefined);
     if (sizes.length === 0) {
       // nothing to say per product: validateOffer asks to tick a size
-    } else if (missing.length === sizes.length) warnings.push(`${p.name} has no price for ${missing.map(formatBagSize).join(' or ')}, so it is shown without prices. Add them on the Products page.`);
-    else if (missing.length > 0) warnings.push(`${p.name} has no price for ${missing.map(formatBagSize).join(' and ')}, so that size is left out for it.`);
+    } else if (missing.length === sizes.length) warnings.push(`${p.name} nie ma ceny za ${missing.map(formatBagSize).join(' ani ')}, więc jest pokazany bez cen. Dodaj je w zakładce Produkty.`);
+    else if (missing.length > 0) warnings.push(`${p.name} nie ma ceny za ${missing.map(formatBagSize).join(' i ')}, więc ta wielkość jest dla niego pominięta.`);
     const details = [
       ['Kraj', p.country],
       ['Region', p.region],

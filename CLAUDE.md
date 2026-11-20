@@ -18,8 +18,8 @@ do not treat them as decided until the owner confirms.
   Numbers that change a word use `core/polish.ts` (1 wypał, 2 wypały, 5 wypałów).
 - **Code, sheet column names, tab names, code comments and the docs stay in English** (the data never changes
   because of the translation). When the owners write Polish, the requirements are still written in English.
-- Being translated in steps (2026-11-20): shared parts and Sales and Clients done; next Products, the planner, Offer
-  and Packaging & discounts, then Lots, Roasts and Sync.
+- Being translated in steps (2026-11-20): shared parts, Sales, Clients, Offer, Products, the planner and Packaging &
+  discounts done; last Lots, Roasts and Sync.
 
 ## Users
 Internal only. Exactly two users: the owner and their business partner, both on Gmail accounts.

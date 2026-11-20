@@ -28,6 +28,12 @@ The code, the sheet's tab and column names and the docs stay in English.
 | Follow-up notes | Notatki |
 | Notes (of an entry) | Uwagi |
 | Gross margin | Marża brutto |
+| Earns / loses (per bag) | zarabiasz / strata (na torebce) |
+| Cost of one bag | koszt jednej torebki |
+| Made of (a product's beans) | Skład |
+| Planned bean | planowane ziarno |
+| Packaging item | pozycja (opakowania) |
+| Customer (on an offer) | Odbiorca |
 | Net / gross | netto / brutto |
 | Wholesale / retail | hurt (hurtowa) / detal (detaliczna) |
 | Discount | rabat |

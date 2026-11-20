@@ -63,7 +63,7 @@ export function productFromFields(fields: Fields, row: number): Product {
     if (cell === '') continue;
     const grosze = parseMoney(cell);
     if (typeof grosze === 'number' && grosze > 0) prices[grams] = grosze;
-    else problems.push(`The ${formatBagSize(grams)} price "${cell}" of ${name || `row ${row}`} cannot be read, so that size has no price. Edit the product to correct it.`);
+    else problems.push(`Nie da się odczytać ceny za ${formatBagSize(grams)} „${cell}” (${name || `wiersz ${row}`}), więc ta wielkość nie ma ceny. Popraw ją w produkcie.`);
   }
   return {
     id: text(fields, 'id'),
@@ -208,10 +208,10 @@ export function validateProductForm(form: ProductForm): { ok: true; fields: Reco
   for (const [key, column] of Object.entries(TEXT_KEYS) as [keyof typeof TEXT_KEYS, string][]) {
     const value = form[key].trim().replace(/\s+/g, ' ');
     const max = key === 'name' ? 60 : 200;
-    if (value.length > max) errors[key] = `At most ${max} characters.`;
+    if (value.length > max) errors[key] = `Najwyżej ${max} znaków.`;
     fields[column] = value;
   }
-  if (fields['name'] === '') errors.name = 'Enter the name shown on the offer, e.g. Gwatemala.';
+  if (fields['name'] === '') errors.name = 'Wpisz nazwę widoczną w ofercie, np. Gwatemala.';
   for (const [key, grams] of Object.entries(PRICE_KEYS) as [keyof typeof PRICE_KEYS, BagSize][]) {
     const typed = form[key].trim();
     if (typed === '') {
@@ -219,8 +219,8 @@ export function validateProductForm(form: ProductForm): { ok: true; fields: Reco
       continue;
     }
     const grosze = parseMoney(typed);
-    if (typeof grosze !== 'number' || grosze <= 0) errors[key] = 'Enter the gross price in zł, e.g. 45, or leave it empty.';
-    else if (grosze > 1000000) errors[key] = 'That is more than 10 000 zł per bag; please check.';
+    if (typeof grosze !== 'number' || grosze <= 0) errors[key] = 'Wpisz cenę brutto w zł, np. 45, albo zostaw puste.';
+    else if (grosze > 1000000) errors[key] = 'To ponad 10 000 zł za torebkę; sprawdź, proszę.';
     else fields[priceColumn(grams)] = moneyText(grosze);
   }
   return Object.keys(errors).length > 0 ? { ok: false, errors } : { ok: true, fields };

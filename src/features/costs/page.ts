@@ -45,7 +45,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
   function load(note?: string, fromClick = false): void {
-    render(el('p', {}, busy('Loading…')));
+    render(el('p', {}, busy('Wczytuję…')));
     (fromClick ? deps.withGoogle(() => deps.repo.load()) : deps.repo.load())
       .then((costs) => {
         if (!root.isConnected) return;
@@ -113,8 +113,8 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     const { views, unplaced, problems: sizeProblems } = bagSizeViews(data.costs);
     const discounts = activeDiscounts(data.discounts);
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Packaging & discounts')),
-      el('p', { class: 'muted small' }, 'The numbers Kraken uses to work out prices. Entered once here, used for every product and offer.'),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Opakowania i rabaty')),
+      el('p', { class: 'muted small' }, 'Liczby, z których Kraken liczy ceny. Wpisujesz je raz tutaj; służą każdemu produktowi i ofercie.'),
       ...(note ? [message(note)] : []),
       ...[...data.problems, ...settingProblems, ...sizeProblems, ...discounts.problems].map((text) => message(text, 'error')),
       bagsNode(views, unplaced),
@@ -129,7 +129,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   const writeAll = (list: readonly { tenths: number; name: string }[]) => async () => {
     // Someone else may have saved discounts since this page was loaded: then writing the defaults again would
     // double them, so stop and ask to reload instead.
-    if ((await deps.repo.load()).discounts.length > 0) throw new Error('The discounts were changed meanwhile (maybe by your partner). Reload the page and try again.');
+    if ((await deps.repo.load()).discounts.length > 0) throw new Error('Rabaty zostały w międzyczasie zmienione (może przez wspólnika). Odśwież stronę i spróbuj ponownie.');
     await deps.repo.addDiscounts(list.map(discountFields), await deps.whoAmI(), deps.now());
   };
 
@@ -144,19 +144,19 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       };
       const remove = () => {
         const row = d.row;
-        save(actions, 'Deleting…', row ? () => deps.repo.removeDiscount(row, deps.now()) : writeAll(others), `Discount −${formatPercent(d.tenths)} deleted.`);
+        save(actions, 'Usuwam…', row ? () => deps.repo.removeDiscount(row, deps.now()) : writeAll(others), `Usunięto rabat −${formatPercent(d.tenths)}.`);
       };
       let asking = false;
       const normal = () => {
         asking = false;
-        actions.replaceChildren(button('Delete', ask, 'link'));
+        actions.replaceChildren(button('Usuń', ask, 'link'));
       };
       const ask = () => {
         asking = true;
-        actions.replaceChildren(`Delete −${formatPercent(d.tenths)}? `, button('Tak', remove), ' ', button('Nie', normal, 'secondary'));
+        actions.replaceChildren(`Usunąć −${formatPercent(d.tenths)}? `, button('Tak', remove), ' ', button('Nie', normal, 'secondary'));
       };
       normal();
-      return clickableRow(tr, edit, `Change the discount −${formatPercent(d.tenths)}`, { asking: () => asking });
+      return clickableRow(tr, edit, `Zmień rabat −${formatPercent(d.tenths)}`, { asking: () => asking });
     });
 
     return el(
@@ -165,22 +165,22 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       el(
         'h3',
         {},
-        'Wholesale discounts ',
+        'Rabaty hurtowe ',
         infoTip(
-          'How much cheaper a business customer gets their coffee. The name appears next to the price on the offer, so they know when the discount applies.',
+          'O ile taniej firma kupuje Twoją kawę. Nazwa pojawia się przy cenie w ofercie, żeby klient wiedział, kiedy rabat obowiązuje.',
         ),
       ),
-      el('p', { class: 'muted small' }, `Each discount has a short name for the offer (at most ${DISCOUNT_NAME_MAX} characters). On the Offer page you tick which ones to include.`),
+      el('p', { class: 'muted small' }, `Każdy rabat ma krótką nazwę do oferty (najwyżej ${DISCOUNT_NAME_MAX} znaków). W zakładce Oferta zaznaczasz, które trafią do oferty.`),
       ...(rows.length > 0
         ? [
             el(
               'table',
               { class: 'data-table discounts-table' },
-              el('thead', {}, el('tr', {}, el('th', { scope: 'col', class: 'num' }, 'Discount'), el('th', { scope: 'col' }, 'Name on the offer'), el('th', { scope: 'col' }, ''))),
+              el('thead', {}, el('tr', {}, el('th', { scope: 'col', class: 'num' }, 'Rabat'), el('th', { scope: 'col' }, 'Nazwa w ofercie'), el('th', { scope: 'col' }, ''))),
               el('tbody', {}, ...rows),
             ),
           ]
-        : [el('p', { class: 'muted' }, 'No discounts. Add one below.')]),
+        : [el('p', { class: 'muted' }, 'Brak rabatów. Dodaj rabat poniżej.')]),
       discountForm(null, discounts, undefined, usingDefaults ? discounts : null),
     );
   }
@@ -191,24 +191,24 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
    */
   function discountForm(discount: Discount | null, others: readonly Discount[], cancel: (() => void) | undefined, defaults: readonly Discount[] | null): HTMLElement {
     const prefix = `discount-${discount?.tenths ?? 'new'}`;
-    const percent = el('input', { id: `${prefix}-percent`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'e.g. 20' });
+    const percent = el('input', { id: `${prefix}-percent`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'np. 20' });
     percent.value = discount ? percentText(discount.tenths).replace('.', ',') : '';
-    const name = el('input', { id: `${prefix}-name`, type: 'text', autocomplete: 'off', placeholder: 'e.g. Do 10 kg', maxlength: String(DISCOUNT_NAME_MAX) });
+    const name = el('input', { id: `${prefix}-name`, type: 'text', autocomplete: 'off', placeholder: 'np. Do 10 kg', maxlength: String(DISCOUNT_NAME_MAX) });
     name.value = discount?.name ?? '';
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
     const status = el('div', { class: 'save-status' });
     const form = el(
       'form',
       { class: 'inline-form', novalidate: '' },
-      el('label', { for: percent.id, class: 'visually-hidden' }, 'Discount %'),
+      el('label', { for: percent.id, class: 'visually-hidden' }, 'Rabat %'),
       '−',
       percent,
       '% ',
-      el('label', { for: name.id, class: 'visually-hidden' }, 'Name on the offer'),
+      el('label', { for: name.id, class: 'visually-hidden' }, 'Nazwa w ofercie'),
       name,
       ' ',
-      el('button', { type: 'submit', class: discount ? 'btn btn-primary' : 'btn btn-secondary' }, discount ? 'Save' : 'Add discount'),
-      ...(cancel ? [' ', button('Cancel', cancel, 'secondary')] : []),
+      el('button', { type: 'submit', class: discount ? 'btn btn-primary' : 'btn btn-secondary' }, discount ? 'Zapisz' : 'Dodaj rabat'),
+      ...(cancel ? [' ', button('Anuluj', cancel, 'secondary')] : []),
       ' ',
       status,
       errorLine,
@@ -220,9 +220,9 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       if (!result.ok) return;
       const label = `−${formatPercent(result.tenths)}`;
       const row = discount?.row;
-      if (defaults) save(status, 'Saving…', writeAll([...defaults.filter((d) => d !== discount), { tenths: result.tenths, name: result.name }]), `Discount ${label} saved.`);
-      else if (row) save(status, 'Saving…', () => deps.repo.updateDiscount(row, result.fields, deps.now()), `Discount ${label} saved.`);
-      else save(status, 'Adding…', async () => deps.repo.addDiscounts([result.fields], await deps.whoAmI(), deps.now()), `Discount ${label} added.`);
+      if (defaults) save(status, 'Zapisuję…', writeAll([...defaults.filter((d) => d !== discount), { tenths: result.tenths, name: result.name }]), `Zapisano rabat ${label}.`);
+      else if (row) save(status, 'Zapisuję…', () => deps.repo.updateDiscount(row, result.fields, deps.now()), `Zapisano rabat ${label}.`);
+      else save(status, 'Dodaję…', async () => deps.repo.addDiscounts([result.fields], await deps.whoAmI(), deps.now()), `Dodano rabat ${label}.`);
     });
     if (discount) queueMicrotask(() => percent.focus());
     return form;
@@ -237,10 +237,10 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       el(
         'h3',
         {},
-        'Packaging ',
-        infoTip('Everything in a bag apart from the coffee: the bag, label, valve, sticker. Price per piece, without VAT. The same for every product.'),
+        'Opakowania ',
+        infoTip('Wszystko w torebce poza kawą: torebka, etykieta, zawór, naklejka. Cena za sztukę, netto. Taka sama dla każdego produktu.'),
       ),
-      el('p', { class: 'muted small' }, 'What one bag of each size costs you besides the coffee (net, per piece).'),
+      el('p', { class: 'muted small' }, 'Ile kosztuje Cię jedna torebka każdej wielkości poza kawą (netto, za sztukę).'),
       el('div', { class: 'bag-sizes' }, ...views.map(sizeNode)),
       ...(unplaced.length > 0 ? [unplacedNode(unplaced)] : []),
     );
@@ -251,7 +251,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     return el(
       'div',
       { class: 'bag-size' },
-      el('h4', {}, 'Not used (an old bag size)'),
+      el('h4', {}, 'Nieużywane (stara wielkość torebki)'),
       el(
         'table',
         { class: 'data-table' },
@@ -260,8 +260,8 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
           {},
           ...items.map((item) => {
             const actions = el('td', { class: 'row-actions nowrap' });
-            actions.replaceChildren(button('Delete', () => save(actions, 'Deleting…', () => deps.repo.removeBagCost(item, deps.now()), `${item.item} deleted.`), 'link'));
-            return el('tr', {}, el('td', {}, item.item || '—'), el('td', { class: 'num nowrap' }, item.costGrosze === null ? `"${item.costText}"` : formatPln(item.costGrosze)), actions);
+            actions.replaceChildren(button('Usuń', () => save(actions, 'Usuwam…', () => deps.repo.removeBagCost(item, deps.now()), `Usunięto: ${item.item}.`), 'link'));
+            return el('tr', {}, el('td', {}, item.item || '—'), el('td', { class: 'num nowrap' }, item.costGrosze === null ? `„${item.costText}”` : formatPln(item.costGrosze)), actions);
           }),
         ),
       ),
@@ -269,7 +269,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   }
 
   function settingsNode(settings: CostSettings): HTMLElement {
-    return el('section', { class: 'product-card' }, el('h3', {}, 'VAT and roast loss'), settingsForm(settings));
+    return el('section', { class: 'product-card' }, el('h3', {}, 'VAT i ubytek przy paleniu'), settingsForm(settings));
   }
 
   function settingsForm(settings: CostSettings): HTMLElement {
@@ -298,15 +298,15 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       el(
         'div',
         { class: 'fields' },
-        field('vat', 'VAT %', 'Usually 23.', 'The tax added on top of your price. A bag you sell for 48 zł becomes 59,04 zł with 23 % VAT.'),
+        field('vat', 'VAT %', 'Zwykle 23.', 'Podatek doliczany do Twojej ceny. Torebka za 48 zł netto kosztuje z 23 % VAT 59,04 zł.'),
         field(
           'defaultLoss',
-          'Usual roast loss %',
-          'Used for a lot with no roasts yet, and for a planned bean.',
-          'Beans get lighter when roasted. With 15 % loss, 1 kg of green beans becomes 850 g of roasted coffee. Used until a lot has roasts of its own.',
+          'Zwykły ubytek przy paleniu %',
+          'Używany dla dostawy bez wypałów i dla planowanego ziarna.',
+          'Ziarno przy paleniu traci na wadze. Przy 15 % ubytku z 1 kg zielonego ziarna jest 850 g palonej kawy. Używany, dopóki dostawa nie ma własnych wypałów.',
         ),
       ),
-      el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Save settings')),
+      el('div', { class: 'actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Zapisz ustawienia')),
       status,
     );
     form.addEventListener('submit', (event) => {
@@ -316,7 +316,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       for (const [key, line] of errors) line.textContent = result.ok ? '' : (result.errors[key] ?? '');
       if (!result.ok) return;
       const loaded = data?.settings ?? [];
-      save(status, 'Saving…', () => deps.repo.saveSettings(result.values, loaded, deps.whoAmI, deps.now()), 'Settings saved.');
+      save(status, 'Zapisuję…', () => deps.repo.saveSettings(result.values, loaded, deps.whoAmI, deps.now()), 'Zapisano ustawienia.');
     });
     return form;
   }
@@ -326,13 +326,13 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     return el(
       'div',
       { class: 'bag-size' },
-      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, view.costs.length === 0 ? 'nothing entered yet' : `together: ${view.itemsText}`)),
+      el('h4', {}, `${view.label} `, el('span', { class: 'muted small' }, view.costs.length === 0 ? 'nic jeszcze nie wpisano' : `razem: ${view.itemsText}`)),
       ...(rows.length > 0
         ? [
             el(
               'table',
               { class: 'data-table' },
-              el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, 'Item'), el('th', { scope: 'col', class: 'num' }, 'Net cost per bag'), el('th', { scope: 'col' }, ''))),
+              el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, 'Pozycja'), el('th', { scope: 'col', class: 'num' }, 'Koszt netto na torebkę'), el('th', { scope: 'col' }, ''))),
               el('tbody', {}, ...rows),
             ),
           ]
@@ -347,7 +347,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       'tr',
       {},
       el('td', {}, cost.item),
-      el('td', { class: 'num nowrap' }, cost.costGrosze === null ? `"${cost.costText}"` : formatPln(cost.costGrosze)),
+      el('td', { class: 'num nowrap' }, cost.costGrosze === null ? `„${cost.costText}”` : formatPln(cost.costGrosze)),
       actions,
     );
     const edit = () => {
@@ -357,42 +357,42 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     let asking = false;
     const normal = () => {
       asking = false;
-      actions.replaceChildren(button('Delete', ask, 'link'));
+      actions.replaceChildren(button('Usuń', ask, 'link'));
     };
     const ask = () => {
       asking = true;
       actions.replaceChildren(
-        `Delete ${cost.item}? `,
-        button('Yes', () => save(actions, 'Deleting…', () => deps.repo.removeBagCost(cost, deps.now()), `${cost.item} (${view.label}) deleted.`)),
+        `Usunąć ${cost.item}? `,
+        button('Tak', () => save(actions, 'Usuwam…', () => deps.repo.removeBagCost(cost, deps.now()), `Usunięto: ${cost.item} (${view.label}).`)),
         ' ',
         button('Nie', normal, 'secondary'),
       );
     };
     normal();
-    return clickableRow(tr, edit, `Change ${cost.item} (${view.label})`, { asking: () => asking });
+    return clickableRow(tr, edit, `Zmień ${cost.item} (${view.label})`, { asking: () => asking });
   }
 
   /** Adds a cost item to a size (`cost` null), or edits one. */
   function costForm(view: BagSizeView, cost: BagCost | null, cancel?: () => void): HTMLElement {
     const initial: BagCostForm = cost ? formFromBagCost(cost) : { item: '', cost: '' };
     const prefix = `cost-${view.id}-${cost?.id ?? 'new'}`;
-    const item = el('input', { id: `${prefix}-item`, type: 'text', autocomplete: 'off', placeholder: 'e.g. Bag' });
+    const item = el('input', { id: `${prefix}-item`, type: 'text', autocomplete: 'off', placeholder: 'np. Torebka' });
     item.value = initial.item;
-    const amount = el('input', { id: `${prefix}-cost`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'zł net' });
+    const amount = el('input', { id: `${prefix}-cost`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-short', placeholder: 'zł netto' });
     amount.value = initial.cost;
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
     const status = el('div', { class: 'save-status' });
     const form = el(
       'form',
       { class: 'inline-form', novalidate: '' },
-      el('label', { for: item.id, class: 'visually-hidden' }, 'Item'),
+      el('label', { for: item.id, class: 'visually-hidden' }, 'Pozycja'),
       item,
       ' ',
-      el('label', { for: amount.id, class: 'visually-hidden' }, 'Net cost per bag (zł)'),
+      el('label', { for: amount.id, class: 'visually-hidden' }, 'Koszt netto na torebkę (zł)'),
       amount,
       ' zł ',
-      el('button', { type: 'submit', class: cost ? 'btn btn-primary' : 'btn btn-secondary' }, cost ? 'Save' : `Add item to ${view.label}`),
-      ...(cancel ? [' ', button('Cancel', cancel, 'secondary')] : []),
+      el('button', { type: 'submit', class: cost ? 'btn btn-primary' : 'btn btn-secondary' }, cost ? 'Zapisz' : `Dodaj pozycję do ${view.label}`),
+      ...(cancel ? [' ', button('Anuluj', cancel, 'secondary')] : []),
       ' ',
       status,
       errorLine,
@@ -402,13 +402,13 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       const result = validateBagCostForm({ item: item.value, cost: amount.value });
       errorLine.textContent = result.ok ? '' : [result.errors.item, result.errors.cost].filter((t) => t).join(' ');
       if (!result.ok) return;
-      if (cost) save(status, 'Saving…', () => deps.repo.updateBagCost(cost, result.fields, deps.now()), `${result.fields.item} (${view.label}) saved.`);
+      if (cost) save(status, 'Zapisuję…', () => deps.repo.updateBagCost(cost, result.fields, deps.now()), `Zapisano: ${result.fields.item} (${view.label}).`);
       else
         save(
           status,
-          'Adding…',
+          'Dodaję…',
           async () => deps.repo.addBagCost({ ...result.fields, bag_size_id: view.id }, await deps.whoAmI(), deps.now()),
-          `${result.fields.item} added to ${view.label}.`,
+          `Dodano ${result.fields.item} do ${view.label}.`,
         );
     });
     if (cost) queueMicrotask(() => item.focus());
