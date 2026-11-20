@@ -2,6 +2,7 @@
 // Everything from outside comes through RoastsPageDeps (main.ts provides it).
 
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
+import { formatDate } from '../../core/dates';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { listView, type ListViewColumn } from '../../ui/listView';
 import { parsePercent } from '../../domain/percent';
@@ -49,13 +50,13 @@ const typedPercent = (typed: string) => {
  * compared are the row's, the same as shown (present.ts, tested there).
  */
 const ROAST_COLUMNS: readonly ListViewColumn<RoastListRow>[] = [
-  { header: 'Roasted', filter: { kind: 'month', key: 'month', label: 'month roasted', value: (r) => r.day } },
-  { header: 'Name', filter: { kind: 'text', key: 'name', label: 'name', value: (r) => r.name } },
-  { header: 'Coffee', filter: { kind: 'choice', key: 'coffee', label: 'coffee', values: (r) => [r.coffee] } },
-  { header: 'Green', filter: { kind: 'range', key: 'green', label: 'green kg', value: (r) => r.greenGrams, parse: typedKg } },
-  { header: 'Roasted', filter: { kind: 'range', key: 'roasted', label: 'roasted kg', value: (r) => r.roastedGrams, parse: typedKg } },
-  { header: 'Loss', filter: { kind: 'range', key: 'loss', label: 'loss %', value: (r) => r.lossTenths, parse: typedPercent } },
-  { header: 'Lot', filter: { kind: 'choice', key: 'lot', label: 'lot', values: (r) => r.lotCodes } },
+  { header: 'Wypał', filter: { kind: 'month', key: 'month', label: 'miesiąc wypału', value: (r) => r.day } },
+  { header: 'Nazwa', filter: { kind: 'text', key: 'name', label: 'nazwa', value: (r) => r.name } },
+  { header: 'Kawa', filter: { kind: 'choice', key: 'coffee', label: 'kawa', values: (r) => [r.coffee] } },
+  { header: 'Zielona', filter: { kind: 'range', key: 'green', label: 'zielona, kg', value: (r) => r.greenGrams, parse: typedKg } },
+  { header: 'Palona', filter: { kind: 'range', key: 'roasted', label: 'palona, kg', value: (r) => r.roastedGrams, parse: typedKg } },
+  { header: 'Ubytek', filter: { kind: 'range', key: 'loss', label: 'ubytek, %', value: (r) => r.lossTenths, parse: typedPercent } },
+  { header: 'Dostawa', filter: { kind: 'choice', key: 'lot', label: 'dostawa', values: (r) => r.lotCodes } },
   { header: '', filter: null },
 ];
 
@@ -69,7 +70,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
   function load(note?: string, fromClick = false): void {
-    render(el('p', {}, busy('Loading roasts…')));
+    render(el('p', {}, busy('Wczytuję wypały…')));
     const both = () => Promise.all([deps.repo.load(), deps.lots.load()]);
     (fromClick ? deps.withGoogle(both) : both())
       .then(([r, l]) => {
@@ -124,13 +125,13 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
     function change(row: RoastListRow, kind: 'remove' | 'restore', tr: HTMLTableRowElement, cell: HTMLElement): void {
       lockPage();
       tr.classList.add('row-busy');
-      cell.replaceChildren(busy(kind === 'remove' ? 'Deleting…' : 'Restoring…'));
+      cell.replaceChildren(busy(kind === 'remove' ? 'Usuwam…' : 'Przywracam…'));
       deps.busy(true);
       deps
         .withGoogle(() => (kind === 'remove' ? deps.repo.remove(row.roast, deps.now()) : deps.repo.restore(row.roast, deps.now())))
         .finally(() => deps.busy(false))
         .then(() => {
-          if (root.isConnected) load(kind === 'remove' ? 'Roast deleted. "Show deleted" brings it back.' : 'Roast restored.');
+          if (root.isConnected) load(kind === 'remove' ? 'Usunięto wypał. „Pokaż usunięte” go przywróci.' : 'Przywrócono wypał.');
         })
         .catch((e: unknown) => {
           if (!root.isConnected) return;
@@ -146,17 +147,17 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
     function rowNodes(row: RoastListRow): HTMLTableRowElement[] {
       const cell = el('td', { class: 'row-actions nowrap' });
       const marks = [
-        ...(row.sample ? [el('span', { class: 'badge badge-muted' }, 'Sample')] : []),
-        ...(row.needsLot ? [el('span', { class: 'badge badge-warn' }, 'Needs a lot')] : []),
-        ...(row.beforeDelivery ? [el('span', { class: 'badge', title: 'Roasted before this lot was delivered: check the coffee chosen in RoasTime.' }, 'Before delivery')] : []),
-        ...(row.chosen ? [el('span', { class: 'badge badge-muted', title: 'Lot chosen in Kraken' }, 'Chosen')] : []),
-        ...(row.problems.length > 0 ? [el('span', { class: 'badge badge-warn', title: row.problems.join(' ') }, 'Check')] : []),
+        ...(row.sample ? [el('span', { class: 'badge badge-muted' }, 'Próbka')] : []),
+        ...(row.needsLot ? [el('span', { class: 'badge badge-warn' }, 'Potrzebna dostawa')] : []),
+        ...(row.beforeDelivery ? [el('span', { class: 'badge', title: 'Wypalony przed dostawą tej partii: sprawdź kawę wybraną w RoasTime.' }, 'Przed dostawą')] : []),
+        ...(row.chosen ? [el('span', { class: 'badge badge-muted', title: 'Dostawa wybrana w Krakenie' }, 'Wybrana')] : []),
+        ...(row.problems.length > 0 ? [el('span', { class: 'badge badge-warn', title: row.problems.join(' ') }, 'Sprawdź')] : []),
       ];
       const tr = el(
         'tr',
         row.deleted ? { class: 'row-deleted' } : {},
         el('td', { class: 'nowrap' }, row.when),
-        el('td', {}, row.name, ...(row.source === 'By hand' ? [' ', el('span', { class: 'muted small' }, '(by hand)')] : [])),
+        el('td', {}, row.name, ...(row.source === 'By hand' ? [' ', el('span', { class: 'muted small' }, '(ręcznie)')] : [])),
         el('td', {}, row.coffee),
         el('td', { class: 'num nowrap' }, row.green),
         el('td', { class: 'num nowrap' }, row.roasted),
@@ -167,10 +168,10 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       const confirmRow = el('tr', { class: 'confirm-row', hidden: '' });
       const normal = (focusDelete = false) => {
         confirmRow.hidden = true;
-        const del = button('Delete', ask, 'link');
+        const del = button('Usuń', ask, 'link');
         cell.replaceChildren(
           ...(row.deleted
-            ? [button('Restore', () => change(row, 'restore', tr, cell), 'link')]
+            ? [button('Przywróć', () => change(row, 'restore', tr, cell), 'link')]
             : [del]),
         );
         if (focusDelete) del.focus();
@@ -182,9 +183,9 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
           el(
             'td',
             { colspan: '8' },
-            el('span', {}, `Delete the roast ${row.name} (${row.when})? It can be restored later under "Show deleted". `),
+            el('span', {}, `Usunąć wypał ${row.name} (${row.when})? Można go później przywrócić w „Pokaż usunięte”. `),
             button(
-              'Yes, delete',
+              'Tak, usuń',
               () => {
                 confirmRow.hidden = true;
                 change(row, 'remove', tr, cell);
@@ -199,7 +200,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
         no.focus();
       };
       normal();
-      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', roast: row.roast }), `Open the roast ${row.name} (${row.when})`, { asking: () => !confirmRow.hidden });
+      if (!row.deleted) clickableRow(tr, () => showForm({ kind: 'edit', roast: row.roast }), `Otwórz wypał ${row.name} (${row.when})`, { asking: () => !confirmRow.hidden });
       return [tr, confirmRow];
     }
 
@@ -214,31 +215,31 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       el(
         'div',
         { class: 'page-head' },
-        el('h2', {}, 'Roasts'),
-        el('div', { class: 'head-actions' }, button('Add roast', () => showForm({ kind: 'add' }))),
+        el('h2', {}, 'Wypały'),
+        el('div', { class: 'head-actions' }, button('Dodaj wypał', () => showForm({ kind: 'add' }))),
       ),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
       ...(noCoffee > 0
-        ? [message(`${noCoffee} roast${noCoffee === 1 ? ' has' : 's have'} no coffee chosen in RoasTime: choose a lot (click the roast), or mark ${noCoffee === 1 ? 'it' : 'them'} as a sample. Until then ${noCoffee === 1 ? 'it is' : 'they are'} not counted in any lot.`, 'error')]
+        ? [message(`Wypały bez kawy wybranej w RoasTime: ${noCoffee}. Wybierz dostawę (kliknij wypał) albo oznacz jako próbkę. Do tego czasu nie są liczone w żadnej dostawie.`, 'error')]
         : []),
       ...(noLotForCoffee > 0
-        ? [message(`${noLotForCoffee} roast${noLotForCoffee === 1 ? ' is' : 's are'} of a coffee that has no lot in Kraken yet: sync the delivery from RoasTime, add the lot by hand, or choose a lot (click the roast).`, 'error')]
+        ? [message(`Wypały kawy, która nie ma jeszcze dostawy w Krakenie: ${noLotForCoffee}. Zsynchronizuj dostawę z RoasTime, dodaj dostawę ręcznie albo wybierz dostawę (kliknij wypał).`, 'error')]
         : []),
       el(
         'p',
         { class: 'switches small' },
-        ...(needing > 0 ? [switchBox('only-needs-lot', `Only roasts that need a lot (${needing})`, onlyNeedsLot, (on) => ((onlyNeedsLot = on), showList()))] : []),
-        ...(deletedCount > 0 ? [switchBox('show-deleted-roasts', `Show deleted (${deletedCount})`, showDeleted, (on) => ((showDeleted = on), showList()))] : []),
+        ...(needing > 0 ? [switchBox('only-needs-lot', `Tylko wypały bez dostawy (${needing})`, onlyNeedsLot, (on) => ((onlyNeedsLot = on), showList()))] : []),
+        ...(deletedCount > 0 ? [switchBox('show-deleted-roasts', `Pokaż usunięte (${deletedCount})`, showDeleted, (on) => ((showDeleted = on), showList()))] : []),
       ),
       rows.length === 0
-        ? el('p', { class: 'muted' }, 'No roasts yet. Bring in the roasting log with "Sync with RoasTime" under Settings, or click "Add roast".')
+        ? el('p', { class: 'muted' }, 'Nie ma jeszcze wypałów. Pobierz dziennik palenia przez „Synchronizuj z RoasTime” w Ustawieniach albo kliknij „Dodaj wypał”.')
         : listView({
             key: 'roasts',
             rows,
             columns: ROAST_COLUMNS,
-            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'by hand' : '', ...r.marks].join(' '),
+            text: (r) => [r.when, r.name, r.coffee, r.green, r.roasted, r.loss, r.lots, r.source === 'By hand' ? 'ręcznie' : '', ...r.marks].join(' '),
             rowNodes,
             names: { rows: 'wypały', none: 'Nie ma jeszcze wypałów.' },
           }),
@@ -280,8 +281,8 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
     const lotSelect = el(
       'select',
       { id: 'roast-lotId' },
-      el('option', { value: '' }, roast && roast.roastime.beanId !== '' ? 'Automatic: oldest delivery of its coffee first' : 'No lot (not counted)'),
-      ...choosable.map((lot) => el('option', { value: lot.id }, `${lot.code} · ${lot.name} · delivered ${lot.deliveryDate}`)),
+      el('option', { value: '' }, roast && roast.roastime.beanId !== '' ? 'Automatycznie: najpierw najstarsza dostawa tej kawy' : 'Bez dostawy (nieliczony)'),
+      ...choosable.map((lot) => el('option', { value: lot.id }, `${lot.code} · ${lot.name} · dostarczona ${formatDate(lot.deliveryDate)}`)),
     );
     lotSelect.value = initial.lotId;
     const sample = el('input', { type: 'checkbox', id: 'roast-sample' });
@@ -304,32 +305,32 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
     };
 
     const banner = el('div', { class: 'form-banner' });
-    const save = el('button', { type: 'submit', class: 'btn btn-primary' }, mode.kind === 'add' ? 'Save roast' : 'Save changes');
-    const cancel = button('Cancel', () => showList(), 'secondary');
+    const save = el('button', { type: 'submit', class: 'btn btn-primary' }, mode.kind === 'add' ? 'Zapisz wypał' : 'Zapisz zmiany');
+    const cancel = button('Anuluj', () => showList(), 'secondary');
 
     function submit(): void {
       const result = validateRoastForm(read(), full, ids);
       if (!result.ok) {
         showErrors(result.errors);
-        banner.replaceChildren(message('Please fix the fields marked below.', 'error'));
+        banner.replaceChildren(message('Popraw pola zaznaczone poniżej.', 'error'));
         return;
       }
       showErrors({});
       banner.replaceChildren();
       save.disabled = true;
       cancel.disabled = true;
-      save.replaceChildren(busy('Saving…'));
+      save.replaceChildren(busy('Zapisuję…'));
       deps.busy(true);
       deps
         .withGoogle(async () => (roast ? deps.repo.update(roast, result.fields, deps.now()) : deps.repo.add(result.fields, await deps.whoAmI(), deps.now())))
         .finally(() => deps.busy(false))
         .then(() => {
-          if (root.isConnected) load('Roast saved.');
+          if (root.isConnected) load('Zapisano wypał.');
         })
         .catch((error: unknown) => {
           save.disabled = false;
           cancel.disabled = false;
-          save.replaceChildren(mode.kind === 'add' ? 'Save roast' : 'Save changes');
+          save.replaceChildren(mode.kind === 'add' ? 'Zapisz wypał' : 'Zapisz zmiany');
           if (!root.isConnected || deps.isIgnorable(error)) return;
           const show = (e: unknown) => banner.replaceChildren(...saveError(e, () => submit(), show, 'Odśwież wypały (bez tego formularza)'));
           show(error);
@@ -342,46 +343,46 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
       el(
         'fieldset',
         { class: 'form-section' },
-        el('legend', {}, 'Roast'),
+        el('legend', {}, 'Wypał'),
         full
           ? el(
               'div',
               { class: 'fields' },
-              field('date', 'Date *', date),
-              field('time', 'Time', time),
-              field('name', 'Name', name, 'e.g. Kenia 03.11.2026-1'),
-              field('greenG', 'Green weight (g) *', green, 'Weight before roasting, whole grams.'),
-              field('roastedG', 'Roasted weight (g)', roasted, 'Weight after roasting. Can be entered later.'),
+              field('date', 'Data *', date),
+              field('time', 'Godzina', time),
+              field('name', 'Nazwa', name, 'np. Kenia 03.11.2026-1'),
+              field('greenG', 'Waga zielonej (g) *', green, 'Waga przed paleniem, pełne gramy.'),
+              field('roastedG', 'Waga palonej (g)', roasted, 'Waga po paleniu. Można wpisać później.'),
             )
           : el(
               'p',
               { class: 'muted small' },
-              `${roast?.name || 'Roast'} from RoasTime. Date, name and weights come from RoasTime; change them there and sync again.`,
+              `${roast?.name || 'Wypał'} z RoasTime. Data, nazwa i wagi pochodzą z RoasTime; zmień je tam i zsynchronizuj ponownie.`,
             ),
       ),
       el(
         'fieldset',
         { class: 'form-section' },
-        el('legend', {}, 'Lot'),
+        el('legend', {}, 'Dostawa'),
         el(
           'div',
           { class: 'fields' },
           field(
             'lotId',
-            'Lot',
+            'Dostawa',
             lotSelect,
-            roast && roast.roastime.beanId !== '' ? 'Leave on automatic unless the roast used a different lot.' : 'Without a lot the roast is not counted in any stock.',
-            'Stock left is calculated from these choices; nothing else changes.',
+            roast && roast.roastime.beanId !== '' ? 'Zostaw automatycznie, chyba że wypał był z innej dostawy.' : 'Bez dostawy wypał nie jest liczony w żadnym stanie.',
+            'Z tych wyborów liczone jest, ile zostało; nic innego się nie zmienia.',
           ),
           el(
             'div',
             { class: 'field' },
-            el('div', { class: 'label-row' }, el('label', { for: 'roast-sample' }, 'Sample'), infoTip('A sample with a coffee or a lot is counted in stock; without one it is not.')),
-            el('span', {}, sample, ' ', el('label', { for: 'roast-sample' }, 'This roast was a sample')),
+            el('div', { class: 'label-row' }, el('label', { for: 'roast-sample' }, 'Próbka'), infoTip('Próbka z kawą albo dostawą jest liczona w stanie; bez nich nie jest.')),
+            el('span', {}, sample, ' ', el('label', { for: 'roast-sample' }, 'Ten wypał był próbką')),
           ),
         ),
       ),
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Notes'), el('div', { class: 'fields' }, field('notes', 'Notes', notes))),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Uwagi'), el('div', { class: 'fields' }, field('notes', 'Uwagi', notes))),
       el('div', { class: 'actions' }, save, cancel),
     );
     form.addEventListener('submit', (event) => {
@@ -390,7 +391,7 @@ export function showRoastsPage(root: HTMLElement, deps: RoastsPageDeps, note?: s
     });
 
     render(
-      el('h2', {}, mode.kind === 'add' ? 'Add roast' : `Edit roast ${roast?.name || ''}`),
+      el('h2', {}, mode.kind === 'add' ? 'Dodaj wypał' : `Wypał ${roast?.name || ''}`),
       ...(roast && roast.problems.length > 0 ? roast.problems.map((t) => message(t, 'error')) : []),
       banner,
       form,

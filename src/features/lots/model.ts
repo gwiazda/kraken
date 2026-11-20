@@ -68,13 +68,13 @@ export function lotFromFields(fields: Fields, row: number): Lot {
   const number = (name: string, label: string, parse: (t: string) => number | null | undefined, where = ''): number | null => {
     const value = parse(text(name));
     if (value === undefined) {
-      problems.push(`${label} "${text(name)}" in row ${row} is not a number Kraken can read.${where}`);
+      problems.push(`${label} „${text(name)}” w wierszu ${row} to nie liczba, którą Kraken umie odczytać.${where}`);
       return null;
     }
     return value;
   };
   const deliveryDate = text('delivery_date');
-  if (deliveryDate !== '' && !isValidDate(deliveryDate)) problems.push(`Delivery date "${deliveryDate}" in row ${row} is not a date (YYYY-MM-DD).`);
+  if (deliveryDate !== '' && !isValidDate(deliveryDate)) problems.push(`Data dostawy „${deliveryDate}” w wierszu ${row} nie jest datą (RRRR-MM-DD).`);
   return {
     id: text('id'),
     row,
@@ -87,9 +87,9 @@ export function lotFromFields(fields: Fields, row: number): Lot {
     variety: text('variety'),
     supplier: text('supplier'),
     deliveryDate,
-    quantityGrams: number('quantity_kg', 'Quantity', parseKg),
-    coffeePriceGrosze: number('coffee_price_net_pln', 'Coffee price', parseMoney),
-    deliveryCostGrosze: number('delivery_cost_net_pln', 'Delivery cost', parseMoney),
+    quantityGrams: number('quantity_kg', 'Ilość', parseKg),
+    coffeePriceGrosze: number('coffee_price_net_pln', 'Cena kawy', parseMoney),
+    deliveryCostGrosze: number('delivery_cost_net_pln', 'Koszt dostawy', parseMoney),
     notes: fields.notes ?? '',
     roastime: { containerId: text('roastime_container_id'), beanId: text('roastime_bean_id'), supplierCode: text('roastime_supplier_code') },
     createdAt: text('created_at'),
@@ -214,20 +214,20 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
   const f = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, k === 'notes' ? v : v.trim()])) as unknown as LotForm;
 
   const code = f.code.toUpperCase().replace(/\s+/g, '-');
-  if (code === '') errors.code = 'Enter a code, e.g. KENYA-26-11.';
-  else if (!/^[A-Z0-9]+(-[A-Z0-9]+)*$/.test(code)) errors.code = 'Use only letters A–Z, digits and dashes.';
-  else if (code.length > MAX_CODE) errors.code = `Use at most ${MAX_CODE} characters.`;
-  else if (others.some((lot) => lot.code.toUpperCase() === code)) errors.code = `Another lot already has the code ${code}.`;
+  if (code === '') errors.code = 'Wpisz kod, np. KENYA-26-11.';
+  else if (!/^[A-Z0-9]+(-[A-Z0-9]+)*$/.test(code)) errors.code = 'Używaj tylko liter A–Z, cyfr i myślników.';
+  else if (code.length > MAX_CODE) errors.code = `Najwyżej ${MAX_CODE} znaków.`;
+  else if (others.some((lot) => lot.code.toUpperCase() === code)) errors.code = `Inna dostawa ma już kod ${code}.`;
 
-  if (f.name === '') errors.name = 'Enter the coffee name.';
-  if (f.country === '') errors.country = 'Enter the country.';
-  if (f.deliveryDate === '') errors.deliveryDate = 'Enter the delivery date.';
-  else if (!isValidDate(f.deliveryDate)) errors.deliveryDate = 'Use a real date, e.g. 2026-11-03.';
+  if (f.name === '') errors.name = 'Wpisz nazwę kawy.';
+  if (f.country === '') errors.country = 'Wpisz kraj.';
+  if (f.deliveryDate === '') errors.deliveryDate = 'Wybierz datę dostawy.';
+  else if (!isValidDate(f.deliveryDate)) errors.deliveryDate = 'Wybierz prawdziwą datę.';
 
   const grams = parseKg(f.quantityKg);
-  if (grams === null) errors.quantityKg = 'Enter how many kg were delivered.';
-  else if (grams === undefined) errors.quantityKg = 'Enter a number, e.g. 60 or 59,5 (up to 3 decimals).';
-  else if (grams === 0) errors.quantityKg = 'The quantity must be more than 0.';
+  if (grams === null) errors.quantityKg = 'Wpisz, ile kg dostarczono.';
+  else if (grams === undefined) errors.quantityKg = 'Wpisz liczbę, np. 60 albo 59,5 (do 3 miejsc po przecinku).';
+  else if (grams === 0) errors.quantityKg = 'Ilość musi być większa od 0.';
 
   const price = parseMoney(f.coffeePrice);
   if (price === undefined) errors.coffeePrice = PRICE_ERRORS.coffeePrice;
@@ -235,9 +235,9 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
   if (delivery === undefined) errors.deliveryCost = PRICE_ERRORS.deliveryCost;
 
   for (const key of ['name', 'country', 'region', 'altitude', 'process', 'variety', 'supplier'] as const) {
-    if (f[key].length > MAX_TEXT) errors[key] = `Use at most ${MAX_TEXT} characters.`;
+    if (f[key].length > MAX_TEXT) errors[key] = `Najwyżej ${MAX_TEXT} znaków.`;
   }
-  if (f.notes.length > MAX_NOTES) errors.notes = `Use at most ${MAX_NOTES} characters.`;
+  if (f.notes.length > MAX_NOTES) errors.notes = `Najwyżej ${MAX_NOTES} znaków.`;
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return {
@@ -261,8 +261,8 @@ export function validateLotForm(form: LotForm, others: readonly Lot[]): { ok: tr
 }
 
 const PRICE_ERRORS = {
-  coffeePrice: 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.',
-  deliveryCost: 'Enter an amount, e.g. 120 — or leave it empty if there was none.',
+  coffeePrice: 'Wpisz kwotę, np. 4500 albo 4500,50, albo na razie zostaw puste.',
+  deliveryCost: 'Wpisz kwotę, np. 120, albo zostaw puste, jeśli jej nie było.',
 } as const;
 
 /** The two price fields of a lot (whole delivery, net), as typed. */

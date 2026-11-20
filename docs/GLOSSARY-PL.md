@@ -18,7 +18,12 @@ The code, the sheet's tab and column names and the docs stay in English.
 | Clients / a client | Klienci / klient |
 | Packaging & discounts | Opakowania i rabaty |
 | Settings (Kraken settings) | Ustawienia (Ustawienia Krakena) |
-| Sync with RoasTime | Synchronizuj z RoasTime |
+| Sync with RoasTime (screen / button) | Synchronizacja z RoasTime / Synchronizuj |
+| Lot code / delivered / stock left / supplier | Kod / Dostarczona / Zostało / Dostawca |
+| Process / variety / altitude | Obróbka / Odmiana / Wysokość uprawy |
+| Added by hand (not from RoasTime) | ręcznie |
+| Green weight / roasted weight | Waga zielonej / Waga palonej |
+| Not counted (roast with no lot) / Needs a lot | Nieliczony / Potrzebna dostawa |
 | Bag (of coffee) / bags | torebka / torebki, torebek |
 | Packs (of a sample, any amount) | opakowanie / opakowania, opakowań |
 | Amount (grams of a sample) | gramatura |

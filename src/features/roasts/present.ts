@@ -42,9 +42,9 @@ export interface RoastListRow {
 const DASH = '—';
 
 const NOT_COUNTED: Record<Extract<RoastAllocation, { status: 'not-counted' }>['reason'], string> = {
-  'no-coffee': 'Not counted: no coffee chosen',
-  'no-lot-for-coffee': 'Not counted: no lot of this coffee in Kraken',
-  'no-green-weight': 'Not counted: no green weight',
+  'no-coffee': 'Nieliczony: nie wybrano kawy',
+  'no-lot-for-coffee': 'Nieliczony: brak dostawy tej kawy w Krakenie',
+  'no-green-weight': 'Nieliczony: brak wagi zielonej',
 };
 
 /** "14,5 %" */
@@ -90,14 +90,14 @@ export function roastListRows(roasts: readonly Roast[], lots: readonly Lot[], al
         roastedGrams,
         lossTenths: roastLossPermille(roast),
         marks: [
-          ...(roast.sample ? ['Sample'] : []),
-          ...(needsLot ? ['Needs a lot'] : []),
-          ...(beforeDelivery ? ['Before delivery'] : []),
-          ...(chosen ? ['Chosen'] : []),
-          ...(roast.problems.length > 0 ? ['Check'] : []),
+          ...(roast.sample ? ['Próbka'] : []),
+          ...(needsLot ? ['Potrzebna dostawa'] : []),
+          ...(beforeDelivery ? ['Przed dostawą'] : []),
+          ...(chosen ? ['Wybrana'] : []),
+          ...(roast.problems.length > 0 ? ['Sprawdź'] : []),
         ],
         name: roast.name || DASH,
-        coffee: chosenLot?.name || coffeeByBean.get(roast.roastime.beanId) || (roast.roastime.beanId === '' ? 'No coffee chosen' : 'Coffee not in Kraken'),
+        coffee: chosenLot?.name || coffeeByBean.get(roast.roastime.beanId) || (roast.roastime.beanId === '' ? 'Nie wybrano kawy' : 'Kawy nie ma w Krakenie'),
         green: roast.greenGrams === null ? DASH : formatKg(roast.greenGrams),
         roasted: roastedGrams === null ? DASH : formatKg(roastedGrams),
         loss: formatLoss(roastLossPermille(roast)),

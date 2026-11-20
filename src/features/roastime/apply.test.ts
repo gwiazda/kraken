@@ -40,7 +40,7 @@ describe('applySync', () => {
     expect(google.requests.filter((r) => r.url.includes(':append'))).toHaveLength(2);
     expect((await lots.load()).lots.map((l) => l.createdBy)).toEqual(['owner@example.com', 'owner@example.com']);
     expect((await roasts.load()).roasts).toHaveLength(150);
-    expect(progress).toEqual(['Adding 2 new lots…', 'Adding 150 roasts…']);
+    expect(progress).toEqual(['Dodaję 2 nowe dostawy…', 'Dodaję 150 wypałów…']);
   });
 
   it('updates lots and roasts in one request each', async () => {
@@ -106,9 +106,9 @@ describe('applySync', () => {
 
 describe('summaryOf and changeCount', () => {
   it('describes what was saved', () => {
-    expect(summaryOf({ lotsAdded: 2, lotsUpdated: 1, roastsAdded: 38, roastsUpdated: 1, roastsRemoved: 0, roastsRestored: 0 })).toBe('2 lots added, 1 lot updated, 38 roasts added, 1 roast updated');
-    expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 0, roastsRestored: 0 })).toBe('nothing changed');
-    expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 53, roastsRestored: 1 })).toBe('53 samples removed, 1 roast brought back');
+    expect(summaryOf({ lotsAdded: 2, lotsUpdated: 1, roastsAdded: 38, roastsUpdated: 1, roastsRemoved: 0, roastsRestored: 0 })).toBe('dodano 2 dostawy, zaktualizowano 1 dostawę, dodano 38 wypałów, zaktualizowano 1 wypał');
+    expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 0, roastsRestored: 0 })).toBe('nic się nie zmieniło');
+    expect(summaryOf({ lotsAdded: 0, lotsUpdated: 0, roastsAdded: 0, roastsUpdated: 0, roastsRemoved: 53, roastsRestored: 1 })).toBe('usunięto 53 próbki, przywrócono 1 wypał');
   });
 
   it('counts the changes', () => {

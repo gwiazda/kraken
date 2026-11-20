@@ -508,9 +508,7 @@ h2 {
 }
 
 .path-line {
-  list-style: none;
-  margin-left: -1.4rem;
-  padding-left: 1.4rem;
+  margin: 0.4rem 0 0 1.4rem;
 }
 
 .path-line code {

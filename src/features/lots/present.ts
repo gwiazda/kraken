@@ -1,6 +1,6 @@
 // What the Lots screen shows, as plain text. Pure (no screen, no Google), so it is tested directly.
 
-import { localDate } from '../../core/dates';
+import { formatDate, localDate } from '../../core/dates';
 import { formatKg, formatPln, toDecimalText } from '../../core/numbers';
 import { greenPricePerKg, isDeleted, lotSource, sortLots, suggestCode, type Lot, type LotForm } from './model';
 
@@ -62,7 +62,7 @@ export function lotListRows(lots: readonly Lot[], showDeleted = false, stock: St
       code: lot.code || DASH,
       name: lot.name || DASH,
       country: lot.country || DASH,
-      delivered: lot.deliveryDate || DASH,
+      delivered: formatDate(lot.deliveryDate) || DASH,
       quantity: lot.quantityGrams === null ? DASH : formatKg(lot.quantityGrams),
       supplier: lot.supplier || DASH,
       source: lotSource(lot),
@@ -92,7 +92,7 @@ export const deletedCount = (lots: readonly Lot[]) => lots.filter(isDeleted).len
 /** "Deleted 2026-11-16", on the local calendar (a lot deleted just after midnight shows the right day). */
 export function deletedNote(deletedAt: string): string {
   const time = new Date(deletedAt);
-  return Number.isNaN(time.getTime()) ? 'Deleted' : `Deleted ${localDate(time)}`;
+  return Number.isNaN(time.getTime()) ? 'Usunięta' : `Usunięta ${formatDate(localDate(time))}`;
 }
 
 function stockOf(lot: Lot, stock: StockByLot): Pick<LotListRow, 'stockLeft' | 'overdrawn' | 'stockNote'> {
@@ -103,6 +103,6 @@ function stockOf(lot: Lot, stock: StockByLot): Pick<LotListRow, 'stockLeft' | 'o
   return {
     stockLeft: formatSignedKg(left),
     overdrawn: true,
-    stockNote: `${lot.code}: ${formatKg(-left)} more roasted than delivered. Check the lots, or the coffee chosen in RoasTime.`,
+    stockNote: `${lot.code}: wypalono o ${formatKg(-left)} więcej, niż dostarczono. Sprawdź dostawy albo kawę wybraną w RoasTime.`,
   };
 }

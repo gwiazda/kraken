@@ -51,8 +51,8 @@ describe('roastFromFields', () => {
     expect(broken.greenGrams).toBeNull();
     expect(broken.roastedAt).toBeNull();
     expect(broken.problems).toEqual([
-      'Roast time "yesterday" in row 9 is not a time Kraken can read.',
-      'Green weight "1,2 kg" in row 9 is not a number Kraken can read.',
+      'Czas wypału „yesterday” w wierszu 9 to nie czas, który Kraken umie odczytać.',
+      'Waga zielonej „1,2 kg” w wierszu 9 to nie liczba, którą Kraken umie odczytać.',
     ]);
   });
 
@@ -82,7 +82,7 @@ describe('text helpers', () => {
   });
 
   it('shows the roast time in local time', () => {
-    expect(roastTimeText(new Date(2026, 10, 3, 9, 5))).toBe('2026-11-03 09:05');
+    expect(roastTimeText(new Date(2026, 10, 3, 9, 5))).toBe('03.11.2026 09:05');
     expect(roastTimeText(null)).toBe('');
   });
 
@@ -121,14 +121,14 @@ describe('validateRoastForm', () => {
     const { validateRoastForm } = await import('./model');
     const result = validateRoastForm(form({ date: '2026-02-30', greenG: '1200,5', roastedG: '1300', lotId: 'nope' }), true, ['L1']);
     expect(result.ok ? {} : result.errors).toEqual({
-      lotId: 'Choose one of the lots in the list.',
-      date: 'Use a real date, e.g. 2026-11-03.',
-      greenG: 'Enter whole grams, e.g. 1200.',
+      lotId: 'Wybierz jedną z dostaw z listy.',
+      date: 'Wybierz prawdziwą datę.',
+      greenG: 'Wpisz pełne gramy, np. 1200.',
     });
     const heavy = validateRoastForm(form({ roastedG: '1300' }), true, ['L1']);
-    expect(heavy.ok ? '' : heavy.errors.roastedG).toBe('The roasted weight cannot be more than the green weight.');
+    expect(heavy.ok ? '' : heavy.errors.roastedG).toBe('Waga palonej kawy nie może być większa niż zielonej.');
     const empty = validateRoastForm(form({ date: '', greenG: '' }), true, []);
-    expect(empty.ok ? {} : empty.errors).toMatchObject({ date: 'Enter the roast date.', greenG: 'Enter the green weight in grams.' });
+    expect(empty.ok ? {} : empty.errors).toMatchObject({ date: 'Wybierz datę wypału.', greenG: 'Wpisz wagę zielonej kawy w gramach.' });
   });
 
   it('round-trips: a roast opened and saved unchanged keeps its values', async () => {

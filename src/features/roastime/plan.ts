@@ -40,7 +40,7 @@ export interface ImportPlan {
   readonly existingCodes: readonly string[];
 }
 
-const LABELS: Record<DiffColumn, string> = { name: 'Name', country: 'Country', region: 'Region', process: 'Process', quantity_kg: 'Quantity' };
+const LABELS: Record<DiffColumn, string> = { name: 'Nazwa', country: 'Kraj', region: 'Region', process: 'Obróbka', quantity_kg: 'Ilość' };
 
 /** What RoasTime says, for each column it is the source of truth for. */
 function roastimeValues(container: RoastimeContainer, bean: RoastimeBean): Record<DiffColumn, string> {
@@ -62,7 +62,7 @@ export function differences(lot: Lot, container: RoastimeContainer, bean: Roasti
     .map((column) => ({
       column,
       label: LABELS[column],
-      kraken: column === 'quantity_kg' && lot.quantityGrams !== null ? formatKg(lot.quantityGrams) : kraken[column] || '(empty)',
+      kraken: column === 'quantity_kg' && lot.quantityGrams !== null ? formatKg(lot.quantityGrams) : kraken[column] || '(puste)',
       roastime: column === 'quantity_kg' ? formatKg(container.startGrams) : rt[column],
       value: rt[column],
     }));
@@ -70,8 +70,8 @@ export function differences(lot: Lot, container: RoastimeContainer, bean: Roasti
 
 /** Why a RoasTime value cannot be stored on an existing lot (the lot form's rules), or null if it can. */
 function invalidValue(difference: Difference): string | null {
-  if (difference.column === 'quantity_kg' && difference.value === '0') return 'the quantity would be 0 kg';
-  if (difference.value.length > MAX_TEXT) return `the ${difference.label.toLowerCase()} is longer than ${MAX_TEXT} characters`;
+  if (difference.column === 'quantity_kg' && difference.value === '0') return 'ilość wyniosłaby 0 kg';
+  if (difference.value.length > MAX_TEXT) return `pole „${difference.label}” ma więcej niż ${MAX_TEXT} znaków`;
   return null;
 }
 
@@ -90,7 +90,7 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
   }
   for (const group of linked.values()) {
     if (group.length > 1) {
-      problems.push(`Lots ${group.map((l) => l.code).join(' and ')} are all linked to the same RoasTime delivery. Delete the extra one in Kraken.`);
+      problems.push(`Dostawy ${group.map((l) => l.code).join(' i ')} są połączone z tą samą dostawą RoasTime. Usuń nadmiarową w Krakenie.`);
     }
   }
   const supplierByVendor = new Map<string, string>();
@@ -110,13 +110,13 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
       else {
         const bean = beans.get(container.beanId);
         if (!bean) {
-          problems.push(`RoasTime delivery for ${lot.code} points to a coffee Kraken cannot find, so it was not compared.`);
+          problems.push(`Dostawa RoasTime dla ${lot.code} wskazuje kawę, której Kraken nie może znaleźć, więc nie została porównana.`);
           continue;
         }
         // The same rules as the lot form: a RoasTime value Kraken could not store is reported, not offered.
         const diff = differences(lot, container, bean).filter((d) => {
           const reason = invalidValue(d);
-          if (reason) problems.push(`RoasTime has a change for ${lot.code} that Kraken cannot store: ${reason}. Correct it in RoasTime.`);
+          if (reason) problems.push(`RoasTime ma zmianę dla ${lot.code}, której Kraken nie może zapisać: ${reason}. Popraw to w RoasTime.`);
           return reason === null;
         });
         items.push(diff.length > 0 ? { kind: 'changed', container, bean, lot, differences: diff } : { kind: 'same', container, lot });
@@ -126,7 +126,7 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
     if (container.deleted) continue; // deleted in RoasTime and never in Kraken: nothing to do
     const bean = beans.get(container.beanId);
     if (!bean) {
-      problems.push(`A RoasTime delivery (${formatKg(container.startGrams)}) points to a coffee Kraken cannot find, so it was skipped.`);
+      problems.push(`Dostawa RoasTime (${formatKg(container.startGrams)}) wskazuje kawę, której Kraken nie może znaleźć, więc została pominięta.`);
       continue;
     }
     const deliveryDate = localDate(container.createdAt ?? today);
@@ -152,8 +152,8 @@ export function planImport(data: RoastimeData, lots: readonly Lot[], today: Date
       lots,
     );
     if (!checked.ok) {
-      const what = `RoasTime delivery "${bean.name || 'no name'}" (${formatKg(container.startGrams)})`;
-      problems.push(`${what} cannot be imported: ${Object.values(checked.errors).join(' ')} Correct it in RoasTime, or add the lot by hand.`);
+      const what = `Dostawy RoasTime „${bean.name || 'bez nazwy'}” (${formatKg(container.startGrams)})`;
+      problems.push(`${what} nie da się pobrać: ${Object.values(checked.errors).join(' ')} Popraw to w RoasTime albo dodaj dostawę ręcznie.`);
       continue;
     }
     items.push({
@@ -210,11 +210,11 @@ export function operations(plan: ImportPlan, decisions: ReadonlyMap<string, Deci
     if (!decision || decision.action === 'skip') continue;
     if (item.kind === 'new' && decision.action === 'add') {
       const code = codes.get(item.container.id) ?? item.fields.code ?? '';
-      ops.push({ kind: 'add', fields: { ...item.fields, code }, label: `Add ${code}` });
+      ops.push({ kind: 'add', fields: { ...item.fields, code }, label: `Dodaj ${code}` });
     } else if (item.kind === 'changed' && decision.action === 'update') {
       const accepted = item.differences.filter((d) => decision.accept.includes(d.column));
       if (accepted.length > 0) {
-        ops.push({ kind: 'update', lot: item.lot, label: `Update ${item.lot.code}`, fields: Object.fromEntries(accepted.map((d) => [d.column, d.value])) });
+        ops.push({ kind: 'update', lot: item.lot, label: `Zaktualizuj ${item.lot.code}`, fields: Object.fromEntries(accepted.map((d) => [d.column, d.value])) });
       }
     }
   }

@@ -44,7 +44,7 @@ describe('lotListRows', () => {
       code: 'KENYA-26-11',
       name: 'Kenya Kegwa',
       country: 'Kenya',
-      delivered: '2026-11-03',
+      delivered: '03.11.2026',
       quantity: '60 kg',
       supplier: '—',
       source: 'By hand',
@@ -78,7 +78,7 @@ describe('lotListRows', () => {
     const [row] = lotListRows([lot({ code: '', quantity_kg: 'abc' })]);
     expect(row?.code).toBe('—');
     expect(row?.quantity).toBe('—');
-    expect(row?.problems).toEqual(['Quantity "abc" in row 2 is not a number Kraken can read.']);
+    expect(row?.problems).toEqual(['Ilość „abc” w wierszu 2 to nie liczba, którą Kraken umie odczytać.']);
   });
 });
 
@@ -93,7 +93,7 @@ describe('stock left', () => {
     expect(row).toMatchObject({
       stockLeft: '−2,4\u00a0kg',
       overdrawn: true,
-      stockNote: 'KENYA-26-11: 2,4\u00a0kg more roasted than delivered. Check the lots, or the coffee chosen in RoasTime.',
+      stockNote: 'KENYA-26-11: wypalono o 2,4\u00a0kg więcej, niż dostarczono. Sprawdź dostawy albo kawę wybraną w RoasTime.',
     });
   });
 
@@ -119,8 +119,8 @@ describe('deleted lots', () => {
 
   it('show the deleted day on the local calendar, and cope with a non-date typed in the sheet', () => {
     const justAfterMidnight = new Date(2026, 10, 16, 0, 30); // local time
-    expect(deletedNote(justAfterMidnight.toISOString())).toBe('Deleted 2026-11-16');
-    expect(deletedNote('yes')).toBe('Deleted');
+    expect(deletedNote(justAfterMidnight.toISOString())).toBe('Usunięta 16.11.2026');
+    expect(deletedNote('yes')).toBe('Usunięta');
   });
 
   it('are counted for the switch', () => {

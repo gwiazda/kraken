@@ -107,13 +107,13 @@ describe('lotFromFields', () => {
     const broken = lot({ quantity_kg: 'sixty', delivery_date: '3.11.2026' }, 7);
     expect(broken.quantityGrams).toBeNull();
     expect(broken.problems).toEqual([
-      'Delivery date "3.11.2026" in row 7 is not a date (YYYY-MM-DD).',
-      'Quantity "sixty" in row 7 is not a number Kraken can read.',
+      'Data dostawy „3.11.2026” w wierszu 7 nie jest datą (RRRR-MM-DD).',
+      'Ilość „sixty” w wierszu 7 to nie liczba, którą Kraken umie odczytać.',
     ]);
   });
 
   it('reports a broken price (corrected in the lot form again, owner 2026-11-18)', () => {
-    expect(lot({ coffee_price_net_pln: 'about 4500' }, 5).problems).toEqual(['Coffee price "about 4500" in row 5 is not a number Kraken can read.']);
+    expect(lot({ coffee_price_net_pln: 'about 4500' }, 5).problems).toEqual(['Cena kawy „about 4500” w wierszu 5 to nie liczba, którą Kraken umie odczytać.']);
   });
 
   it('treats empty prices as not entered', () => {
@@ -229,13 +229,13 @@ describe('validateLotForm', () => {
     expect(result).toEqual({
       ok: false,
       errors: {
-        code: 'Use only letters A–Z, digits and dashes.',
-        name: 'Enter the coffee name.',
-        country: 'Enter the country.',
-        deliveryDate: 'Use a real date, e.g. 2026-11-03.',
-        quantityKg: 'The quantity must be more than 0.',
-        coffeePrice: 'Enter an amount, e.g. 4500 or 4500,50 — or leave it empty for now.',
-        deliveryCost: 'Enter an amount, e.g. 120 — or leave it empty if there was none.',
+        code: 'Używaj tylko liter A–Z, cyfr i myślników.',
+        name: 'Wpisz nazwę kawy.',
+        country: 'Wpisz kraj.',
+        deliveryDate: 'Wybierz prawdziwą datę.',
+        quantityKg: 'Ilość musi być większa od 0.',
+        coffeePrice: 'Wpisz kwotę, np. 4500 albo 4500,50, albo na razie zostaw puste.',
+        deliveryCost: 'Wpisz kwotę, np. 120, albo zostaw puste, jeśli jej nie było.',
       },
     });
   });
@@ -243,16 +243,16 @@ describe('validateLotForm', () => {
   it('requires a code, a date and a quantity', () => {
     const result = validateLotForm(form({ code: '', deliveryDate: '', quantityKg: '' }), []);
     expect(result.ok ? {} : result.errors).toEqual({
-      code: 'Enter a code, e.g. KENYA-26-11.',
-      deliveryDate: 'Enter the delivery date.',
-      quantityKg: 'Enter how many kg were delivered.',
+      code: 'Wpisz kod, np. KENYA-26-11.',
+      deliveryDate: 'Wybierz datę dostawy.',
+      quantityKg: 'Wpisz, ile kg dostarczono.',
     });
   });
 
   it('refuses a code another lot has, including a deleted one, in any letter case', () => {
     const deleted = lot({ code: 'KENYA-26-11', deleted_at: '2026-11-16T09:00:00.000Z' });
     const result = validateLotForm(form({ code: 'Kenya-26-11' }), [deleted]);
-    expect(result.ok ? '' : result.errors.code).toBe('Another lot already has the code KENYA-26-11.');
+    expect(result.ok ? '' : result.errors.code).toBe('Inna dostawa ma już kod KENYA-26-11.');
   });
 
   it('turns spaces in the code into dashes', () => {
@@ -262,10 +262,10 @@ describe('validateLotForm', () => {
 
   it('limits the length of texts', () => {
     const result = validateLotForm(form({ supplier: 'x'.repeat(201), notes: 'y'.repeat(2001) }), []);
-    expect(result.ok ? {} : result.errors).toEqual({ supplier: 'Use at most 200 characters.', notes: 'Use at most 2000 characters.' });
+    expect(result.ok ? {} : result.errors).toEqual({ supplier: 'Najwyżej 200 znaków.', notes: 'Najwyżej 2000 znaków.' });
     expect(validateLotForm(form({ supplier: 'x'.repeat(200) }), []).ok).toBe(true);
     const long = validateLotForm(form({ code: 'A'.repeat(41) }), []);
-    expect(long.ok ? '' : long.errors.code).toBe('Use at most 40 characters.');
+    expect(long.ok ? '' : long.errors.code).toBe('Najwyżej 40 znaków.');
   });
 
   it('stores a formula-looking text as plain text (Kraken writes RAW, so it never runs)', () => {

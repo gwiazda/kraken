@@ -12,6 +12,8 @@ import { ImportStopped, applySync, changeCount, summaryOf, type SyncWrites } fro
 import { ROASTIME_FOLDER, kindOf, looksLikeRoastimeFolder, parseRoastimeFiles, type FolderFile, type RoastimeData } from './model';
 import { defaultDecision, newLotCodes, operations, planImport, type Decision, type DiffColumn, type ImportItem, type ImportPlan } from './plan';
 import { coffeesOf, planRoasts, type RoastPlan } from './roastPlan';
+import { formatDate } from '../../core/dates';
+import { plural } from '../../core/polish';
 
 export interface RoastimeSyncDeps {
   lots: LotsRepository;
@@ -34,16 +36,16 @@ export interface RoastimeSyncDeps {
 
 export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): void {
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
-  const back = () => button('Back', () => deps.back(), 'secondary');
+  const back = () => button('Wróć', () => deps.back(), 'secondary');
 
   function helpBox(): HTMLElement {
     const copied = el('span', { class: 'muted small', role: 'status' });
     const copy = button(
-      'Copy path',
+      'Kopiuj ścieżkę',
       () => {
         deps.copyText(ROASTIME_FOLDER).then(
-          () => (copied.textContent = ' Copied.'),
-          () => (copied.textContent = ' Copying is blocked here: select the path and press Cmd+C.'),
+          () => (copied.textContent = ' Skopiowano.'),
+          () => (copied.textContent = ' Kopiowanie jest tu zablokowane: zaznacz ścieżkę i naciśnij Cmd+C.'),
         );
       },
       'secondary',
@@ -51,16 +53,20 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     return el(
       'div',
       { class: 'help-box' },
-      el('p', {}, 'How to choose the RoasTime folder:'),
+      el('p', {}, 'Jak wybrać folder RoasTime:'),
       el(
         'ol',
         {},
-        el('li', {}, 'Click "Choose RoasTime folder" below.'),
-        el('li', {}, 'In the window, press ', el('kbd', {}, 'Cmd'), ' + ', el('kbd', {}, 'Shift'), ' + ', el('kbd', {}, 'G'), ', paste the path and press Enter:'),
-        el('li', { class: 'path-line' }, el('code', {}, ROASTIME_FOLDER), ' ', copy, copied),
-        el('li', {}, 'Click "Upload". Chrome then asks "Upload … files to this site?": click "Upload". The files stay on this computer; Kraken only reads them.'),
+        el('li', {}, 'Kliknij poniżej „Wybierz folder RoasTime”.'),
+        el(
+          'li',
+          {},
+          'W oknie naciśnij ', el('kbd', {}, 'Cmd'), ' + ', el('kbd', {}, 'Shift'), ' + ', el('kbd', {}, 'G'), ', wklej ścieżkę i naciśnij Enter:',
+          el('div', { class: 'path-line' }, el('code', {}, ROASTIME_FOLDER), ' ', copy, copied),
+        ),
+        el('li', {}, 'Kliknij „Prześlij” (Upload). Chrome zapyta, czy przesłać pliki do tej witryny: kliknij „Prześlij”. Pliki zostają na tym komputerze; Kraken tylko je czyta.'),
       ),
-      el('p', { class: 'muted small' }, 'Next time the window usually opens in the right place already.'),
+      el('p', { class: 'muted small' }, 'Następnym razem okno zwykle otworzy się już we właściwym miejscu.'),
     );
   }
 
@@ -72,19 +78,19 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       if (files.length > 0) void read(files);
     });
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Sync with RoasTime'), back()),
-      el('p', {}, 'Kraken reads the green coffee deliveries and the roasts from RoasTime and shows what would change. Nothing is saved until you click "Sync".'),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Synchronizacja z RoasTime'), back()),
+      el('p', {}, 'Kraken czyta dostawy zielonej kawy i wypały z RoasTime i pokazuje, co by się zmieniło. Nic nie jest zapisywane, dopóki nie klikniesz „Synchronizuj”.'),
       ...(note ? [note] : []),
       helpBox(),
-      el('div', { class: 'actions' }, button('Choose RoasTime folder', () => input.click()), input),
+      el('div', { class: 'actions' }, button('Wybierz folder RoasTime', () => input.click()), input),
     );
   }
 
   async function read(files: File[]): Promise<void> {
-    render(el('p', {}, busy('Reading the RoasTime folder…')));
+    render(el('p', {}, busy('Czytam folder RoasTime…')));
     const paths = files.map((f) => f.webkitRelativePath);
     if (!looksLikeRoastimeFolder(paths)) {
-      start(message('That folder does not look like RoasTime\'s "roast-time" folder (it has no "containers" and "beans" folders). Please choose it again.', 'error'));
+      start(message('Ten folder nie wygląda na folder „roast-time” z RoasTime (nie ma w nim folderów „containers” i „beans”). Wybierz go jeszcze raz.', 'error'));
       return;
     }
     try {
@@ -93,13 +99,13 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       const folderFiles: FolderFile[] = await Promise.all(wanted.map(async (f) => ({ path: f.webkitRelativePath, text: await f.text() })));
       compare(parseRoastimeFiles(folderFiles));
     } catch (error) {
-      start(message(`Kraken could not read the folder: ${deps.describeError(error)}`, 'error'));
+      start(message(`Kraken nie mógł odczytać folderu: ${deps.describeError(error)}`, 'error'));
     }
   }
 
   /** Compares with Kraken. Retried with the same files after a sign-in, so the folder is not chosen again. */
   function compare(data: RoastimeData, fromClick = false): void {
-    render(el('p', {}, busy('Comparing with Kraken…')));
+    render(el('p', {}, busy('Porównuję z Krakenem…')));
     const both = () => Promise.all([deps.lots.load(), deps.roasts.load()]);
     (fromClick ? deps.withGoogle(both) : both())
       .then(([{ lots }, { roasts }]) => {
@@ -121,7 +127,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
                 retryLabel: 'Zaloguj się i kontynuuj',
                 show,
                 other: { label: 'Spróbuj ponownie', action: () => compare(data, true), mayHaveSaved: false },
-                signedOutNote: 'The folder is already read; nothing to choose again.',
+                signedOutNote: 'Folder jest już odczytany; nie trzeba go wybierać ponownie.',
               }),
             ),
           );
@@ -142,7 +148,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     const goneInRoastime = byKind('deleted-in-roastime');
     const goneInKraken = byKind('deleted-in-kraken');
 
-    const importButton = button('Sync', () => apply());
+    const importButton = button('Synchronizuj', () => apply());
     const summary = el('span', { class: 'muted small' });
     let updateRoasts = true;
     let restoreRoasts = true;
@@ -160,7 +166,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       for (const [id, label] of codeLabels) label.textContent = codes.get(id) ?? '';
       const count = changeCount(writes());
       importButton.disabled = count === 0;
-      summary.textContent = count === 0 ? ' Nothing selected.' : ` ${count} change${count === 1 ? '' : 's'} to save.`;
+      summary.textContent = count === 0 ? ' Nic nie wybrano.' : ` Do zapisania: ${count} ${plural(count, 'zmiana', 'zmiany', 'zmian')}.`;
     };
 
     /** Tick boxes for differences; `accept` is the list they update. */
@@ -204,10 +210,10 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
         el(
           'p',
           {},
-          el('strong', {}, item.fields.name || '(no name)'),
-          ` · ${item.fields.country || 'no country'} · ${formatKg(item.container.startGrams)} · delivered ${item.fields.delivery_date}`,
+          el('strong', {}, item.fields.name || '(bez nazwy)'),
+          ` · ${item.fields.country || 'bez kraju'} · ${formatKg(item.container.startGrams)} · dostarczona ${formatDate(item.fields.delivery_date ?? '')}`,
         ),
-        el('ul', { class: 'choice-list' }, choice('add', 'Add as a new lot', codeLabel), choice('skip', 'Skip for now')),
+        el('ul', { class: 'choice-list' }, choice('add', 'Dodaj jako nową dostawę', codeLabel), choice('skip', 'Na razie pomiń')),
       );
     };
 
@@ -215,7 +221,7 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       el(
         'div',
         { class: 'import-card' },
-        el('p', {}, el('strong', {}, item.lot.code), ` · ${item.lot.name}: RoasTime has different values (untick to keep Kraken's value):`),
+        el('p', {}, el('strong', {}, item.lot.code), ` · ${item.lot.name}: RoasTime ma inne wartości (odznacz, aby zostawić wartość z Krakena):`),
         diffBoxes(
           `rt-${item.container.id}`,
           item.differences,
@@ -232,12 +238,12 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       el('details', { class: 'small' }, el('summary', {}, title), el('ul', {}, ...lines.map((line) => el('li', {}, line))));
 
     const roastEdits = roastPlan.added.length + roastPlan.changed.length + roastPlan.removed.length + roastPlan.restored.length;
-    const roastLabel = (r: Roast) => `${r.name || 'Roast'} (${roastTimeText(r.roastedAt) || 'no date'})`;
+    const roastLabel = (r: Roast) => `${r.name || 'Wypał'} (${roastTimeText(r.roastedAt) || 'bez daty'})`;
     const listed = (roasts: readonly Roast[]) => roasts.map(roastLabel);
     const roastNodes = (): Node[] => {
       const nodes: Node[] = [];
       const added = roastPlan.added.length;
-      if (added > 0) nodes.push(el('p', {}, `${added} new roast${added === 1 ? '' : 's'} will be added.`));
+      if (added > 0) nodes.push(el('p', {}, `Zostanie dodanych nowych wypałów: ${added}.`));
       const tickBox = (id: string, checked: boolean, onChange: (checked: boolean) => void, label: string) => {
         const box = el('input', { type: 'checkbox', id });
         box.checked = checked;
@@ -256,16 +262,16 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
             'restore-roasts',
             restoreRoasts,
             (checked) => (restoreRoasts = checked),
-            `Bring back ${n} deleted sample${n === 1 ? '' : 's'} that ${n === 1 ? 'is a real roast' : 'are real roasts'} now (a coffee chosen, or its first delivery entered, in RoasTime). Untick if you deleted ${n === 1 ? 'it' : 'them'} on purpose.`,
+            `Przywróć usunięte próbki, które są teraz prawdziwymi wypałami (w RoasTime wybrano kawę albo wpisano jej pierwszą dostawę): ${n}. Odznacz, jeśli usunąłeś je celowo.`,
           ),
-          details('Show them', withChanges(roastPlan.restored)),
+          details('Pokaż je', withChanges(roastPlan.restored)),
         );
       }
       if (roastPlan.removed.length > 0) {
         const n = roastPlan.removed.length;
         nodes.push(
           details(
-            `${n} sample${n === 1 ? '' : 's'} (no coffee, or a coffee with no delivery, in RoasTime) will be removed. You can still see ${n === 1 ? 'it' : 'them'} with "Show deleted".`,
+            `Próbki do usunięcia (bez kawy albo z kawą bez dostawy w RoasTime): ${n}. Nadal zobaczysz je przez „Pokaż usunięte”.`,
             listed(roastPlan.removed),
           ),
         );
@@ -273,28 +279,28 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       if (roastPlan.changed.length > 0) {
         const n = roastPlan.changed.length;
         nodes.push(
-          tickBox('update-roasts', updateRoasts, (checked) => (updateRoasts = checked), `Update ${n} roast${n === 1 ? '' : 's'} changed in RoasTime`),
-          details('Show the changes', withChanges(roastPlan.changed)),
+          tickBox('update-roasts', updateRoasts, (checked) => (updateRoasts = checked), `Zaktualizuj wypały zmienione w RoasTime: ${n}`),
+          details('Pokaż zmiany', withChanges(roastPlan.changed)),
         );
       }
       if (roastPlan.keptSamples.length > 0) {
         const n = roastPlan.keptSamples.length;
         nodes.push(
           details(
-            `${n} sample${n === 1 ? '' : 's'} kept, because you gave ${n === 1 ? 'it' : 'them'} a lot, a sample mark or notes in Kraken (delete ${n === 1 ? 'it' : 'them'} on the Roasts page if not needed)`,
+            `Próbki zostawione, bo w Krakenie mają dostawę, oznaczenie próbki albo uwagi: ${n} (usuń je w zakładce Wypały, jeśli niepotrzebne)`,
             listed(roastPlan.keptSamples),
           ),
         );
       }
-      if (roastPlan.unchanged > 0) nodes.push(el('p', { class: 'muted' }, `${roastPlan.unchanged} roast${roastPlan.unchanged === 1 ? '' : 's'} already match RoasTime.`));
+      if (roastPlan.unchanged > 0) nodes.push(el('p', { class: 'muted' }, `Wypały zgodne z RoasTime: ${roastPlan.unchanged}.`));
       if (roastPlan.samples.length > 0) {
-        nodes.push(details(`${roastPlan.samples.length} sample${roastPlan.samples.length === 1 ? '' : 's'} in RoasTime (not tracked)`, roastPlan.samples));
+        nodes.push(details(`Próbki w RoasTime (nieśledzone): ${roastPlan.samples.length}`, roastPlan.samples));
       }
-      if (roastPlan.skipped.length > 0) nodes.push(details(`${roastPlan.skipped.length} skipped (not imported)`, roastPlan.skipped));
+      if (roastPlan.skipped.length > 0) nodes.push(details(`Pominięte (niepobrane): ${roastPlan.skipped.length}`, roastPlan.skipped));
       if (roastPlan.goneFromRoastime.length > 0) {
         nodes.push(
           details(
-            `${roastPlan.goneFromRoastime.length} no longer in RoasTime (kept in Kraken; delete them on the Roasts page if you want)`,
+            `Nie ma ich już w RoasTime: ${roastPlan.goneFromRoastime.length} (zostają w Krakenie; usuń je w zakładce Wypały, jeśli chcesz)`,
             listed(roastPlan.goneFromRoastime),
           ),
         );
@@ -303,32 +309,32 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
     };
 
     render(
-      el('div', { class: 'page-head' }, el('h2', {}, 'Sync with RoasTime: preview'), back()),
+      el('div', { class: 'page-head' }, el('h2', {}, 'Synchronizacja z RoasTime: podgląd'), back()),
       el(
         'p',
         { class: 'muted small' },
-        'Only lots and roasts that came from RoasTime are compared; anything entered by hand is never changed. Roasts with no coffee chosen in RoasTime, or whose coffee has no delivery there, are samples and are not tracked. Prices, supplier, codes, chosen lots, sample marks and notes are never changed by a sync.',
+        'Porównywane są tylko dostawy i wypały pobrane z RoasTime; wpisane ręcznie nigdy się nie zmieniają. Wypały bez kawy wybranej w RoasTime albo z kawą bez dostawy to próbki i nie są śledzone. Synchronizacja nigdy nie zmienia cen, dostawcy, kodów, wybranych dostaw, oznaczeń próbek ani uwag.',
       ),
       ...[...plan.problems, ...roastPlan.problems].map((text) => message(text, 'error')),
-      el('h2', { class: 'sub' }, 'Deliveries (lots)'),
-      ...section(`New deliveries (${fresh.length})`, fresh.map(newCard)),
-      ...section(`Changed in RoasTime (${changed.length})`, changed.map(changedCard)),
-      ...(same.length > 0 ? [el('p', { class: 'muted' }, `${same.length} lot${same.length === 1 ? '' : 's'} already match${same.length === 1 ? 'es' : ''} RoasTime.`)] : []),
+      el('h2', { class: 'sub' }, 'Dostawy'),
+      ...section(`Nowe dostawy (${fresh.length})`, fresh.map(newCard)),
+      ...section(`Zmienione w RoasTime (${changed.length})`, changed.map(changedCard)),
+      ...(same.length > 0 ? [el('p', { class: 'muted' }, `Dostawy zgodne z RoasTime: ${same.length}.`)] : []),
       ...section(
-        'Only for your information',
+        'Tylko do wiadomości',
         [
-          ...goneInRoastime.map((i) => el('p', { class: 'muted small' }, `${i.lot.code}: deleted in RoasTime. Kraken keeps it; delete it in Kraken if you want.`)),
-          ...goneInKraken.map((i) => el('p', { class: 'muted small' }, `${i.lot.code}: deleted in Kraken, so the import leaves it alone. Restore it in Kraken to update it.`)),
+          ...goneInRoastime.map((i) => el('p', { class: 'muted small' }, `${i.lot.code}: usunięta w RoasTime. Kraken ją zostawia; usuń ją w Krakenie, jeśli chcesz.`)),
+          ...goneInKraken.map((i) => el('p', { class: 'muted small' }, `${i.lot.code}: usunięta w Krakenie, więc synchronizacja jej nie rusza. Przywróć ją w Krakenie, aby ją zaktualizować.`)),
         ],
       ),
-      ...(fresh.length + changed.length === 0 ? [el('p', { class: 'muted' }, 'No new or changed deliveries.')] : []),
-      el('h2', { class: 'sub' }, 'Roasts'),
-      ...(roastEdits === 0 ? [el('p', { class: 'muted' }, 'No new or changed roasts.')] : []),
+      ...(fresh.length + changed.length === 0 ? [el('p', { class: 'muted' }, 'Brak nowych lub zmienionych dostaw.')] : []),
+      el('h2', { class: 'sub' }, 'Wypały'),
+      ...(roastEdits === 0 ? [el('p', { class: 'muted' }, 'Brak nowych lub zmienionych wypałów.')] : []),
       ...roastNodes(),
       ...(fresh.length + changed.length + roastEdits === 0
-        ? [message('Everything in RoasTime is already in Kraken. Nothing to sync.')]
+        ? [message('Wszystko z RoasTime jest już w Krakenie. Nie ma czego synchronizować.')]
         : []),
-      el('div', { class: 'actions' }, importButton, summary, button('Cancel', () => deps.back(), 'secondary')),
+      el('div', { class: 'actions' }, importButton, summary, button('Anuluj', () => deps.back(), 'secondary')),
     );
     refresh();
 
@@ -337,39 +343,39 @@ export function showRoastimeSync(root: HTMLElement, deps: RoastimeSyncDeps): voi
       const toSave = writes();
       if (changeCount(toSave) === 0) return;
       const step = (text: string) => render(el('p', {}, busy(text)));
-      step('Syncing…');
+      step('Synchronizuję…');
       deps.busy(true);
       deps
         .withGoogle(() => applySync(toSave, { lots: deps.lots, roasts: deps.roasts, whoAmI: deps.whoAmI, now: deps.now, onProgress: step }))
         .finally(() => deps.busy(false))
         .then((result) => {
-          if (root.isConnected) deps.back(`Synced with RoasTime: ${summaryOf(result)}.`);
+          if (root.isConnected) deps.back(`Zsynchronizowano z RoasTime: ${summaryOf(result)}.`);
         })
         .catch((error: unknown) => {
           if (!root.isConnected) return;
           const cause = error instanceof ImportStopped ? error.cause : error;
           if (deps.isIgnorable(cause)) {
-            start(message('The sync was interrupted by another sign-in. Choose the folder again to continue: what is saved is recognised.'));
+            start(message('Synchronizację przerwało inne logowanie. Wybierz folder jeszcze raz, aby kontynuować: to, co zapisane, zostanie rozpoznane.'));
             return;
           }
           const saved = error instanceof ImportStopped ? error.saved : 0;
           const total = error instanceof ImportStopped ? error.total : changeCount(toSave);
           const progress =
             saved > 0
-              ? `${saved} of ${total} changes were saved before this happened.`
-              : 'Kraken cannot tell whether anything was saved.';
+              ? `Zanim to się stało, zapisano ${saved} z ${total} zmian.`
+              : 'Kraken nie wie, czy coś zostało zapisane.';
           const show = (e: unknown) =>
             start(
               el(
                 'div',
                 {},
-                message(`${progress} Choose the folder again to finish: what is saved is recognised and not added twice.`, 'error'),
+                message(`${progress} Wybierz folder jeszcze raz, aby dokończyć: to, co zapisane, zostanie rozpoznane i nie zostanie dodane drugi raz.`, 'error'),
                 ...googleErrorNodes(e, deps, {
                   retry: () => start(),
-                  retryLabel: 'Sign in',
+                  retryLabel: 'Zaloguj się',
                   show,
-                  other: { label: 'Back', action: () => deps.back(), mayHaveSaved: true },
-                  signedOutNote: 'Sign in, then choose the folder again.',
+                  other: { label: 'Wróć', action: () => deps.back(), mayHaveSaved: true },
+                  signedOutNote: 'Zaloguj się, a potem wybierz folder jeszcze raz.',
                 }),
               ),
             );
