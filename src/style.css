@@ -2138,11 +2138,14 @@ select.list-filter {
 }
 
 @media (max-width: 640px) {
-  /* Fields big enough to tap, and 16px text so the iPhone does not zoom in on a field. */
+  /*
+   * 16px text in every field, so the iPhone does not zoom in when one is tapped. "!important": many fields set
+   * their own smaller size (a table's 0.95rem, the list filters' 0.8rem), and on a phone this must win over all.
+   */
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: max(16px, 1em) !important;
   }
 
   .btn {
@@ -2158,7 +2161,7 @@ select.list-filter {
     align-items: center;
     position: fixed;
     right: 16px;
-    bottom: calc(16px + env(safe-area-inset-bottom));
+    bottom: 16px;
     z-index: 50;
     padding: 0.75rem 1.25rem;
     border-radius: 999px;
@@ -2166,8 +2169,8 @@ select.list-filter {
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
   }
 
-  .page {
-    padding-bottom: 5rem; /* the last card is never hidden behind "+ Add" */
+  .page:has(.fab-add) {
+    padding-bottom: 5rem; /* the last card is never hidden behind "+ Add" (only Sales has it) */
   }
 
   /* The Sales list as cards: date and kind on top, then who, what, how many, the invoice and Delete. */
@@ -2195,6 +2198,17 @@ select.list-filter {
     margin-bottom: 0.75rem;
     border: 1px solid #333;
     border-radius: 8px;
+  }
+
+  /* The whole card lights up, not only its cells. */
+  .sales-table tr.row-link:hover > td,
+  .sales-table tr.row-link:focus-within > td {
+    background: none;
+  }
+
+  .sales-table tr.row-link:hover,
+  .sales-table tr.row-link:focus-within {
+    background: #16180a;
   }
 
   .sales-table tr.row-link > td {
@@ -2254,14 +2268,16 @@ select.list-filter {
     align-self: center;
   }
 
-  .sales-table tr.confirm-row {
+  /* The question or date box under a card ("Delete …?"); hidden again after No or Cancel. */
+  .sales-table tr.confirm-row:not([hidden]) {
     display: block;
     margin: -0.5rem 0 0.75rem;
   }
 
   .sales-table tr.confirm-row > td {
     display: block;
-    border: none;
+    border-top: none;
+    border-bottom: none;
   }
 
   .sales-table .status-select {

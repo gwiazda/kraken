@@ -8,8 +8,11 @@ const SCREENS: readonly Screen[] = ['lots', 'lot-form', 'roasts', 'roast-form', 
 /** The history marker Kraken stores for a screen. */
 export const stateFor = (screen: Screen) => ({ kraken: screen });
 
-/** Which screen a history entry belongs to; anything unknown (or no marker) means the Lots list. */
+/** The screen Kraken opens on, and where an unknown history entry leads (owner, 2026-11-20: Sales). */
+export const HOME_SCREEN: Screen = 'sales';
+
+/** Which screen a history entry belongs to; anything unknown (or no marker) means the home screen (Sales). */
 export function screenOf(state: unknown): Screen {
   const value = (state as { kraken?: unknown } | null)?.kraken;
-  return SCREENS.includes(value as Screen) ? (value as Screen) : 'lots';
+  return SCREENS.includes(value as Screen) ? (value as Screen) : HOME_SCREEN;
 }

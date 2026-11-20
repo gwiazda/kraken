@@ -277,7 +277,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         el('h2', {}, 'Sales'),
         el('div', { class: 'head-actions' }, button('Add', () => showForm(null))),
         // On a phone: always at hand in the corner, also after scrolling (owner, 2026-11-20: used at the cafés).
-        Object.assign(button('+ Add', () => showForm(null)), { className: 'btn btn-primary fab-add', title: 'Add a sale, sample or own use' }),
+        (() => {
+          const fab = button('+ Add', () => showForm(null));
+          fab.classList.add('fab-add');
+          fab.title = 'Add a sale, sample or own use';
+          return fab;
+        })(),
       ),
       el('p', { class: 'muted small' }, 'What went out: sales to clients (with the invoice to issue), samples left somewhere, and bags you took yourselves. ', infoTip('A sale starts as "Invoice to be issued". When the invoice is made in Fakturownia, choose "Invoice issued" in the Invoice column; when it is paid, choose "Paid". Choosing "Invoice issued" asks for the date it was issued (today unless you change it); it shows under "Issued on". A mistake can be undone the same way. Samples and own use have no invoice.')),
       ...(note ? [message(note)] : []),

@@ -28,7 +28,7 @@ import { APP_SCHEMA_VERSION, MigrationError, createKrakenSpreadsheet, describeMe
 import { startDevSignInLog } from './ui/devLog';
 import { button, el, gearIcon, message, type Child } from './ui/dom';
 import { forgetLists } from './ui/listView';
-import { screenOf, stateFor, type Screen } from './ui/history';
+import { HOME_SCREEN, type Screen, screenOf, stateFor } from './ui/history';
 import { wantsNewSheet } from './ui/newSheetMode';
 
 const appRoot = document.querySelector<HTMLElement>('#app');
@@ -62,7 +62,7 @@ let openSheet: SpreadsheetInfo | null = null;
 /** The sheet whose list filters are remembered (ui/listView.ts); another sheet starts without them. */
 let listsSheetId = '';
 /** The screen shown now (to put it back if Back is pressed while saving). */
-let currentScreen: Screen = 'lots';
+let currentScreen: Screen = HOME_SCREEN;
 /** True while Kraken saves to Google: Back and the menu wait, so nothing is left running unseen. */
 let saving = false;
 /** History moves Kraken makes itself (stepping back over a closed form or import) whose popstate must be ignored. */
@@ -127,10 +127,10 @@ window.addEventListener('popstate', (event) => {
     // A form cannot be brought back with Forward: that entry becomes the list.
     if (screen === 'roast-form') window.history.replaceState(stateFor('roasts'), '', '#roasts');
     showRoasts(info, undefined, false, 'none');
-  } else {
+  } else if (screen === 'lots' || screen === 'lot-form') {
     if (screen === 'lot-form') window.history.replaceState(stateFor('lots'), '', '#lots');
     showLots(info, undefined, false, 'none');
-  }
+  } else showSales(info, false, 'none'); // the home screen
 });
 
 /** A screen of the connected app: a small menu bar on top, the page below. */

@@ -488,6 +488,10 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
 
 ---
 
+**[R] Start page (owner, 2026-11-20):** Kraken opens on **Sales**, and Sales is the first tab in the menu (Sales,
+Lots, Roasts, Products, Product planner, Offer, Clients, Packaging & discounts; ⚙ Settings on the right). An unknown
+browser-history entry also leads to Sales.
+
 **[R] Phones (owner, 2026-11-20: "the partner uses Sales at the cafés"):** on a phone (up to 640 px wide) the Sales
 list shows one card per entry (date and kind, client or place, products, bags, the invoice status and Delete; tap
 the card to open it), the form's product lines stack (product on its own line, then size, bags and free), a round
