@@ -72,7 +72,7 @@ describe('buildOffer', () => {
       year: '2026',
       warnings: [],
     });
-    expect(offer.banner.note).toContain('gramatur 250 g i 1 kg');
+    expect(offer.banner.note).toContain('gramatury 250 g i 1 kg');
   });
 
   it('leaves out a size a product has no price for, and says so; never shows deleted or unticked products', () => {
@@ -96,7 +96,7 @@ describe('buildOffer', () => {
   it("uses the owner's own banner text when there is one, otherwise the text made from the discounts", () => {
     const own = { title: 'Ceny netto dla partnerów:', line: 'Rabat stały -20%', note: '' };
     expect(buildOffer(products, form({ banner: own }), 230, 14).banner).toEqual(own);
-    expect(buildOffer(products, form(), 230, 14).banner.line).toBe('Do 10 kg / mies.: -15% | 10–20 kg / mies.: -25% | 20+ kg / mies.: -30%');
+    expect(buildOffer(products, form(), 230, 14).banner.line).toBe('Do 10 kg: -15% | 10–20 kg: -25% | 20+ kg: -30%');
   });
 
   it("shows a client's special price instead of the discount lines for that size, with no label; other sizes as usual", () => {

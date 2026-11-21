@@ -42,8 +42,8 @@ describe('discounts and the banner', () => {
     ];
     expect(bannerText(tiers, ['250 g', '1 kg'])).toEqual({
       title: 'Ceny netto B2B:',
-      line: 'Do 10 kg / mies.: -15% | 10–20 kg / mies.: -25% | 20+ kg / mies.: -30%',
-      note: '* Progi rabatowe dotyczą łącznej wagi zamówienia w miesiącu (dowolne połączenie ziaren oraz gramatur 250 g i 1 kg).',
+      line: 'Do 10 kg: -15% | 10–20 kg: -25% | 20+ kg: -30%',
+      note: '* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach zamówienia można dowolnie łączyć rodzaje ziaren oraz gramatury 250 g i 1 kg.',
     });
     expect(bannerText([{ tenths: 200, label: '' }], ['250 g'])).toEqual({ title: 'Ceny netto B2B:', line: 'Rabat: -20%', note: '' });
   });
