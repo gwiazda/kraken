@@ -370,7 +370,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       );
     };
 
+    const whoLegend = el('legend', {});
     const renderWho = () => {
+      whoLegend.textContent = form.kind === 'own_use' ? 'Kiedy' : 'Kiedy i kto'; // own use asks only the date
       const fields: Node[] = [];
       if (form.kind !== 'own_use') {
         const select = el('select', { id: 'sale-client' });
@@ -574,7 +576,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       'form',
       { class: 'lot-form', novalidate: '' },
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Co to było?'), kindHolder),
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Kiedy i kto'), whoHolder),
+      el('fieldset', { class: 'form-section' }, whoLegend, whoHolder),
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Produkty'), linesHolder, totalLine),
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Uwagi'), el('div', { class: 'field field-wide' }, el('label', { for: notes.id, class: 'visually-hidden' }, 'Uwagi'), notes)),
       errorBox,
