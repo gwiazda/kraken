@@ -84,6 +84,16 @@ describe('validateSale', () => {
     expect(result).toMatchObject({ ok: true, lines: [{ free: 'yes', unit_price_net_pln: '' }] });
   });
 
+  it('stores own use without a reason (owner, 2026-11-21: we do not need to know why)', () => {
+    expect(validateSale(form({ kind: 'own_use', reason: '' }), ['C1'], ['P1'])).toMatchObject({ ok: true, fields: { kind: 'own_use', client_id: '', reason: '' } });
+  });
+
+  it('keeps the reason of an older own-use entry when it is edited', () => {
+    const old = sale(9, { kind: 'own_use', client_id: '', reason: 'Tasting at home', invoice_status: '' });
+    const result = validateSale(formFromSale(old, [line(2, { sale_id: 'S9' })]), ['C1'], ['P1']);
+    expect(result.ok && changedSaleFields(old, result.fields)).toEqual({});
+  });
+
   it('stores a sample at a place that is not a client, and own use with a reason, without prices', () => {
     const sample = validateSale(form({ kind: 'sample', clientId: '', place: '  Café  Nowa, Kazimierz ' }), ['C1'], ['P1']);
     expect(sample).toMatchObject({ ok: true, fields: { kind: 'sample', client_id: '', place: 'Café Nowa, Kazimierz' }, lines: [{ unit_price_net_pln: '', free: '' }] });
@@ -109,7 +119,6 @@ describe('validateSale', () => {
       },
     });
     expect(validateSale(form({ kind: 'sample', clientId: '' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { place: 'Wybierz klienta albo wpisz, gdzie została próbka, np. Café Nowa, Kazimierz.' } });
-    expect(validateSale(form({ kind: 'own_use' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { reason: 'Napisz, po co, np. na degustację w domu.' } });
     expect(validateSale(form({ lines: [] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { lines: 'Dodaj co najmniej jeden produkt.' } });
   });
 

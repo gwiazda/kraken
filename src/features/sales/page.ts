@@ -318,7 +318,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         ...deleted.map((s) => {
           const slot = el('span', {});
           slot.append(button('Przywróć', () => act(slot, 'Przywracam…', () => deps.repo.restore(s, deps.now()), 'Przywrócono.'), 'link'));
-          return el('li', {}, `${formatDate(s.date)} · ${s.kind ? KIND_LABELS[s.kind] : '?'} · ${s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason} `, slot);
+          const who = s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason;
+          return el('li', {}, `${[formatDate(s.date), s.kind ? KIND_LABELS[s.kind] : '?', who].filter((part) => part !== '').join(' · ')} `, slot);
         }),
       ),
     );
@@ -337,7 +338,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const errorBox = el('div', {});
     const banner = el('div', { class: 'form-banner' });
 
-    // Who and why: a sale needs a client; a sample a client or a place; own use a reason.
+    // Who: a sale needs a client; a sample a client or a place; own use nothing (no reason asked, owner 2026-11-21).
     const kindHolder = el('div', { class: 'kind-choice', role: 'radiogroup', 'aria-label': 'Rodzaj wpisu' });
     const whoHolder = el('div', { class: 'fields' });
     const linesHolder = el('div', {});
@@ -395,12 +396,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         place.value = form.place;
         place.addEventListener('input', () => (form.place = place.value));
         fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: place.id }, 'Gdzie została? *')), place));
-      }
-      if (form.kind === 'own_use') {
-        const reason = el('input', { id: 'sale-reason', type: 'text', autocomplete: 'off', placeholder: 'np. degustacja w domu' });
-        reason.value = form.reason;
-        reason.addEventListener('input', () => (form.reason = reason.value));
-        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: reason.id }, 'Po co? *')), reason));
       }
       whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, `${DATE_LABELS[form.kind]} *`)), date), ...fields);
     };

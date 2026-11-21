@@ -2,7 +2,7 @@
 // - a **sale** to a client: lines (product, bag size, number of bags, free or not) and an invoice status: to be
 //   issued → issued (the date it was issued) → paid. The invoice itself is made in Fakturownia;
 // - a **sample** left somewhere: a client, or just a place typed in (a café not yet a client);
-// - **own use**: one of the owners took a bag, with a reason.
+// - **own use**: one of the owners took a bag. No reason is asked (owner, 2026-11-21); a reason saved earlier is kept.
 // Samples and own use have no invoice. Sales do not change stock (owner, 2026-11-19).
 // No prices here (owner, 2026-11-19): Sales records how much went out; the owner takes the prices from the client's
 // offer when issuing the invoice, and the partner does not need to know them. The "unit_price_net_pln" column of the
@@ -241,7 +241,6 @@ export function validateSale(
   if (form.kind === 'sale' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta (nowych dodasz w zakładce Klienci).';
   if (form.kind === 'sample' && form.clientId === '' && place === '') errors.place = 'Wybierz klienta albo wpisz, gdzie została próbka, np. Café Nowa, Kazimierz.';
   if (form.kind === 'sample' && form.clientId !== '' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta z listy.';
-  if (form.kind === 'own_use' && reason === '') errors.reason = 'Napisz, po co, np. na degustację w domu.';
   if (place.length > 200) errors.place = 'Najwyżej 200 znaków.';
   if (reason.length > 200) errors.reason = 'Najwyżej 200 znaków.';
   if (form.notes.length > 2000) errors.notes = 'Najwyżej 2000 znaków.';

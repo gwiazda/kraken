@@ -226,7 +226,7 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   adds the existing clients by hand (real client data never goes into the code or tests).
 - **Sales** tab (built, data version 10: "Sales" and "Sale lines" tabs): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
   number of bags; a line can be free),
-  a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag, with a reason).
+  a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag; no reason asked, owner 2026-11-21; a reason saved earlier stays).
   Invoice status for sales: **To be issued → Issued (date) → Paid**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
   The list opens on **Invoice to be issued** (filters: all first, then to be issued, issued, paid, samples, own use, with counts). The status
