@@ -74,7 +74,7 @@ describe('validateSale', () => {
   it('stores a sale with its lines', () => {
     expect(validateSale(form(), ['C1'], ['P1'])).toEqual({
       ok: true,
-      fields: { date: '2026-11-19', kind: 'sale', client_id: 'C1', place: '', reason: '', notes: '' },
+      fields: { date: '2026-11-19', kind: 'sale', client_id: 'C1', place: '', notes: '' },
       lines: [{ position: '1', product_id: 'P1', bag_size_g: '1000', bags: '3', unit_price_net_pln: '', free: '' }],
     });
   });
@@ -84,11 +84,25 @@ describe('validateSale', () => {
     expect(result).toMatchObject({ ok: true, lines: [{ free: 'yes', unit_price_net_pln: '' }] });
   });
 
-  it('stores a sample at a place that is not a client, and own use with a reason, without prices', () => {
+  it('stores own use with no reason: Kraken no longer writes the reason column (owner, 2026-11-21)', () => {
+    const own = validateSale(form({ kind: 'own_use' }), ['C1'], ['P1']);
+    expect(own).toMatchObject({ ok: true, fields: { kind: 'own_use', client_id: '' } });
+    expect(own.ok && 'reason' in own.fields).toBe(false);
+  });
+
+  it('never changes or blocks the reason of an older own-use entry when it is edited', () => {
+    // Spaces, a line break and more than 200 characters: shown in the list, never rewritten, never an error.
+    for (const reason of ['Tasting at home', 'Tasting  at\nhome', 'x'.repeat(250)]) {
+      const old = sale(9, { kind: 'own_use', client_id: '', reason, invoice_status: '', notes: 'old' });
+      const edited = { ...formFromSale(old, [line(2, { sale_id: 'S9' })]), notes: 'new' };
+      const result = validateSale(edited, ['C1'], ['P1']);
+      expect(result.ok && changedSaleFields(old, result.fields)).toEqual({ notes: 'new' });
+    }
+  });
+
+  it('stores a sample at a place that is not a client, without prices', () => {
     const sample = validateSale(form({ kind: 'sample', clientId: '', place: '  Café  Nowa, Kazimierz ' }), ['C1'], ['P1']);
     expect(sample).toMatchObject({ ok: true, fields: { kind: 'sample', client_id: '', place: 'Café Nowa, Kazimierz' }, lines: [{ unit_price_net_pln: '', free: '' }] });
-    const own = validateSale(form({ kind: 'own_use', reason: 'Tasting at home' }), ['C1'], ['P1']);
-    expect(own).toMatchObject({ ok: true, fields: { kind: 'own_use', client_id: '', reason: 'Tasting at home' } });
   });
 
   it('explains what is missing', () => {
@@ -109,7 +123,6 @@ describe('validateSale', () => {
       },
     });
     expect(validateSale(form({ kind: 'sample', clientId: '' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { place: 'Wybierz klienta albo wpisz, gdzie została próbka, np. Café Nowa, Kazimierz.' } });
-    expect(validateSale(form({ kind: 'own_use' }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { reason: 'Napisz, po co, np. na degustację w domu.' } });
     expect(validateSale(form({ lines: [] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { lines: 'Dodaj co najmniej jeden produkt.' } });
   });
 
@@ -123,7 +136,7 @@ describe('validateSale', () => {
     const lines = [{ productId: 'P1', grams: '150', bags: '1', free: false }];
     expect(validateSale(form({ kind: 'sample', lines }), ['C1'], ['P1'])).toMatchObject({ ok: true, lines: [{ bag_size_g: '150', bags: '1' }] });
     expect(validateSale(form({ kind: 'sale', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wybierz wielkość torebki.'] } });
-    expect(validateSale(form({ kind: 'own_use', reason: 'Tasting', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wybierz wielkość torebki.'] } });
+    expect(validateSale(form({ kind: 'own_use', lines }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wybierz wielkość torebki.'] } });
     for (const grams of ['0', '12.5', '6000', '']) {
       expect(validateSale(form({ kind: 'sample', lines: [{ ...lines[0]!, grams }] }), ['C1'], ['P1'])).toMatchObject({ ok: false, errors: { line: ['Pozycja 1: wpisz gramaturę w gramach (od 1 do 5000).'] } });
     }

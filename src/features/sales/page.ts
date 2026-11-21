@@ -36,7 +36,7 @@ import {
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, bagsText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, deletedEntryText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -318,7 +318,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         ...deleted.map((s) => {
           const slot = el('span', {});
           slot.append(button('Przywróć', () => act(slot, 'Przywracam…', () => deps.repo.restore(s, deps.now()), 'Przywrócono.'), 'link'));
-          return el('li', {}, `${formatDate(s.date)} · ${s.kind ? KIND_LABELS[s.kind] : '?'} · ${s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason} `, slot);
+          return el('li', {}, `${deletedEntryText(s, clientName)} `, slot);
         }),
       ),
     );
@@ -337,7 +337,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const errorBox = el('div', {});
     const banner = el('div', { class: 'form-banner' });
 
-    // Who and why: a sale needs a client; a sample a client or a place; own use a reason.
+    // Who: a sale needs a client; a sample a client or a place; own use nothing (no reason asked, owner 2026-11-21).
     const kindHolder = el('div', { class: 'kind-choice', role: 'radiogroup', 'aria-label': 'Rodzaj wpisu' });
     const whoHolder = el('div', { class: 'fields' });
     const linesHolder = el('div', {});
@@ -369,7 +369,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       );
     };
 
+    const whoLegend = el('legend', {});
     const renderWho = () => {
+      whoLegend.textContent = form.kind === 'own_use' ? 'Kiedy' : 'Kiedy i kto'; // own use asks only the date
       const fields: Node[] = [];
       if (form.kind !== 'own_use') {
         const select = el('select', { id: 'sale-client' });
@@ -395,12 +397,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         place.value = form.place;
         place.addEventListener('input', () => (form.place = place.value));
         fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: place.id }, 'Gdzie została? *')), place));
-      }
-      if (form.kind === 'own_use') {
-        const reason = el('input', { id: 'sale-reason', type: 'text', autocomplete: 'off', placeholder: 'np. degustacja w domu' });
-        reason.value = form.reason;
-        reason.addEventListener('input', () => (form.reason = reason.value));
-        fields.push(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: reason.id }, 'Po co? *')), reason));
       }
       whoHolder.replaceChildren(el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, `${DATE_LABELS[form.kind]} *`)), date), ...fields);
     };
@@ -522,7 +518,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const result = validateSale(form, clientIds, productIds);
       if (!result.ok) {
         const e = result.errors;
-        errorBox.replaceChildren(...[e.date, e.client, e.place, e.reason, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
+        errorBox.replaceChildren(...[e.date, e.client, e.place, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
         banner.replaceChildren(message('Popraw to, co jest wymienione poniżej.', 'error'));
         return;
       }
@@ -579,7 +575,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       'form',
       { class: 'lot-form', novalidate: '' },
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Co to było?'), kindHolder),
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Kiedy i kto'), whoHolder),
+      el('fieldset', { class: 'form-section' }, whoLegend, whoHolder),
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Produkty'), linesHolder, totalLine),
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Uwagi'), el('div', { class: 'field field-wide' }, el('label', { for: notes.id, class: 'visually-hidden' }, 'Uwagi'), notes)),
       errorBox,
