@@ -2,7 +2,8 @@
 // - a **sale** to a client: lines (product, bag size, number of bags, free or not) and an invoice status: to be
 //   issued → issued (the date it was issued) → paid. The invoice itself is made in Fakturownia;
 // - a **sample** left somewhere: a client, or just a place typed in (a café not yet a client);
-// - **own use**: one of the owners took a bag. No reason is asked (owner, 2026-11-21); a reason saved earlier is kept.
+// - **own use**: one of the owners took a bag. No reason is asked (owner, 2026-11-21): Kraken never writes the
+//   "reason" column any more, so a reason saved earlier stays exactly as it is (and is still shown in the list).
 // Samples and own use have no invoice. Sales do not change stock (owner, 2026-11-19).
 // No prices here (owner, 2026-11-19): Sales records how much went out; the owner takes the prices from the client's
 // offer when issuing the invoice, and the partner does not need to know them. The "unit_price_net_pln" column of the
@@ -182,7 +183,6 @@ export interface SaleForm {
   kind: SaleKind;
   clientId: string;
   place: string;
-  reason: string;
   notes: string;
   lines: LineForm[];
 }
@@ -191,7 +191,6 @@ export interface SaleErrors {
   date?: string;
   client?: string;
   place?: string;
-  reason?: string;
   notes?: string;
   lines?: string;
   /** Per line, in order. */
@@ -200,7 +199,7 @@ export interface SaleErrors {
 
 export const emptyLine = (): LineForm => ({ productId: '', grams: String(BAG_SIZES_G[0]), bags: '1', free: false });
 
-export const emptySaleForm = (today: string): SaleForm => ({ date: today, kind: 'sale', clientId: '', place: '', reason: '', notes: '', lines: [emptyLine()] });
+export const emptySaleForm = (today: string): SaleForm => ({ date: today, kind: 'sale', clientId: '', place: '', notes: '', lines: [emptyLine()] });
 
 export function formFromSale(sale: Sale, lines: readonly SaleLine[]): SaleForm {
   return {
@@ -208,7 +207,6 @@ export function formFromSale(sale: Sale, lines: readonly SaleLine[]): SaleForm {
     kind: sale.kind ?? 'sale',
     clientId: sale.clientId,
     place: sale.place,
-    reason: sale.reason,
     notes: sale.notes,
     lines: lines.map((l) => ({
       productId: l.productId,
@@ -237,12 +235,10 @@ export function validateSale(
   const errors: SaleErrors = { line: form.lines.map(() => undefined) };
   if (!isValidDate(form.date)) errors.date = 'Wybierz datę.';
   const place = form.place.trim().replace(/\s+/g, ' ');
-  const reason = form.reason.trim().replace(/\s+/g, ' ');
   if (form.kind === 'sale' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta (nowych dodasz w zakładce Klienci).';
   if (form.kind === 'sample' && form.clientId === '' && place === '') errors.place = 'Wybierz klienta albo wpisz, gdzie została próbka, np. Café Nowa, Kazimierz.';
   if (form.kind === 'sample' && form.clientId !== '' && !clientIds.includes(form.clientId)) errors.client = 'Wybierz klienta z listy.';
   if (place.length > 200) errors.place = 'Najwyżej 200 znaków.';
-  if (reason.length > 200) errors.reason = 'Najwyżej 200 znaków.';
   if (form.notes.length > 2000) errors.notes = 'Najwyżej 2000 znaków.';
   if (form.lines.length === 0) errors.lines = 'Dodaj co najmniej jeden produkt.';
   const lines = form.lines.map((line, i) => {
@@ -262,7 +258,7 @@ export function validateSale(
       free: form.kind === 'sale' && line.free ? 'yes' : '',
     };
   });
-  const failed = [errors.date, errors.client, errors.place, errors.reason, errors.notes, errors.lines, ...errors.line].some((e) => e);
+  const failed = [errors.date, errors.client, errors.place, errors.notes, errors.lines, ...errors.line].some((e) => e);
   if (failed) return { ok: false, errors };
   return {
     ok: true,
@@ -271,7 +267,6 @@ export function validateSale(
       kind: form.kind,
       client_id: form.kind === 'own_use' ? '' : form.clientId,
       place: form.kind === 'sample' && form.clientId === '' ? place : '',
-      reason: form.kind === 'own_use' ? reason : '',
       notes: form.notes,
     },
     lines,

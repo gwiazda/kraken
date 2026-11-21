@@ -38,6 +38,21 @@ export interface SaleRow {
 }
 
 /**
+ * Who an entry is for: the client ("Café Nowa"; "? (nie ma takiego klienta)" when it cannot be found), a place
+ * typed in ("Café X, Kazimierz (nie jest klientem)"), or for own use the reason saved before 2026-11-21 ('' if none).
+ */
+export function whoText(sale: Sale, clientName: (id: string) => string | undefined): string {
+  if (sale.kind === 'own_use') return sale.reason;
+  if (sale.clientId) return clientName(sale.clientId) ?? '? (nie ma takiego klienta)';
+  return sale.place ? `${sale.place} (nie jest klientem)` : '';
+}
+
+/** A deleted entry in "Usunięte wpisy": "19.11.2026 · Sprzedaż · Café Nowa" (no trailing "·" when there is no who). */
+export function deletedEntryText(sale: Sale, clientName: (id: string) => string | undefined): string {
+  return [formatDate(sale.date), sale.kind ? KIND_LABELS[sale.kind] : '?', whoText(sale, clientName)].filter((part) => part !== '').join(' · ');
+}
+
+/**
  * The entries shown for a filter, newest first, without deleted ones; and how many each filter has. `clientName` and
  * `productName` look up names (a deleted or missing one shows as "?").
  */
@@ -57,14 +72,7 @@ export function saleRows(
       const items = own
         .map((l) => `${productName(l.productId) ?? '?'} ${l.grams === null ? '?' : formatBagSize(l.grams)} × ${l.bags ?? '?'}${l.free ? ' (gratis)' : ''}`)
         .join(', ');
-      const who =
-        sale.kind === 'own_use'
-          ? sale.reason
-          : sale.clientId
-            ? (clientName(sale.clientId) ?? '? (nie ma takiego klienta)')
-            : sale.place
-              ? `${sale.place} (nie jest klientem)`
-              : '';
+      const who = whoText(sale, clientName);
       const invoiceDate = sale.kind === 'sale' && (sale.status === 'issued' || sale.status === 'paid') ? sale.invoiceDate : '';
       return {
         sale,

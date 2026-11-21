@@ -36,7 +36,7 @@ import {
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, bagsText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, deletedEntryText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -318,8 +318,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         ...deleted.map((s) => {
           const slot = el('span', {});
           slot.append(button('Przywróć', () => act(slot, 'Przywracam…', () => deps.repo.restore(s, deps.now()), 'Przywrócono.'), 'link'));
-          const who = s.clientId ? (clientName(s.clientId) ?? '?') : s.place || s.reason;
-          return el('li', {}, `${[formatDate(s.date), s.kind ? KIND_LABELS[s.kind] : '?', who].filter((part) => part !== '').join(' · ')} `, slot);
+          return el('li', {}, `${deletedEntryText(s, clientName)} `, slot);
         }),
       ),
     );
@@ -519,7 +518,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const result = validateSale(form, clientIds, productIds);
       if (!result.ok) {
         const e = result.errors;
-        errorBox.replaceChildren(...[e.date, e.client, e.place, e.reason, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
+        errorBox.replaceChildren(...[e.date, e.client, e.place, e.notes, e.lines, ...e.line].filter((t): t is string => !!t).map((t) => message(t, 'error')));
         banner.replaceChildren(message('Popraw to, co jest wymienione poniżej.', 'error'));
         return;
       }

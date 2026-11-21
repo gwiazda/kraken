@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lineFromFields, saleFromFields } from './model';
-import { bagsText, saleFacts, saleRows } from './present';
+import { bagsText, deletedEntryText, saleFacts, saleRows, whoText } from './present';
 
 const sale = (row: number, o: Record<string, string> = {}) =>
   saleFromFields({ id: `S${row}`, date: '2026-11-19', kind: 'sale', client_id: 'C1', invoice_status: 'to_issue', created_by: 'partner@example.com', ...o }, row);
@@ -65,5 +65,22 @@ describe('saleFacts', () => {
       { label: 'Data wystawienia faktury', value: 'Jeszcze nie' },
     ]);
     expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
+  });
+});
+
+describe('whoText and deletedEntryText', () => {
+  const name = (id: string) => clients[id];
+
+  it('names the client, a place typed in, or the reason an older own-use entry had', () => {
+    expect(whoText(sale(1), name)).toBe('Café Nowa');
+    expect(whoText(sale(1, { client_id: 'GONE' }), name)).toBe('? (nie ma takiego klienta)');
+    expect(whoText(sale(1, { kind: 'sample', client_id: '', place: 'Café X' }), name)).toBe('Café X (nie jest klientem)');
+    expect(whoText(sale(1, { kind: 'own_use', client_id: '', reason: 'Tasting at home' }), name)).toBe('Tasting at home');
+    expect(whoText(sale(1, { kind: 'own_use', client_id: '' }), name)).toBe('');
+  });
+
+  it('writes a deleted entry without a dangling "·" when there is no who', () => {
+    expect(deletedEntryText(sale(1), name)).toBe('19.11.2026 · Sprzedaż · Café Nowa');
+    expect(deletedEntryText(sale(1, { kind: 'own_use', client_id: '' }), name)).toBe('19.11.2026 · Na własny użytek');
   });
 });
