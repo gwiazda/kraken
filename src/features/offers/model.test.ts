@@ -43,8 +43,13 @@ describe('discounts and the banner', () => {
     expect(bannerText(tiers, ['250 g', '1 kg'])).toEqual({
       title: 'Ceny netto B2B:',
       line: 'Do 10 kg: -15% | 10–20 kg: -25% | 20+ kg: -30%',
-      note: '* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach zamówienia można dowolnie łączyć rodzaje ziaren oraz gramatury 250 g i 1 kg.',
+      note: '* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach faktury można dowolnie łączyć rodzaje ziaren oraz opakowania 250 g i 1 kg.',
     });
+    const note = (sizes: string[]) => bannerText(tiers, sizes).note;
+    expect(note(['250 g', '500 g', '1 kg'])).toBe('* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach faktury można dowolnie łączyć rodzaje ziaren oraz opakowania 250 g, 500 g i 1 kg.');
+    // One size (or none ticked yet): nothing to combine, so the sizes are left out.
+    expect(note(['250 g'])).toBe('* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach faktury można dowolnie łączyć rodzaje ziaren.');
+    expect(note([])).toBe(note(['250 g']));
     expect(bannerText([{ tenths: 200, label: '' }], ['250 g'])).toEqual({ title: 'Ceny netto B2B:', line: 'Rabat: -20%', note: '' });
   });
 });

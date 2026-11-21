@@ -72,7 +72,7 @@ describe('buildOffer', () => {
       year: '2026',
       warnings: [],
     });
-    expect(offer.banner.note).toContain('gramatury 250 g i 1 kg');
+    expect(offer.banner.note).toContain('opakowania 250 g i 1 kg');
   });
 
   it('leaves out a size a product has no price for, and says so; never shows deleted or unticked products', () => {

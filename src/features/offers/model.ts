@@ -80,6 +80,15 @@ export function sizesText(labels: readonly string[]): string {
   return `${labels.slice(0, -1).join(', ')} i ${labels[labels.length - 1]}`;
 }
 
+/**
+ * The small print under the discounts: the basis is one invoice, in both sentences. Bag sizes are mentioned only when
+ * two or more are on the offer (one size cannot be combined).
+ */
+function discountNote(sizeLabels: readonly string[]): string {
+  const sizes = sizeLabels.length > 1 ? ` oraz opakowania ${sizesText(sizeLabels)}` : '';
+  return `* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach faktury można dowolnie łączyć rodzaje ziaren${sizes}.`;
+}
+
 /** The yellow banner at the bottom of the offer. The discount is counted per invoice (owner, 2026-11-21; was per month). */
 export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]): Banner {
   // Only a client's special prices (no discount ticked): no "Ceny netto B2B" line about discounts.
@@ -88,9 +97,7 @@ export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]
   return {
     title: 'Ceny netto B2B:',
     line: sorted.map((t) => (t.label ? `${t.label}: ${discountText(t.tenths)}` : `Rabat: ${discountText(t.tenths)}`)).join(' | '),
-    note: sorted.some((t) => t.label)
-      ? `* Wysokość rabatu zależy od łącznej wagi kawy na jednej fakturze. W ramach zamówienia można dowolnie łączyć rodzaje ziaren oraz gramatury ${sizesText(sizeLabels)}.`
-      : '',
+    note: sorted.some((t) => t.label) ? discountNote(sizeLabels) : '',
   };
 }
 
