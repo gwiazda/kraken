@@ -474,6 +474,9 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   a position (new ones) come last, by name.
 - The **yellow banner** text is made from the ticked discounts and sizes, and can be changed per offer (title, main
   line, small print; "Back to the standard text"). "Sugerowana cena…" stays on one line.
+  **Discounts count per invoice** (owner, 2026-11-21; was per month): the main line has no "/ mies." and the small
+  print says the discount depends on the total weight of coffee on one invoice, any coffees and bag sizes combined on
+  that invoice (the sizes are named only when two or more are on the offer).
 - **Prices never move under a product name** (owner, 2026-11-17): a long name gets smaller (22 → 16 pt) on one line,
   then wraps onto two lines (18 → 16 pt), and only a very long one takes more. With all three bag sizes ticked there
   is no room beside any name, so every card on that offer puts its prices under the name (one layout for the offer).
