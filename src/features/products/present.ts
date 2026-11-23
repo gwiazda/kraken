@@ -2,9 +2,9 @@
 // gross price with its net, and the wholesale price at each discount (net, whole złoty, with the gross for the
 // invoice). The rules are in domain/prices.ts, shared with the Offer.
 
-import { formatPln, formatWholePln } from '../../core/numbers';
+import { formatPln, formatWholePln, parseMoney } from '../../core/numbers';
 import { plural } from '../../core/polish';
-import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
+import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
 import { BASE_GRAMS, bagCost, blendPerKg, earningsAt, marginAt, roastedPerKg, scaledPrice, suggestionsFor, type BeanCost } from '../../domain/blend';
 import { marginText } from '../../domain/percent';
 import { grossMarginPercent, grossOf, netOf, roundGrosze, wholesalePrice } from '../../domain/prices';
@@ -157,6 +157,41 @@ const timesWord = (n: number) => `${String(n).replace('.', ',')} ${Number.isInte
 const MARKUP_WORDS: Readonly<Record<number, string>> = { 200: 'Dwa razy', 250: 'Dwa i pół raza', 300: 'Trzy razy' };
 
 /**
+ * A bigger bag's price that follows the 250 g price (owner, 2026-11-19): scaledPrice, but never below 0 zł (the small
+ * bags' packaging is taken off, so a very low 250 g price, e.g. 0 zł, would otherwise give a minus). null when the
+ * bag's or the 250 g packaging is not entered yet (its cost, and so its price, is not known). The suggestion under
+ * the price and the filled-in price both come from here.
+ */
+function followingPrice(basePriceGrosze: number, grams: number, packaging: ReadonlyMap<number, number | null>, vatTenths: number): { exact: number; gross: number } | null {
+  const basePack = packaging.get(BASE_GRAMS) ?? null;
+  const pack = packaging.get(grams) ?? null;
+  if (grams === BASE_GRAMS || basePack === null || pack === null) return null;
+  const scaled = scaledPrice(basePriceGrosze, basePack, grams, pack, vatTenths);
+  return { exact: scaled.exact, gross: Math.max(0, scaled.gross) };
+}
+
+/**
+ * The price boxes (as typed) after the one for `typed` changed (owner, 2026-11-23): a 250 g price that can be read
+ * (0 zł too) fills in 500 g and 1 kg with their following price; changing 500 g or 1 kg never changes 250 g; an
+ * empty or unreadable 250 g leaves the others as they are. A size whose packaging is not entered keeps its value.
+ */
+export function pricesAfterTyping(
+  typed: BagSize,
+  values: Readonly<Record<BagSize, string>>,
+  packaging: ReadonlyMap<number, number | null>,
+  vatTenths: number,
+): Record<BagSize, string> {
+  const out = { ...values };
+  const base = parseMoney(values[BASE_GRAMS].trim());
+  if (typed !== BASE_GRAMS || typeof base !== 'number' || base < 0) return out;
+  for (const grams of BAG_SIZES_G) {
+    const follow = followingPrice(base, grams, packaging, vatTenths);
+    if (follow) out[grams] = String(follow.gross / 100);
+  }
+  return out;
+}
+
+/**
  * What one bag of each size costs and earns, from the product's beans (as in the form), every lot, the packaging
  * per size, VAT and the usual roast loss. `prices` are the product's main gross prices per size (grosze).
  */
@@ -231,7 +266,7 @@ export function costing(
     const basePrice = prices[BASE_GRAMS];
     const basePack = packaging.get(BASE_GRAMS) ?? null;
     // 250 g: the cost × 2 / 2,5 / 3. Bigger bags follow the 250 g price (owner, 2026-11-19).
-    const scaled = !base && basePrice !== undefined && basePack !== null ? scaledPrice(basePrice, basePack, grams, pack ?? 0, vatTenths) : null;
+    const scaled = basePrice === undefined ? null : followingPrice(basePrice, grams, packaging, vatTenths);
     const bags = grams / BASE_GRAMS;
     const bagsText = `${bags === 2 ? 'dwie' : bags === 4 ? 'cztery' : String(bags)} ${plural(bags, 'torebka', 'torebki', 'torebek')}`;
     const baseSuggestions = base ? suggestionsFor(cost, vatTenths) : [];

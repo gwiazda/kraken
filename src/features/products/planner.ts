@@ -12,7 +12,7 @@ import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import { button, el, infoTip } from '../../ui/dom';
 import type { BeanForm } from './modelBeans';
-import { compareRow, costing, priceRows, sortCompared, type ComparedRow } from './present';
+import { compareRow, costing, priceRows, pricesAfterTyping, sortCompared, type ComparedRow } from './present';
 import { MARGIN_TIP, compareTable, costsBySize, pricesTable } from './priceTable';
 
 /** What the planner needs from the rest of Kraken: VAT and the usual loss, every lot as a bean, packaging per size. */
@@ -356,6 +356,18 @@ export function createPlanner(
       )
     : null;
 
+  /** After a price box changed: a 250 g price fills in 500 g and 1 kg (pricesAfterTyping). A box filled in loses an old error. */
+  const followTyping = (typed: BagSize) => {
+    const now = Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) as Record<BagSize, string>;
+    const next = pricesAfterTyping(typed, now, packaging, settings.vatTenths);
+    for (const grams of BAG_SIZES_G) {
+      if (next[grams] === now[grams]) continue;
+      priceInputs[grams].value = next[grams];
+      priceErrors[grams].textContent = '';
+      priceInputs[grams].setAttribute('aria-invalid', 'false');
+    }
+  };
+
   const update = () => {
     options.onChange?.({ beans: beanForms.map((f) => ({ ...f })), prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) });
     const prices = typedPrices();
@@ -380,6 +392,7 @@ export function createPlanner(
         );
         chip.addEventListener('click', () => {
           input.value = value;
+          followTyping(grams);
           update();
         });
         return chip;
@@ -404,7 +417,10 @@ export function createPlanner(
   };
   const priceRow = (grams: BagSize) => {
     const input = priceInputs[grams];
-    input.addEventListener('input', update);
+    input.addEventListener('input', () => {
+      followTyping(grams);
+      update();
+    });
     const chips = el('div', { class: 'chips' });
     chipHolders.set(grams, chips);
     const texts = el('span', {});
