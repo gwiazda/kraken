@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from './model';
-import { compareRows, costing, discountHeader, priceRows, productDetails } from './present';
+import { compareRows, costing, discountHeader, followingPrices, priceRows, productDetails } from './present';
 import type { BeanForm } from './modelBeans';
 
 const kenia = productFromFields(
@@ -253,3 +253,30 @@ describe('compareRows (the plan next to the products)', () => {
   });
 });
 
+
+describe('followingPrices: typing the 250 g price fills in the bigger bags (owner, 2026-11-23)', () => {
+  it('gives 500 g and 1 kg the same price as their "jak … × 250 g" suggestion', () => {
+    // 250 g at 45 zł, packaging 5,27 zł net for every size (the owner's example in domain/blend): 500 g 84 zł, 1 kg 161 zł
+    const packaging = new Map([
+      [250, 527],
+      [500, 527],
+      [1000, 527],
+    ]);
+    expect(followingPrices(4500, packaging, 230)).toEqual({ 500: 8400, 1000: 16100 });
+  });
+
+  it('matches the 1 kg suggestion shown under the price', () => {
+    // The same numbers as the costing test above: 59 zł for 250 g → 232 zł for 1 kg.
+    const packaging = new Map([
+      [250, 150],
+      [500, 150],
+      [1000, 250],
+    ]);
+    expect(followingPrices(5900, packaging, 230)[1000]).toBe(23200);
+  });
+
+  it('leaves out a size whose packaging is not entered, and fills nothing without the 250 g packaging', () => {
+    expect(followingPrices(5900, new Map([[250, 150], [500, null], [1000, 250]]), 230)).toEqual({ 1000: 23200 });
+    expect(followingPrices(5900, new Map([[250, null], [500, 150], [1000, 250]]), 230)).toEqual({});
+  });
+});

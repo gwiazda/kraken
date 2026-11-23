@@ -6,13 +6,13 @@
 import { formatPln, parseMoney } from '../../core/numbers';
 import { plural } from '../../core/polish';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
-import { MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
+import { BASE_GRAMS, MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
 import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import { button, el, infoTip } from '../../ui/dom';
 import type { BeanForm } from './modelBeans';
-import { compareRow, costing, priceRows, sortCompared, type ComparedRow } from './present';
+import { compareRow, costing, followingPrices, priceRows, sortCompared, type ComparedRow } from './present';
 import { MARGIN_TIP, compareTable, costsBySize, pricesTable } from './priceTable';
 
 /** What the planner needs from the rest of Kraken: VAT and the usual loss, every lot as a bean, packaging per size. */
@@ -356,6 +356,16 @@ export function createPlanner(
       )
     : null;
 
+  /** A new 250 g price fills in 500 g and 1 kg (owner, 2026-11-23); their own changes never touch 250 g. */
+  const followBase = () => {
+    const base = parseMoney(priceInputs[BASE_GRAMS].value);
+    if (typeof base !== 'number' || base <= 0) return; // empty or not a price yet: the others stay as they are
+    for (const [grams, grosze] of Object.entries(followingPrices(base, packaging, settings.vatTenths))) {
+      const input = priceInputs[Number(grams) as BagSize];
+      if (input && grosze !== undefined) input.value = String(grosze / 100);
+    }
+  };
+
   const update = () => {
     options.onChange?.({ beans: beanForms.map((f) => ({ ...f })), prices: Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) });
     const prices = typedPrices();
@@ -380,6 +390,7 @@ export function createPlanner(
         );
         chip.addEventListener('click', () => {
           input.value = value;
+          if (grams === BASE_GRAMS) followBase();
           update();
         });
         return chip;
@@ -404,7 +415,10 @@ export function createPlanner(
   };
   const priceRow = (grams: BagSize) => {
     const input = priceInputs[grams];
-    input.addEventListener('input', update);
+    input.addEventListener('input', () => {
+      if (grams === BASE_GRAMS) followBase();
+      update();
+    });
     const chips = el('div', { class: 'chips' });
     chipHolders.set(grams, chips);
     const texts = el('span', {});

@@ -157,6 +157,22 @@ const timesWord = (n: number) => `${String(n).replace('.', ',')} ${Number.isInte
 const MARKUP_WORDS: Readonly<Record<number, string>> = { 200: 'Dwa razy', 250: 'Dwa i pół raza', 300: 'Trzy razy' };
 
 /**
+ * The prices of the bigger bags that follow a 250 g price (owner, 2026-11-23): typing the 250 g price fills in 500 g
+ * and 1 kg, the same as their suggestion "jak 2 × 250 g" (scaledPrice); never the other way round. A size is left out
+ * when its packaging or the 250 g packaging is not entered yet (its cost, and so its price, is not known).
+ */
+export function followingPrices(basePriceGrosze: number, packaging: ReadonlyMap<number, number | null>, vatTenths: number): Partial<Record<number, number>> {
+  const basePack = packaging.get(BASE_GRAMS) ?? null;
+  const out: Partial<Record<number, number>> = {};
+  if (basePack === null) return out;
+  for (const grams of BAG_SIZES_G) {
+    const pack = packaging.get(grams) ?? null;
+    if (grams !== BASE_GRAMS && pack !== null) out[grams] = scaledPrice(basePriceGrosze, basePack, grams, pack, vatTenths).gross;
+  }
+  return out;
+}
+
+/**
  * What one bag of each size costs and earns, from the product's beans (as in the form), every lot, the packaging
  * per size, VAT and the usual roast loss. `prices` are the product's main gross prices per size (grosze).
  */
