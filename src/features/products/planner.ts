@@ -6,13 +6,13 @@
 import { formatPln, parseMoney } from '../../core/numbers';
 import { plural } from '../../core/polish';
 import { BAG_SIZES_G, formatBagSize, type BagSize } from '../../domain/bagSizes';
-import { BASE_GRAMS, MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
+import { MAX_BEANS, dividersOf, evenShares, moveDivider, typeShare } from '../../domain/blend';
 import { DEFAULT_SETTINGS, activeDiscounts, pricingFor, type BeanLot, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { RoastsRepository } from '../roasts';
 import { button, el, infoTip } from '../../ui/dom';
 import type { BeanForm } from './modelBeans';
-import { compareRow, costing, followingPrices, priceRows, sortCompared, type ComparedRow } from './present';
+import { compareRow, costing, priceRows, pricesAfterTyping, sortCompared, type ComparedRow } from './present';
 import { MARGIN_TIP, compareTable, costsBySize, pricesTable } from './priceTable';
 
 /** What the planner needs from the rest of Kraken: VAT and the usual loss, every lot as a bean, packaging per size. */
@@ -356,13 +356,15 @@ export function createPlanner(
       )
     : null;
 
-  /** A new 250 g price fills in 500 g and 1 kg (owner, 2026-11-23); their own changes never touch 250 g. */
-  const followBase = () => {
-    const base = parseMoney(priceInputs[BASE_GRAMS].value);
-    if (typeof base !== 'number' || base < 0) return; // empty or not a price yet: the others stay as they are (0 is a price)
-    for (const [grams, grosze] of Object.entries(followingPrices(base, packaging, settings.vatTenths))) {
-      const input = priceInputs[Number(grams) as BagSize];
-      if (input && grosze !== undefined) input.value = String(grosze / 100);
+  /** After a price box changed: a 250 g price fills in 500 g and 1 kg (pricesAfterTyping). A box filled in loses an old error. */
+  const followTyping = (typed: BagSize) => {
+    const now = Object.fromEntries(BAG_SIZES_G.map((g) => [g, priceInputs[g].value])) as Record<BagSize, string>;
+    const next = pricesAfterTyping(typed, now, packaging, settings.vatTenths);
+    for (const grams of BAG_SIZES_G) {
+      if (next[grams] === now[grams]) continue;
+      priceInputs[grams].value = next[grams];
+      priceErrors[grams].textContent = '';
+      priceInputs[grams].setAttribute('aria-invalid', 'false');
     }
   };
 
@@ -390,7 +392,7 @@ export function createPlanner(
         );
         chip.addEventListener('click', () => {
           input.value = value;
-          if (grams === BASE_GRAMS) followBase();
+          followTyping(grams);
           update();
         });
         return chip;
@@ -416,7 +418,7 @@ export function createPlanner(
   const priceRow = (grams: BagSize) => {
     const input = priceInputs[grams];
     input.addEventListener('input', () => {
-      if (grams === BASE_GRAMS) followBase();
+      followTyping(grams);
       update();
     });
     const chips = el('div', { class: 'chips' });

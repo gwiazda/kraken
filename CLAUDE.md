@@ -89,7 +89,7 @@ test that reads every import line), so CI fails if a rule is broken.
   up to 3 beans** ("Product beans" tab, `modelBeans.ts`): a lot, or a planned bean (name, price per kg, optional
   roast loss), each with a share of the bag set on one bar (drag a divider or type a %; always 100 %); the form shows live the cost of one bag,
   suggested prices to click with what each earns (250 g: 2×, 2,5×, 3× its cost with VAT, whole złoty; 500 g and 1 kg
-  follow the 250 g price with one big bag's packaging, and typing the 250 g price fills them in, never the other way: `followingPrices`, owner 2026-11-23), what the typed price earns, and every step explained.
+  follow the 250 g price with one big bag's packaging; typing 250 g fills them in, never the other way), what the typed price earns, and every step explained.
   The blend rules are in `domain/blend.ts`. Only the current price is kept. The beans-and-prices part is **one
   piece, `planner.ts`**, used by both the product form and the **Product planner** tab (`plannerPage.ts`: a
   scratchpad, nothing saved; "Try in Product planner" on a product copies it there, "Create product from this"

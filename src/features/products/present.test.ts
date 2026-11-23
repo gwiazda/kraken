@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { productFromFields } from './model';
-import { compareRows, costing, discountHeader, followingPrices, priceRows, productDetails } from './present';
+import { compareRows, costing, discountHeader, priceRows, pricesAfterTyping, productDetails } from './present';
 import type { BeanForm } from './modelBeans';
 
 const kenia = productFromFields(
@@ -77,6 +77,16 @@ describe('costing (what a bag costs and earns)', () => {
     [1000, 250],
   ]);
   const lotBean = (lotId: string, share: number): BeanForm => ({ kind: 'lot', lotId, plannedName: '', plannedPrice: '', plannedLoss: '', sharePercent: share });
+
+  it('suggests for 1 kg exactly the price that typing 250 g fills in, also when it would be below 0 zł', () => {
+    for (const price250 of [5900, 100]) {
+      const chip = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: price250 }).rows[2]?.suggestions[0]?.grosze;
+      const filled = pricesAfterTyping(250, { 250: String(price250 / 100), 500: '', 1000: '' }, packaging, 230)[1000];
+      expect(String((chip ?? -1) / 100)).toBe(filled);
+    }
+    // 1 zł: 4 × 1 zł − 4 small packagings + one 1 kg packaging is below 0, so both say 0 zł.
+    expect(pricesAfterTyping(250, { 250: '1', 500: '', 1000: '' }, packaging, 230)[1000]).toBe('0');
+  });
 
   it('works out the hand-checked example for one bean: 24,15 zł a bag, suggestions 59 / 74 / 89 zł and their earnings', () => {
     const result = costing([lotBean('KEN', 100)], lots, packaging, 230, 150, { 250: 5900 });
@@ -254,34 +264,36 @@ describe('compareRows (the plan next to the products)', () => {
 });
 
 
-describe('followingPrices: typing the 250 g price fills in the bigger bags (owner, 2026-11-23)', () => {
-  it('gives 500 g and 1 kg the same price as their "jak … × 250 g" suggestion', () => {
-    // 250 g at 45 zł, packaging 5,27 zł net for every size (the owner's example in domain/blend): 500 g 84 zł, 1 kg 161 zł
-    const packaging = new Map([
-      [250, 527],
-      [500, 527],
-      [1000, 527],
-    ]);
-    expect(followingPrices(4500, packaging, 230)).toEqual({ 500: 8400, 1000: 16100 });
+describe('pricesAfterTyping: the 250 g price fills in the bigger bags, never the other way (owner, 2026-11-23)', () => {
+  // 250 g at 45 zł, packaging 5,27 zł net for every size (the owner's example in domain/blend): 500 g 84 zł, 1 kg 161 zł
+  const same = new Map([
+    [250, 527],
+    [500, 527],
+    [1000, 527],
+  ]);
+  const boxes = (b250: string, b500: string, b1000: string) => ({ 250: b250, 500: b500, 1000: b1000 });
+
+  it('fills in 500 g and 1 kg from a typed 250 g price, also over prices typed before', () => {
+    expect(pricesAfterTyping(250, boxes('45', '', ''), same, 230)).toEqual(boxes('45', '84', '161'));
+    expect(pricesAfterTyping(250, boxes('45', '99', '300'), same, 230)).toEqual(boxes('45', '84', '161'));
   });
 
-  it('matches the 1 kg suggestion shown under the price', () => {
-    // The same numbers as the costing test above: 59 zł for 250 g → 232 zł for 1 kg.
-    const packaging = new Map([
-      [250, 150],
-      [500, 150],
-      [1000, 250],
-    ]);
-    expect(followingPrices(5900, packaging, 230)[1000]).toBe(23200);
+  it('never changes 250 g (or the other big bag) when 500 g or 1 kg is typed', () => {
+    expect(pricesAfterTyping(500, boxes('45', '90', '161'), same, 230)).toEqual(boxes('45', '90', '161'));
+    expect(pricesAfterTyping(1000, boxes('45', '84', '170'), same, 230)).toEqual(boxes('45', '84', '170'));
   });
 
-  it('gives 0 zł (never a minus) for a 250 g price of 0 zł', () => {
-    // 0 zł − 2 small packagings + 1 big one would be about −2 zł for 500 g and −4 zł for 1 kg.
-    expect(followingPrices(0, new Map([[250, 150], [500, 150], [1000, 250]]), 230)).toEqual({ 500: 0, 1000: 0 });
+  it('leaves the others when 250 g is cleared or cannot be read yet; 0 zł is a price and gives 0 zł (never a minus)', () => {
+    expect(pricesAfterTyping(250, boxes('', '84', '161'), same, 230)).toEqual(boxes('', '84', '161'));
+    expect(pricesAfterTyping(250, boxes('abc', '84', '161'), same, 230)).toEqual(boxes('abc', '84', '161'));
+    // 0 zł − 2 small packagings + 1 big one would be about −6 zł for 500 g.
+    expect(pricesAfterTyping(250, boxes('0', '84', '161'), same, 230)).toEqual(boxes('0', '0', '0'));
   });
 
-  it('leaves out a size whose packaging is not entered, and fills nothing without the 250 g packaging', () => {
-    expect(followingPrices(5900, new Map([[250, 150], [500, null], [1000, 250]]), 230)).toEqual({ 1000: 23200 });
-    expect(followingPrices(5900, new Map([[250, null], [500, 150], [1000, 250]]), 230)).toEqual({});
+  it('keeps a size whose packaging is not entered, and fills nothing without the 250 g packaging', () => {
+    const no500 = new Map([[250, 150], [500, null], [1000, 250]]);
+    expect(pricesAfterTyping(250, boxes('59', '70', ''), no500, 230)).toEqual(boxes('59', '70', '232'));
+    const no250 = new Map([[250, null], [500, 150], [1000, 250]]);
+    expect(pricesAfterTyping(250, boxes('59', '70', '200'), no250, 230)).toEqual(boxes('59', '70', '200'));
   });
 });
