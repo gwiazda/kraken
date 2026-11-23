@@ -359,7 +359,7 @@ export function createPlanner(
   /** A new 250 g price fills in 500 g and 1 kg (owner, 2026-11-23); their own changes never touch 250 g. */
   const followBase = () => {
     const base = parseMoney(priceInputs[BASE_GRAMS].value);
-    if (typeof base !== 'number' || base <= 0) return; // empty or not a price yet: the others stay as they are
+    if (typeof base !== 'number' || base < 0) return; // empty or not a price yet: the others stay as they are (0 is a price)
     for (const [grams, grosze] of Object.entries(followingPrices(base, packaging, settings.vatTenths))) {
       const input = priceInputs[Number(grams) as BagSize];
       if (input && grosze !== undefined) input.value = String(grosze / 100);

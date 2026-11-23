@@ -275,6 +275,11 @@ describe('followingPrices: typing the 250 g price fills in the bigger bags (owne
     expect(followingPrices(5900, packaging, 230)[1000]).toBe(23200);
   });
 
+  it('gives 0 zł (never a minus) for a 250 g price of 0 zł', () => {
+    // 0 zł − 2 small packagings + 1 big one would be about −2 zł for 500 g and −4 zł for 1 kg.
+    expect(followingPrices(0, new Map([[250, 150], [500, 150], [1000, 250]]), 230)).toEqual({ 500: 0, 1000: 0 });
+  });
+
   it('leaves out a size whose packaging is not entered, and fills nothing without the 250 g packaging', () => {
     expect(followingPrices(5900, new Map([[250, 150], [500, null], [1000, 250]]), 230)).toEqual({ 1000: 23200 });
     expect(followingPrices(5900, new Map([[250, null], [500, 150], [1000, 250]]), 230)).toEqual({});

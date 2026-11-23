@@ -428,7 +428,8 @@ need to know what price to put on my product".
   sizes say "Set the 250 g price first".
 - **Typing the 250 g price fills in 500 g and 1 kg** (owner, 2026-11-23), in the Product planner and in a product's
   form, always (also over prices typed before, and in a product that so far sold only 250 g). Never the other way:
-  changing 500 g or 1 kg does not change 250 g. Clearing 250 g leaves the others. A size whose packaging is not
+  changing 500 g or 1 kg does not change 250 g. Clearing 250 g leaves the others; 0 zł for 250 g gives 0 zł for the
+  others (a filled-in price is never below 0 zł). A size whose packaging is not
   entered is not filled in.
 - **Product planner** (owner, 2026-11-19; was "Planner"). Below the beans and prices it also shows the **wholesale
   prices** of the typed prices (the same table as a product's page, with what each price earns per bag; red when it

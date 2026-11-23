@@ -159,7 +159,8 @@ const MARKUP_WORDS: Readonly<Record<number, string>> = { 200: 'Dwa razy', 250: '
 /**
  * The prices of the bigger bags that follow a 250 g price (owner, 2026-11-23): typing the 250 g price fills in 500 g
  * and 1 kg, the same as their suggestion "jak 2 × 250 g" (scaledPrice); never the other way round. A size is left out
- * when its packaging or the 250 g packaging is not entered yet (its cost, and so its price, is not known).
+ * when its packaging or the 250 g packaging is not entered yet (its cost, and so its price, is not known). Never below
+ * 0 zł: the small bags' packaging is taken off, so a very low 250 g price (e.g. 0 zł) would otherwise give a minus.
  */
 export function followingPrices(basePriceGrosze: number, packaging: ReadonlyMap<number, number | null>, vatTenths: number): Partial<Record<number, number>> {
   const basePack = packaging.get(BASE_GRAMS) ?? null;
@@ -167,7 +168,7 @@ export function followingPrices(basePriceGrosze: number, packaging: ReadonlyMap<
   if (basePack === null) return out;
   for (const grams of BAG_SIZES_G) {
     const pack = packaging.get(grams) ?? null;
-    if (grams !== BASE_GRAMS && pack !== null) out[grams] = scaledPrice(basePriceGrosze, basePack, grams, pack, vatTenths).gross;
+    if (grams !== BASE_GRAMS && pack !== null) out[grams] = Math.max(0, scaledPrice(basePriceGrosze, basePack, grams, pack, vatTenths).gross);
   }
   return out;
 }
