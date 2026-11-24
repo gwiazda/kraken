@@ -130,11 +130,15 @@ export const isSampleSize = (grams: string): boolean => (SAMPLE_SIZES_G as reado
 
 /**
  * A new entry whose kind is switched: lines still on the old kind's starting size move to the new one's (a sale's
- * 250 g becomes a sample's 150 g, and back). Other sizes stay as chosen. Not used when editing a saved entry.
+ * 250 g becomes a sample's 150 g, and back), and a sample's amount that is no bag size (100 g, 120 g) becomes 250 g
+ * for a sale or own use. Other sizes stay as chosen; unchanged lines are the same objects. Not used when editing a
+ * saved entry (its amounts never change by themselves).
  */
-export function linesForKind(lines: readonly LineForm[], from: SaleKind, to: SaleKind): LineForm[] {
+export function linesForKind(lines: LineForm[], from: SaleKind, to: SaleKind): LineForm[] {
+  if (from === to) return lines;
   const was = String(defaultGrams(from));
-  return lines.map((l) => (l.grams === was ? { ...l, grams: String(defaultGrams(to)) } : { ...l }));
+  const starting = String(defaultGrams(to));
+  return lines.map((l) => (l.grams === was || (to !== 'sample' && !isBagSize(Number(l.grams))) ? { ...l, grams: starting } : l));
 }
 
 /** A whole number of grams a line can have: 1 to MAX_SAMPLE_GRAMS (the bag sizes are among them). */

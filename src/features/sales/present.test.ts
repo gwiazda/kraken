@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lineFromFields, saleFromFields } from './model';
-import { bagsText, deletedEntryText, saleFacts, saleRows, whoText } from './present';
+import { bagsText, clientFacts, deletedEntryText, saleFacts, saleRows, whoText } from './present';
 
 const sale = (row: number, o: Record<string, string> = {}) =>
   saleFromFields({ id: `S${row}`, date: '2026-11-19', kind: 'sale', client_id: 'C1', invoice_status: 'to_issue', created_by: 'partner@example.com', ...o }, row);
@@ -47,46 +47,47 @@ describe('saleRows', () => {
 });
 
 describe('saleFacts', () => {
-  const nowa = { name: 'Café Nowa', registeredName: 'Nowa Kawa Sp. z o.o.', discount: '15 %', deleted: false };
-
-  it('shows the date of the sale, when it was added and by whom, the client, and when the invoice was issued', () => {
+  it('shows the date of the sale, when it was added and by whom, and when the invoice was issued', () => {
     const s = sale(2, { date: '2026-11-10', created_at: '2026-11-11T10:00:00.000Z', invoice_status: 'paid', invoice_date: '2026-11-12' });
-    expect(saleFacts(s, nowa)).toEqual([
+    expect(saleFacts(s)).toEqual([
       { label: 'Data sprzedaży', value: '10.11.2026' },
       { label: 'Dodano do Krakena', value: '11.11.2026 (partner@example.com)' },
-      { label: 'Klient', value: 'Café Nowa' },
-      { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
-      { label: 'Rabat', value: '15 %' },
       { label: 'Stan faktury', value: 'Opłacona' },
       { label: 'Data wystawienia faktury', value: '12.11.2026' },
     ]);
   });
 
   it('says "Not yet" before the invoice is issued, and samples have no invoice', () => {
-    expect(saleFacts(sale(2, { created_at: '' }), nowa)).toEqual([
+    expect(saleFacts(sale(2, { created_at: '' }))).toEqual([
       { label: 'Data sprzedaży', value: '19.11.2026' },
       { label: 'Dodano do Krakena', value: '—' },
-      { label: 'Klient', value: 'Café Nowa' },
-      { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
-      { label: 'Rabat', value: '15 %' },
       { label: 'Stan faktury', value: 'Faktura do wystawienia' },
       { label: 'Data wystawienia faktury', value: 'Jeszcze nie' },
     ]);
-    expect(saleFacts(sale(3, { kind: 'sample', client_id: '', place: 'Café X', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
+    expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
   });
+});
 
-  it('shows the client of a sample too, a dash for what the client does not have, and marks a deleted client', () => {
-    const facts = saleFacts(sale(3, { kind: 'sample', invoice_status: '' }), { name: 'Café Nowa', registeredName: '', discount: '—', deleted: true });
-    expect(facts.slice(2)).toEqual([
-      { label: 'Klient', value: 'Café Nowa (usunięty)' },
-      { label: 'Nazwa w CEIDG', value: '—' },
-      { label: 'Rabat', value: '—' },
+describe('clientFacts', () => {
+  it("shows the client's name, name in CEIDG and discount", () => {
+    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: 'Nowa Kawa Sp. z o.o.', discount: '15 %', deleted: false })).toEqual([
+      { label: 'Klient', value: 'Café Nowa' },
+      { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
+      { label: 'Rabat', value: '15 %' },
     ]);
   });
 
-  it('says so when the client cannot be found, and own use has no client', () => {
-    expect(saleFacts(sale(2)).filter((f) => f.label === 'Klient' || f.label === 'Rabat')).toEqual([{ label: 'Klient', value: '? (nie ma takiego klienta)' }]);
-    expect(saleFacts(sale(4, { kind: 'own_use', invoice_status: '' }), nowa).map((f) => f.label)).toEqual(['Data wydania', 'Dodano do Krakena']);
+  it('a dash for what the client does not have, an unreadable discount as stored, and a deleted client marked', () => {
+    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: '', discount: '„abc”', deleted: true })).toEqual([
+      { label: 'Klient', value: 'Café Nowa (usunięty)' },
+      { label: 'Nazwa w CEIDG', value: '—' },
+      { label: 'Rabat', value: '„abc”' },
+    ]);
+  });
+
+  it('says so when the client cannot be found, and shows nothing without a client', () => {
+    expect(clientFacts('C9', undefined)).toEqual([{ label: 'Klient', value: '? (nie ma takiego klienta)' }]);
+    expect(clientFacts('', undefined)).toEqual([]);
   });
 });
 

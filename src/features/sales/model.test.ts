@@ -241,10 +241,16 @@ describe('sample sizes (owner, 2026-11-24)', () => {
     const lines = [emptyLine('sale'), { ...emptyLine('sale'), grams: '1000', productId: 'P1' }];
     const sample = linesForKind(lines, 'sale', 'sample');
     expect(sample.map((l) => l.grams)).toEqual(['150', '1000']);
-    expect(sample[1]).toEqual(lines[1]);
+    expect(sample[1]).toBe(lines[1]); // unchanged lines stay the same
     expect(linesForKind(sample, 'sample', 'own_use').map((l) => l.grams)).toEqual(['250', '1000']);
     expect(linesForKind(lines, 'sale', 'own_use').map((l) => l.grams)).toEqual(['250', '1000']);
     expect(lines[0]?.grams).toBe('250'); // the old lines are not changed
+    expect(linesForKind(sample, 'sample', 'sample')).toBe(sample);
+  });
+
+  it('a sample amount that is no bag size becomes 250 g for a sale (never a blank size)', () => {
+    const sample = ['100', '120', '', '500'].map((grams) => ({ ...emptyLine('sample'), grams }));
+    expect(linesForKind(sample, 'sample', 'sale').map((l) => l.grams)).toEqual(['250', '250', '250', '500']);
   });
 
   it('a typed-in amount of a sample is still saved', () => {

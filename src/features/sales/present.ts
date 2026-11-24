@@ -100,36 +100,44 @@ export function bagsText(lines: readonly { bags: number | null; free: boolean }[
   return `${counted}${free > 0 ? ` (${free} gratis)` : ''}`;
 }
 
-/** The entry's client as the Clients tab has it now (read from there each time, never copied into the sale). */
+/** A client as the Clients tab has it now (read from there each time, never copied into the sale). */
 export interface ClientInfo {
   readonly name: string;
   /** The name in CEIDG; '' when not given. */
   readonly registeredName: string;
-  /** "15 %", or "—" for none. */
+  /** "15 %", "—" for none, or the stored text in quotes when it cannot be read ("„abc”"). */
   readonly discount: string;
   readonly deleted: boolean;
+}
+
+type Fact = { label: string; value: string };
+
+/**
+ * The client chosen in an entry's form (owner, 2026-11-24): name, name in CEIDG and discount, taken from Clients.
+ * None without a client (`clientId` ''); `client` is undefined when it cannot be found.
+ */
+export function clientFacts(clientId: string, client: ClientInfo | undefined): Fact[] {
+  if (!clientId) return [];
+  if (!client) return [{ label: 'Klient', value: '? (nie ma takiego klienta)' }];
+  return [
+    { label: 'Klient', value: `${client.name}${client.deleted ? ' (usunięty)' : ''}` },
+    { label: 'Nazwa w CEIDG', value: client.registeredName || '—' },
+    { label: 'Rabat', value: client.discount },
+  ];
 }
 
 /**
  * The facts at the top of an entry's edit screen (owner, 2026-11-19: "make it clear when the record was added and
  * when the invoice was issued"): the date of the entry, the day it was added to Kraken (and by whom), and for a
- * sale its invoice status and the date the invoice was issued. An entry with a client also shows the client's name,
- * name in CEIDG and discount (owner, 2026-11-24), taken from Clients: `client` is undefined when it cannot be found.
+ * sale its invoice status and the date the invoice was issued.
  */
-export function saleFacts(sale: Sale, client?: ClientInfo): { label: string; value: string }[] {
+export function saleFacts(sale: Sale): Fact[] {
   const created = new Date(sale.source['created_at'] ?? '');
   const added = Number.isNaN(created.getTime()) ? '—' : `${formatDate(localDate(created))}${sale.createdBy ? ` (${sale.createdBy})` : ''}`;
   const facts = [
     { label: sale.kind ? DATE_LABELS[sale.kind] : 'Data', value: formatDate(sale.date) || '—' },
     { label: 'Dodano do Krakena', value: added },
   ];
-  if (sale.kind !== 'own_use' && sale.clientId) {
-    facts.push({ label: 'Klient', value: client ? `${client.name}${client.deleted ? ' (usunięty)' : ''}` : '? (nie ma takiego klienta)' });
-    if (client) {
-      facts.push({ label: 'Nazwa w CEIDG', value: client.registeredName || '—' });
-      facts.push({ label: 'Rabat', value: client.discount });
-    }
-  }
   if (sale.kind === 'sale') {
     facts.push({ label: 'Stan faktury', value: sale.status ? STATUS_LABELS[sale.status] : '? (nie da się odczytać)' });
     facts.push({ label: 'Data wystawienia faktury', value: (sale.status === 'issued' || sale.status === 'paid') && sale.invoiceDate ? formatDate(sale.invoiceDate) : 'Jeszcze nie' });

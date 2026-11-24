@@ -40,7 +40,7 @@ import {
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, bagsText, deletedEntryText, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, clientFacts, deletedEntryText, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -158,11 +158,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       });
   }
 
-  const clientName = (id: string) => clients.find((c) => c.id === id)?.name;
+  const findClient = (id: string) => clients.find((c) => c.id === id);
+  const clientName = (id: string) => findClient(id)?.name;
   const productName = (id: string) => products.find((p) => p.id === id)?.name;
   /** The client as the Clients tab has it now (so a change there shows on the entry's page). */
   const clientInfo = (id: string): ClientInfo | undefined => {
-    const c = clients.find((x) => x.id === id);
+    const c = findClient(id);
     return c && { name: c.name, registeredName: c.registeredName, discount: clientDiscountText(c), deleted: isClientDeleted(c) };
   };
 
@@ -379,8 +380,18 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       );
     };
 
+    // The box at the top: the entry's dates, and the client chosen in the form as Clients has it now (so it always
+    // matches the form, also before saving a change of client).
+    const factsBox = el('dl', { class: 'product-details sale-facts' });
+    const renderFacts = () => {
+      const facts = [...(sale ? saleFacts(sale) : []), ...clientFacts(form.kind === 'own_use' ? '' : form.clientId, clientInfo(form.clientId))];
+      factsBox.replaceChildren(...facts.flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]));
+      factsBox.hidden = facts.length === 0;
+    };
+
     const whoLegend = el('legend', {});
     const renderWho = () => {
+      renderFacts();
       whoLegend.textContent = form.kind === 'own_use' ? 'Kiedy' : 'Kiedy i kto'; // own use asks only the date
       const fields: Node[] = [];
       if (form.kind !== 'own_use') {
@@ -416,11 +427,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       totalLine.replaceChildren(...(text ? ['Razem: ', el('strong', {}, text)] : []));
     };
 
-    /** Sample lines on "Inna" (any amount typed in), kept while the form is redrawn. */
-    const otherSize = new WeakSet<LineForm>();
     /** A sample's size: 100, 150 or 250 g, or "Inna" with any amount typed in (owner, 2026-11-24). */
     const sampleSize = (line: LineForm, i: number): Node[] => {
-      const other = otherSize.has(line) || !isSampleSize(line.grams);
+      const other = !isSampleSize(line.grams);
       const choice = el('select', { 'aria-label': `Pozycja ${i + 1}: gramatura` }, ...SAMPLE_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))), el('option', { value: 'other' }, 'Inna…'));
       choice.value = other ? 'other' : String(Number(line.grams));
       const amount = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: gramy`, autocomplete: 'off' });
@@ -430,15 +439,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       choice.addEventListener('change', () => {
         const isOther = choice.value === 'other';
         typed.hidden = !isOther;
-        if (isOther) {
-          otherSize.add(line);
-          amount.value = '';
-          line.grams = '';
-          amount.focus();
-        } else {
-          otherSize.delete(line);
-          line.grams = choice.value;
-        }
+        // "Inna…" starts from the amount chosen so far (nothing is lost before a new one is typed).
+        if (isOther) amount.focus();
+        else amount.value = line.grams = choice.value;
       });
       amount.addEventListener('input', () => (line.grams = amount.value.trim()));
       return [choice, typed];
@@ -641,7 +644,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     render(
       el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
       el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
-      ...(sale ? [el('dl', { class: 'product-details sale-facts' }, ...saleFacts(sale, clientInfo(sale.clientId)).flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]))] : []),
+      factsBox,
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),
       banner,
       formNode,
