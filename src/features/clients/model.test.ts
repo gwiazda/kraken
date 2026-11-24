@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KEEP_DISCOUNT, changedClientFields, clientFromFields, emptyClientForm, formFromClient, formatNip, isValidNip, sortClients, validateClientForm } from './model';
+import { KEEP_DISCOUNT, changedClientFields, clientFromFields, discountText, emptyClientForm, formFromClient, formatNip, isValidNip, sortClients, validateClientForm } from './model';
 
 // Made-up clients and tax IDs only (the repo is public). 9876543210 and 5550001119 have a valid check digit.
 const client = (row: number, o: Record<string, string> = {}) =>
@@ -89,5 +89,14 @@ describe('the client form', () => {
     const result = validateClientForm({ ...formFromClient(c), email: 'new@example.com' }, []);
     if (!result.ok) throw new Error('expected valid');
     expect(changedClientFields(c, result.fields)).toEqual({ email: 'new@example.com' });
+  });
+});
+
+describe('discountText', () => {
+  it('shows the discount, a stored value it cannot read in quotes, or a dash', () => {
+    expect(discountText(client(2))).toBe('15\u00a0%');
+    expect(discountText(client(2, { discount_percent: '12.5' }))).toBe('12,5\u00a0%');
+    expect(discountText(client(2, { discount_percent: 'abc' }))).toBe('„abc”');
+    expect(discountText(client(2, { discount_percent: '' }))).toBe('—');
   });
 });

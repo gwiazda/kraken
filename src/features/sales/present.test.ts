@@ -47,24 +47,46 @@ describe('saleRows', () => {
 });
 
 describe('saleFacts', () => {
-  it('shows the date of the sale, when it was added and by whom, and when the invoice was issued', () => {
+  const nowa = { name: 'Café Nowa', registeredName: 'Nowa Kawa Sp. z o.o.', discount: '15 %', deleted: false };
+
+  it('shows the date of the sale, when it was added and by whom, the client, and when the invoice was issued', () => {
     const s = sale(2, { date: '2026-11-10', created_at: '2026-11-11T10:00:00.000Z', invoice_status: 'paid', invoice_date: '2026-11-12' });
-    expect(saleFacts(s)).toEqual([
+    expect(saleFacts(s, nowa)).toEqual([
       { label: 'Data sprzedaży', value: '10.11.2026' },
       { label: 'Dodano do Krakena', value: '11.11.2026 (partner@example.com)' },
+      { label: 'Klient', value: 'Café Nowa' },
+      { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
+      { label: 'Rabat', value: '15 %' },
       { label: 'Stan faktury', value: 'Opłacona' },
       { label: 'Data wystawienia faktury', value: '12.11.2026' },
     ]);
   });
 
   it('says "Not yet" before the invoice is issued, and samples have no invoice', () => {
-    expect(saleFacts(sale(2, { created_at: '' }))).toEqual([
+    expect(saleFacts(sale(2, { created_at: '' }), nowa)).toEqual([
       { label: 'Data sprzedaży', value: '19.11.2026' },
       { label: 'Dodano do Krakena', value: '—' },
+      { label: 'Klient', value: 'Café Nowa' },
+      { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
+      { label: 'Rabat', value: '15 %' },
       { label: 'Stan faktury', value: 'Faktura do wystawienia' },
       { label: 'Data wystawienia faktury', value: 'Jeszcze nie' },
     ]);
-    expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
+    expect(saleFacts(sale(3, { kind: 'sample', client_id: '', place: 'Café X', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
+  });
+
+  it('shows the client of a sample too, a dash for what the client does not have, and marks a deleted client', () => {
+    const facts = saleFacts(sale(3, { kind: 'sample', invoice_status: '' }), { name: 'Café Nowa', registeredName: '', discount: '—', deleted: true });
+    expect(facts.slice(2)).toEqual([
+      { label: 'Klient', value: 'Café Nowa (usunięty)' },
+      { label: 'Nazwa w CEIDG', value: '—' },
+      { label: 'Rabat', value: '—' },
+    ]);
+  });
+
+  it('says so when the client cannot be found, and own use has no client', () => {
+    expect(saleFacts(sale(2)).filter((f) => f.label === 'Klient' || f.label === 'Rabat')).toEqual([{ label: 'Klient', value: '? (nie ma takiego klienta)' }]);
+    expect(saleFacts(sale(4, { kind: 'own_use', invoice_status: '' }), nowa).map((f) => f.label)).toEqual(['Data wydania', 'Dodano do Krakena']);
   });
 });
 

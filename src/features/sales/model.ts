@@ -115,6 +115,28 @@ export function saleFromFields(fields: Fields, row: number): Sale {
  */
 export const MAX_SAMPLE_GRAMS = 5000;
 
+/**
+ * The sizes offered for a sample (owner, 2026-11-24), 150 g first chosen; any other amount can still be typed in
+ * ("Inna").
+ */
+export const SAMPLE_SIZES_G = [100, 150, 250] as const;
+export const DEFAULT_SAMPLE_GRAMS = 150;
+
+/** The size a new line starts with: 150 g for a sample, the smallest bag otherwise. */
+export const defaultGrams = (kind: SaleKind): number => (kind === 'sample' ? DEFAULT_SAMPLE_GRAMS : BAG_SIZES_G[0]);
+
+/** True when a sample's grams (as typed) are one of SAMPLE_SIZES_G; otherwise the form shows "Inna" with the amount. */
+export const isSampleSize = (grams: string): boolean => (SAMPLE_SIZES_G as readonly number[]).includes(Number(grams.trim()));
+
+/**
+ * A new entry whose kind is switched: lines still on the old kind's starting size move to the new one's (a sale's
+ * 250 g becomes a sample's 150 g, and back). Other sizes stay as chosen. Not used when editing a saved entry.
+ */
+export function linesForKind(lines: readonly LineForm[], from: SaleKind, to: SaleKind): LineForm[] {
+  const was = String(defaultGrams(from));
+  return lines.map((l) => (l.grams === was ? { ...l, grams: String(defaultGrams(to)) } : { ...l }));
+}
+
 /** A whole number of grams a line can have: 1 to MAX_SAMPLE_GRAMS (the bag sizes are among them). */
 export const isLineWeight = (grams: number) => Number.isInteger(grams) && grams >= 1 && grams <= MAX_SAMPLE_GRAMS;
 
@@ -197,7 +219,7 @@ export interface SaleErrors {
   line: (string | undefined)[];
 }
 
-export const emptyLine = (): LineForm => ({ productId: '', grams: String(BAG_SIZES_G[0]), bags: '1', free: false });
+export const emptyLine = (kind: SaleKind = 'sale'): LineForm => ({ productId: '', grams: String(defaultGrams(kind)), bags: '1', free: false });
 
 export const emptySaleForm = (today: string): SaleForm => ({ date: today, kind: 'sale', clientId: '', place: '', notes: '', lines: [emptyLine()] });
 

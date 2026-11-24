@@ -8,19 +8,22 @@ import { formatDate, localDate } from '../../core/dates';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
+import { clientDiscountText, isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
   DATE_LABELS,
   HEADING_LABELS,
   KIND_LABELS,
+  SAMPLE_SIZES_G,
   STATUS_LABELS,
   changedSaleFields,
   emptyLine,
   emptySaleForm,
   formFromSale,
   isDeleted,
+  isSampleSize,
   lineSizeProblems,
+  linesForKind,
   linesOf,
   choosableIds,
   saleEditFields,
@@ -33,10 +36,11 @@ import {
   type Sale,
   type SaleForm,
   type InvoiceStatus,
+  type LineForm,
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, bagsText, deletedEntryText, saleFacts, saleRows, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, deletedEntryText, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -156,6 +160,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name;
   const productName = (id: string) => products.find((p) => p.id === id)?.name;
+  /** The client as the Clients tab has it now (so a change there shows on the entry's page). */
+  const clientInfo = (id: string): ClientInfo | undefined => {
+    const c = clients.find((x) => x.id === id);
+    return c && { name: c.name, registeredName: c.registeredName, discount: clientDiscountText(c), deleted: isClientDeleted(c) };
+  };
 
   // ---- The list ----
 
@@ -330,7 +339,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     deps.formOpened();
     const existingLines = sale ? linesOf(lines, sale.id) : [];
     const form: SaleForm = sale ? formFromSale(sale, existingLines) : emptySaleForm(today());
-    if (form.lines.length === 0) form.lines.push(emptyLine());
+    if (form.lines.length === 0) form.lines.push(emptyLine(form.kind));
     const activeClients = sortClients(clients).filter((c) => !isClientDeleted(c));
     const activeProducts = sortProducts(products).filter((p) => !isProductDeleted(p));
 
@@ -356,6 +365,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       kindHolder.replaceChildren(
         ...(['sale', 'sample', 'own_use'] as SaleKind[]).map((k) => {
           const b = button(KIND_LABELS[k], () => {
+            if (!sale) form.lines = linesForKind(form.lines, form.kind, k); // a new entry: 250 g ↔ 150 g for a sample
             form.kind = k;
             renderKind();
             renderWho();
@@ -406,6 +416,34 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       totalLine.replaceChildren(...(text ? ['Razem: ', el('strong', {}, text)] : []));
     };
 
+    /** Sample lines on "Inna" (any amount typed in), kept while the form is redrawn. */
+    const otherSize = new WeakSet<LineForm>();
+    /** A sample's size: 100, 150 or 250 g, or "Inna" with any amount typed in (owner, 2026-11-24). */
+    const sampleSize = (line: LineForm, i: number): Node[] => {
+      const other = otherSize.has(line) || !isSampleSize(line.grams);
+      const choice = el('select', { 'aria-label': `Pozycja ${i + 1}: gramatura` }, ...SAMPLE_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))), el('option', { value: 'other' }, 'Inna…'));
+      choice.value = other ? 'other' : String(Number(line.grams));
+      const amount = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: gramy`, autocomplete: 'off' });
+      amount.value = line.grams;
+      const typed = el('span', { class: 'nowrap' }, ' ', amount, ' g');
+      typed.hidden = !other;
+      choice.addEventListener('change', () => {
+        const isOther = choice.value === 'other';
+        typed.hidden = !isOther;
+        if (isOther) {
+          otherSize.add(line);
+          amount.value = '';
+          line.grams = '';
+          amount.focus();
+        } else {
+          otherSize.delete(line);
+          line.grams = choice.value;
+        }
+      });
+      amount.addEventListener('input', () => (line.grams = amount.value.trim()));
+      return [choice, typed];
+    };
+
     const renderLines = () => {
       const sale_ = form.kind === 'sale'; // free bags only matter for a sale (not invoiced)
       const sample = form.kind === 'sample';
@@ -415,20 +453,19 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         for (const p of activeProducts) product.append(el('option', { value: p.id }, p.name));
         if (line.productId && !activeProducts.some((p) => p.id === line.productId)) product.append(el('option', { value: line.productId }, `${productName(line.productId) ?? '?'} (usunięty)`));
         product.value = line.productId;
-        // A sample is any amount in grams (e.g. 150 g); a sale or own use is one of the bag sizes.
-        const size: HTMLInputElement | HTMLSelectElement = sample
-          ? el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: gramy`, autocomplete: 'off' })
-          : el('select', { 'aria-label': `Pozycja ${i + 1}: wielkość torebki` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
-        size.value = line.grams;
+        // A sale or own use is one of the bag sizes; a sample has its own sizes or any amount (sampleSize).
+        const bagSize = () => {
+          const size = el('select', { 'aria-label': `Pozycja ${i + 1}: wielkość torebki` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
+          size.value = line.grams;
+          size.addEventListener('change', () => (line.grams = size.value));
+          return [size];
+        };
         const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: ${sample ? 'liczba opakowań' : 'liczba torebek'}`, autocomplete: 'off' });
         bags.value = line.bags;
         const free = el('input', { type: 'checkbox', 'aria-label': `Pozycja ${i + 1}: gratis` });
         free.checked = line.free;
         product.addEventListener('change', () => {
           line.productId = product.value;
-        });
-        size.addEventListener(sample ? 'input' : 'change', () => {
-          line.grams = size.value.trim();
         });
         bags.addEventListener('input', () => {
           line.bags = bags.value;
@@ -450,7 +487,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           'tr',
           {},
           el('td', { class: 'l-product' }, product),
-          el('td', { class: 'nowrap l-size', 'data-label': sample ? 'Gramatura' : 'Wielkość' }, size, ...(sample ? [' g'] : [])),
+          el('td', { class: 'nowrap l-size', 'data-label': sample ? 'Gramatura' : 'Wielkość' }, ...(sample ? sampleSize(line, i) : bagSize())),
           el('td', { class: 'l-bags', 'data-label': sample ? 'Opakowania' : 'Torebki' }, bags),
           ...(sale_ ? [el('td', { class: 'nowrap l-free' }, el('label', { class: 'free-label' }, free, ' gratis'))] : []),
           el('td', { class: 'l-remove' }, form.lines.length > 1 ? remove : ''),
@@ -470,7 +507,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                 'tr',
                 {},
                 el('th', { scope: 'col' }, 'Produkt'),
-                el('th', { scope: 'col' }, sample ? 'Gramatura ' : 'Wielkość', ...(sample ? [infoTip('Próbka może mieć dowolną gramaturę, np. 100 albo 150 g. Sprzedaż i wydania na własny użytek są w standardowych torebkach.')] : [])),
+                el('th', { scope: 'col' }, sample ? 'Gramatura ' : 'Wielkość', ...(sample ? [infoTip('Próbka ma zwykle 100, 150 albo 250 g; inną ilość wpiszesz po wybraniu „Inna…”. Sprzedaż i wydania na własny użytek są w standardowych torebkach.')] : [])),
                 el('th', { scope: 'col' }, sample ? 'Opakowania' : 'Torebki'),
                 ...(sale_
                   ? [el('th', { scope: 'col' }, 'Gratis ', infoTip('Zaznacz dla torebek wydanych gratis: nie trafiają na fakturę.'))]
@@ -484,7 +521,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         button(
           'Dodaj kolejny produkt',
           () => {
-            form.lines.push(emptyLine());
+            form.lines.push(emptyLine(form.kind));
             renderLines();
           },
           'secondary',
@@ -604,7 +641,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     render(
       el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
       el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
-      ...(sale ? [el('dl', { class: 'product-details sale-facts' }, ...saleFacts(sale).flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]))] : []),
+      ...(sale ? [el('dl', { class: 'product-details sale-facts' }, ...saleFacts(sale, clientInfo(sale.clientId)).flatMap((f) => [el('dt', {}, f.label), el('dd', {}, f.value)]))] : []),
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),
       banner,
       formNode,

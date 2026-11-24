@@ -9,7 +9,7 @@ import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { ProductsRepository } from '../products';
 import type { RoastsRepository } from '../roasts';
-import { KEEP_DISCOUNT, changedClientFields, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
+import { KEEP_DISCOUNT, changedClientFields, discountText, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
 import { pricesSection } from './pricesSection';
 import type { ClientsRepository } from './repo';
 import type { SpecialPricesRepository } from './repoPrices';
@@ -124,8 +124,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
 
   /** "15 % (Do 10 kg)", or the stored value with a note when it is not one of the discounts any more. */
   const discountLabel = (c: Client) => {
-    if (c.discountTenths === null) return c.discountText ? `„${c.discountText}”` : '—';
-    if (!discountsKnown) return formatPercent(c.discountTenths);
+    if (c.discountTenths === null || !discountsKnown) return discountText(c);
     const known = discounts.find((d) => d.tenths === c.discountTenths);
     return known ? `${formatPercent(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${formatPercent(c.discountTenths)} (spoza Twoich rabatów)`;
   };

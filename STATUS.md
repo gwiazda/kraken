@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-20_
+_Last updated: 2026-11-24_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
@@ -15,10 +15,12 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - Roasts: search, a filter under every column, pages. Sales works on a phone.
 - **Polish screens**: every screen (#41–#44).
 
+- **Phone layout for every tab** (#45), own use without "Po co?" (#46), offer discounts per invoice (#47), the 250 g
+  price fills in 500 g and 1 kg (#48).
+
 ## In progress
-- **Phone layout for every tab** (branch `claude/mobile-tabs`): lists as cards (Zielone ziarno, Wypały, Produkty, Klienci),
-  a ☰ menu in the logo bar, Wypały's filters behind "Filtry", Opakowania i rabaty and Planer produktu fit the screen. Price tables and the
-  Oferta preview scroll sideways inside their own box.
+- **Sales: sample sizes and client details** (branch `claude/sales-sample-client`): a sample's size is 100 / 150 / 250 g
+  (150 g first) or "Inna…" typed in; an entry's page shows the client's name, CEIDG name and discount from Clients.
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
