@@ -2,7 +2,7 @@
 // to day, NIP (tax ID), email, the registered name (CEIDG) and their wholesale discount (one of those set under
 // Packaging & discounts). Pure: no Google, no screen. Real client data is never in the code or tests.
 
-import { percentFromCell, percentText } from '../../domain/percent';
+import { formatPercent, percentFromCell, percentText } from '../../domain/percent';
 
 type Fields = Readonly<Record<string, string>>;
 
@@ -81,6 +81,12 @@ export function clientFromFields(fields: Fields, row: number): Client {
 }
 
 export const isDeleted = (client: Client) => client.deletedAt !== '';
+
+/** A client's discount for the screen: "15 %", the stored text in quotes when it cannot be read, "—" for none. */
+export function discountText(client: Pick<Client, 'discountTenths' | 'discountText'>): string {
+  if (client.discountTenths !== null) return formatPercent(client.discountTenths);
+  return client.discountText ? `„${client.discountText}”` : '—';
+}
 
 /** Active clients by name (Polish alphabetical order), then deleted ones. */
 export function sortClients(clients: readonly Client[]): Client[] {

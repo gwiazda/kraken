@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lineFromFields, saleFromFields } from './model';
-import { bagsText, deletedEntryText, saleFacts, saleRows, whoText } from './present';
+import { bagsText, clientFacts, deletedEntryText, saleFacts, saleRows, whoText } from './present';
 
 const sale = (row: number, o: Record<string, string> = {}) =>
   saleFromFields({ id: `S${row}`, date: '2026-11-19', kind: 'sale', client_id: 'C1', invoice_status: 'to_issue', created_by: 'partner@example.com', ...o }, row);
@@ -65,6 +65,29 @@ describe('saleFacts', () => {
       { label: 'Data wystawienia faktury', value: 'Jeszcze nie' },
     ]);
     expect(saleFacts(sale(3, { kind: 'sample', invoice_status: '', created_at: '2026-11-11T10:00:00.000Z' })).map((f) => f.label)).toEqual(['Data próbki', 'Dodano do Krakena']);
+  });
+});
+
+describe('clientFacts', () => {
+  it("shows the client's name, name in CEIDG and discount", () => {
+    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: 'Nowa Kawa Sp. z o.o.', discount: '15 %', deleted: false })).toEqual([
+      { label: 'Klient', value: 'Café Nowa' },
+      { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
+      { label: 'Rabat', value: '15 %' },
+    ]);
+  });
+
+  it('a dash for what the client does not have, an unreadable discount as stored, and a deleted client marked', () => {
+    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: '', discount: '„abc”', deleted: true })).toEqual([
+      { label: 'Klient', value: 'Café Nowa (usunięty)' },
+      { label: 'Nazwa w CEIDG', value: '—' },
+      { label: 'Rabat', value: '„abc”' },
+    ]);
+  });
+
+  it('says so when the client cannot be found, and shows nothing without a client', () => {
+    expect(clientFacts('C9', undefined)).toEqual([{ label: 'Klient', value: '? (nie ma takiego klienta)' }]);
+    expect(clientFacts('', undefined)).toEqual([]);
   });
 });
 

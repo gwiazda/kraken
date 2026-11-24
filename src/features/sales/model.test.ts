@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   changedSaleFields,
+  defaultGrams,
   emptyLine,
+  isSampleSize,
+  linesForKind,
   emptySaleForm,
   formFromSale,
   lineSizeProblems,
@@ -217,5 +220,41 @@ describe('editing', () => {
   it('writes only the sale cells that changed', () => {
     const s = sale(2);
     expect(changedSaleFields(s, { date: '2026-11-19', kind: 'sale', client_id: 'C2', place: '', reason: '', notes: '' })).toEqual({ client_id: 'C2' });
+  });
+});
+
+describe('sample sizes (owner, 2026-11-24)', () => {
+  it('starts a sample line on 150 g and a sale or own use on 250 g', () => {
+    expect(emptyLine('sample').grams).toBe('150');
+    expect(emptyLine('sale').grams).toBe('250');
+    expect(emptyLine('own_use').grams).toBe('250');
+    expect(emptyLine().grams).toBe('250');
+    expect(defaultGrams('sample')).toBe(150);
+  });
+
+  it('offers 100, 150 and 250 g; anything else is typed in', () => {
+    expect(['100', '150', '250', ' 150 '].map(isSampleSize)).toEqual([true, true, true, true]);
+    expect(['', '120', '500', '1000', 'abc'].map(isSampleSize)).toEqual([false, false, false, false, false]);
+  });
+
+  it('switching a new entry moves lines still on the starting size, and keeps the rest', () => {
+    const lines = [emptyLine('sale'), { ...emptyLine('sale'), grams: '1000', productId: 'P1' }];
+    const sample = linesForKind(lines, 'sale', 'sample');
+    expect(sample.map((l) => l.grams)).toEqual(['150', '1000']);
+    expect(sample[1]).toBe(lines[1]); // unchanged lines stay the same
+    expect(linesForKind(sample, 'sample', 'own_use').map((l) => l.grams)).toEqual(['250', '1000']);
+    expect(linesForKind(lines, 'sale', 'own_use').map((l) => l.grams)).toEqual(['250', '1000']);
+    expect(lines[0]?.grams).toBe('250'); // the old lines are not changed
+    expect(linesForKind(sample, 'sample', 'sample')).toBe(sample);
+  });
+
+  it('a sample amount that is no bag size becomes 250 g for a sale (never a blank size)', () => {
+    const sample = ['100', '120', '', '500'].map((grams) => ({ ...emptyLine('sample'), grams }));
+    expect(linesForKind(sample, 'sample', 'sale').map((l) => l.grams)).toEqual(['250', '250', '250', '500']);
+  });
+
+  it('a typed-in amount of a sample is still saved', () => {
+    const result = validateSale(form({ kind: 'sample', lines: [{ productId: 'P1', grams: '120', bags: '2', free: false }] }), ['C1'], ['P1']);
+    expect(result.ok && result.lines[0]?.bag_size_g).toBe('120');
   });
 });

@@ -100,12 +100,38 @@ export function bagsText(lines: readonly { bags: number | null; free: boolean }[
   return `${counted}${free > 0 ? ` (${free} gratis)` : ''}`;
 }
 
+/** A client as the Clients tab has it now (read from there each time, never copied into the sale). */
+export interface ClientInfo {
+  readonly name: string;
+  /** The name in CEIDG; '' when not given. */
+  readonly registeredName: string;
+  /** "15 %", "—" for none, or the stored text in quotes when it cannot be read ("„abc”"). */
+  readonly discount: string;
+  readonly deleted: boolean;
+}
+
+type Fact = { label: string; value: string };
+
 /**
- * The dates at the top of an entry's edit screen (owner, 2026-11-19: "make it clear when the record was added and
+ * The client chosen in an entry's form (owner, 2026-11-24): name, name in CEIDG and discount, taken from Clients.
+ * None without a client (`clientId` ''); `client` is undefined when it cannot be found.
+ */
+export function clientFacts(clientId: string, client: ClientInfo | undefined): Fact[] {
+  if (!clientId) return [];
+  if (!client) return [{ label: 'Klient', value: '? (nie ma takiego klienta)' }];
+  return [
+    { label: 'Klient', value: `${client.name}${client.deleted ? ' (usunięty)' : ''}` },
+    { label: 'Nazwa w CEIDG', value: client.registeredName || '—' },
+    { label: 'Rabat', value: client.discount },
+  ];
+}
+
+/**
+ * The facts at the top of an entry's edit screen (owner, 2026-11-19: "make it clear when the record was added and
  * when the invoice was issued"): the date of the entry, the day it was added to Kraken (and by whom), and for a
  * sale its invoice status and the date the invoice was issued.
  */
-export function saleFacts(sale: Sale): { label: string; value: string }[] {
+export function saleFacts(sale: Sale): Fact[] {
   const created = new Date(sale.source['created_at'] ?? '');
   const added = Number.isNaN(created.getTime()) ? '—' : `${formatDate(localDate(created))}${sale.createdBy ? ` (${sale.createdBy})` : ''}`;
   const facts = [
