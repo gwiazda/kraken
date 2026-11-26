@@ -18,8 +18,12 @@ import {
   emptyProductForm,
   formFromProduct,
   isDeleted,
+  KEEP_STATUS,
+  PRODUCT_STATUSES,
+  STATUS_LABELS,
   withOrder,
-  movedOrder,
+  movedWithin,
+  productSections,
   sortProducts,
   validateProductForm,
   type Product,
@@ -58,7 +62,7 @@ export interface ProductsPageDeps {
 }
 
 /** The text fields of the form; the prices are in the planner. */
-type TextKey = Exclude<keyof ProductForm, (typeof PRICE_FIELDS)[BagSize]>;
+type TextKey = Exclude<keyof ProductForm, (typeof PRICE_FIELDS)[BagSize] | 'status'>;
 
 interface FieldSpec {
   key: TextKey;
@@ -225,9 +229,9 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
    * Started inside the drop or key press, so a sign-in renewal can open Google's window. If a save fails, the list
    * goes back to the order last saved and says why. `focus`: put the keyboard focus back on the moved product's grip.
    */
-  function move(productId: string, to: number, focus = false): void {
+  function move(productId: string, section: readonly string[], to: number, focus = false): void {
     const before = sortProducts(products).filter((p) => !isDeleted(p)).map((p) => p.id);
-    const order = movedOrder(before, productId, to);
+    const order = movedWithin(before, section, productId, to); // inside its section (owner, 2026-11-26)
     if (order.every((id, i) => id === before[i])) return showList();
     products = withOrder(products, order);
     showList();
@@ -393,13 +397,15 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const sorted = sortProducts(products);
     const active = sorted.filter((p) => !isDeleted(p));
     const deleted = sorted.filter(isDeleted);
+    const sections = productSections(products);
     const price = (p: Product, grams: BagSize) => {
       const grosze = p.prices[grams];
       return grosze === undefined ? el('span', { class: 'muted' }, '—') : formatWholePln(grosze);
     };
     const origin = (p: Product) => [p.country, p.region].filter((t) => t).join(', ');
 
-    const row = (p: Product, restorable: boolean, index: number) => {
+    /** `section`: the ids of the product's section, in order (a product is moved only inside it). */
+    const row = (p: Product, restorable: boolean, index: number, section: readonly string[]) => {
       const actions = el('td', { class: 'row-actions nowrap' });
       /** The grip: drag it (mouse or finger) to another row, or focus it and press ↑ / ↓. */
       const grip = () => {
@@ -407,14 +413,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         handle.addEventListener('keydown', (event) => {
           if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
           event.preventDefault();
-          move(p.id, index + (event.key === 'ArrowUp' ? -1 : 1), true);
+          move(p.id, section, index + (event.key === 'ArrowUp' ? -1 : 1), true);
         });
         handle.addEventListener('pointerdown', (event) => {
           if (event.button !== 0) return;
           event.preventDefault();
           const tr = handle.closest('tr');
           const body = tr?.parentElement;
-          if (tr && body) dragRow(tr, body, event, (to) => move(p.id, to));
+          if (tr && body) dragRow(tr, body, event, (to) => move(p.id, section, to));
         });
         return el('td', { class: 'order-grip' }, handle);
       };
@@ -458,14 +464,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
             el(
               'tr',
               {},
-              ...(restorable ? [] : [el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Kolejność'))]),
+              ...(restorable ? [] : [el('th', { scope: 'col', class: 'order-grip' }, el('span', { class: 'visually-hidden' }, 'Kolejność'))]),
               el('th', { scope: 'col' }, 'Produkt'),
-              el('th', { scope: 'col' }, 'Pochodzenie'),
-              ...BAG_SIZES_G.map((g) => el('th', { scope: 'col', class: 'num' }, formatBagSize(g))),
-              ...(restorable ? [el('th', { scope: 'col' }, '')] : []),
+              el('th', { scope: 'col', class: 'col-origin' }, 'Pochodzenie'),
+              ...BAG_SIZES_G.map((g) => el('th', { scope: 'col', class: 'num col-price' }, formatBagSize(g))),
+              ...(restorable ? [el('th', { scope: 'col', class: 'col-actions' }, '')] : []),
             ),
           ),
-          el('tbody', {}, ...list.map((p, i) => row(p, restorable, i))),
+          el('tbody', {}, ...list.map((p, i) => row(p, restorable, i, list.map((x) => x.id)))),
         )),
       );
 
@@ -475,7 +481,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         'p',
         { class: 'muted small' },
         'Główne ceny brutto (detal). Kliknij produkt, aby zobaczyć ceny hurtowe. ',
-        infoTip('Przeciągnij produkt za ⠿, aby ustawić kolejność produktów. Oferta korzysta z tej samej kolejności (tam możesz ją zmienić dla jednej oferty), tak samo listy na innych stronach. Nowe produkty trafiają na koniec.'),
+        infoTip('Przeciągnij produkt za ⠿, aby ustawić kolejność w jego grupie. Oferta korzysta z tej samej kolejności (tam możesz ją zmienić dla jednej oferty), tak samo listy na innych stronach. Nowe produkty trafiają na koniec. Do oferty trafiają tylko produkty „W sprzedaży”; status zmienisz w produkcie (Edytuj).'),
         ' ',
         orderNote,
       ),
@@ -484,7 +490,15 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       ...(shownProblem ? [message(shownProblem, 'error')] : []),
       ...problems.map((text) => message(text, 'error')),
       ...active.filter((p) => p.problems.length > 0).map((p) => message(p.problems.join(' '), 'error')),
-      active.length === 0 ? el('p', { class: 'muted' }, 'Nie ma jeszcze produktów. Kliknij „Dodaj produkt”.') : table(active, false),
+      ...(active.length === 0
+        ? [el('p', { class: 'muted' }, 'Nie ma jeszcze produktów. Kliknij „Dodaj produkt”.')]
+        : // Three sections (owner, 2026-11-26): on sale first; trial and withdrawn only when they have products.
+          sections
+            .filter((section) => section.status === 'on_sale' || section.products.length > 0)
+            .flatMap((section) => [
+              el('h3', { class: 'products-section' }, `${STATUS_LABELS[section.status]} (${section.products.length})`),
+              section.products.length === 0 ? el('p', { class: 'muted small' }, 'Żaden produkt nie jest teraz w sprzedaży.') : table(section.products, false),
+            ])),
       ...(deleted.length > 0 ? [el('details', { class: 'small deleted-products' }, el('summary', {}, `Usunięte produkty (${deleted.length})`), table(deleted, true))] : []),
     );
   }
@@ -549,7 +563,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
 
     render(
       el('p', { class: 'small back-link' }, button('← Wszystkie produkty', () => showList(), 'link')),
-      el('div', { class: 'page-head' }, el('h2', {}, product.name, ...(product.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, product.brewMethod)] : [])), actions),
+      el('div', { class: 'page-head' }, el('h2', {}, product.name, ...(product.brewMethod ? [' ', el('span', { class: 'badge badge-muted' }, product.brewMethod)] : []), ...(product.status && product.status !== 'on_sale' ? [' ', el('span', { class: 'badge badge-warn' }, STATUS_LABELS[product.status])] : [])), actions),
       confirm,
       ...(note ? [message(note)] : []),
       ...product.problems.map((text) => message(text, 'error')),
@@ -654,6 +668,19 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
       pricesIntro: 'Ile płaci klient w sklepie. Kliknij propozycję albo wpisz własną; puste: nie w ofercie. ',
     });
 
+    // Status (owner, 2026-11-26): only products on sale go on an offer.
+    const status = el('select', { id: 'product-status', 'aria-describedby': 'product-status-error' }, ...PRODUCT_STATUSES.map((st) => el('option', { value: st }, STATUS_LABELS[st])));
+    if (initial.status === KEEP_STATUS) status.append(el('option', { value: KEEP_STATUS }, `Zostaw „${product?.source['status'] ?? ''}” (nie da się odczytać: wybierz status, aby poprawić)`));
+    status.value = initial.status;
+    const statusError = el('p', { class: 'field-error', id: 'product-status-error', role: 'alert' });
+    const statusField = el(
+      'div',
+      { class: 'field' },
+      el('div', { class: 'label-row' }, el('label', { for: status.id }, 'Status '), infoTip('Do oferty trafiają tylko produkty „W sprzedaży”. Próbne i wycofane są na liście produktów w osobnych grupach.')),
+      status,
+      statusError,
+    );
+
     const banner = el('div', { class: 'form-banner' });
     const label = product ? 'Zapisz zmiany' : 'Zapisz produkt';
     const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
@@ -662,7 +689,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const readForm = (): ProductForm => {
       const prices = planner.prices();
       const text = Object.fromEntries(TEXT_KEYS.map((key) => [key, inputs[key].value])) as Pick<ProductForm, TextKey>;
-      return { ...text, ...Object.fromEntries(BAG_SIZES_G.map((g) => [PRICE_FIELDS[g], prices[g]])) } as ProductForm;
+      return { ...text, ...Object.fromEntries(BAG_SIZES_G.map((g) => [PRICE_FIELDS[g], prices[g]])), status: status.value } as ProductForm;
     };
 
     const showErrors = (errors: ProductFormErrors) => {
@@ -670,6 +697,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         errorLines[key].textContent = errors[key] ?? '';
         inputs[key].setAttribute('aria-invalid', errors[key] ? 'true' : 'false');
       }
+      statusError.textContent = errors.status ?? '';
       const first = TEXT_KEYS.find((key) => errors[key]);
       if (first) inputs[first].focus();
       planner.showPriceErrors(Object.fromEntries(BAG_SIZES_G.map((g) => [g, errors[PRICE_FIELDS[g]]])), !first);
@@ -739,7 +767,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     const formNode = el(
       'form',
       { class: 'lot-form', novalidate: '' },
-      ...SECTIONS.map((section) => el('fieldset', { class: 'form-section' }, el('legend', {}, section.title), el('div', { class: 'fields' }, ...section.fields.map(fieldNode)))),
+      ...SECTIONS.map((section, i) => el('fieldset', { class: 'form-section' }, el('legend', {}, section.title), el('div', { class: 'fields' }, ...section.fields.map(fieldNode), ...(i === 0 ? [statusField] : [])))),
       planner.node,
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );

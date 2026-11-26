@@ -9,7 +9,7 @@ import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, readSettings, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { isClientDeleted, offerDeals, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
-import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
+import { isOnSale, isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
 import { MAX_TIERS, OFFER_VALID_DAYS, addDays, discountText, validateOffer, type OfferErrors, type OfferForm } from './model';
 import { buildOffer } from './present';
@@ -54,7 +54,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
         const { settings, problems } = readSettings(costs.settings);
         const discounts = activeDiscounts(costs.discounts);
         // A price Kraken cannot read is named here, so a missing size on the offer is not a mystery.
-        const productProblems = products.products.filter((p) => !isProductDeleted(p)).flatMap((p) => p.problems);
+        // Only the products that can go on it (and those whose status cannot be read: that says why they are missing).
+        const productProblems = products.products.filter((p) => isOnSale(p) || (!isProductDeleted(p) && p.status === null)).flatMap((p) => p.problems);
         showForm(products.products, settings, discounts.discounts, found.clients, found.deals, [...products.problems, ...problems, ...discounts.problems, ...found.problems, ...productProblems]);
       })
       .catch((error: unknown) => {
@@ -81,7 +82,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     allDeals: readonly SpecialPrice[],
     problems: readonly string[],
   ): void {
-    const products = sortProducts(all).filter((p) => !isProductDeleted(p));
+    const products = sortProducts(all).filter(isOnSale); // only "W sprzedaży" (owner, 2026-11-26)
     const clients = sortClients(allClients).filter((c) => !isClientDeleted(c));
     const today = localDate(deps.now());
     const errorLines = new Map<keyof OfferErrors, HTMLElement>();
@@ -285,7 +286,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       section(
         'Produkty',
         ...(products.length === 0
-          ? [el('p', { class: 'muted' }, 'Nie ma jeszcze produktów. ', button('Dodaj je w zakładce Produkty', deps.openProducts, 'link'))]
+          ? [el('p', { class: 'muted' }, 'Nie ma produktów w sprzedaży. ', button('Dodaj je albo zmień ich status w zakładce Produkty', deps.openProducts, 'link'))]
           : [
               el('p', { class: 'muted small' }, 'Zaznacz, co trafia do oferty; ↑ ↓ ustawiają kolejność.'),
               productList,

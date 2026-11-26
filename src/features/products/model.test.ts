@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BAG_SIZES_G } from '../../domain/bagSizes';
-import { PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, movedOrder, positionChanges, productFromFields, withOrder, sortProducts, validateProductForm } from './model';
+import { KEEP_STATUS, PRODUCT_COLUMNS, changedProductFields, emptyProductForm, formFromProduct, isOnSale, movedOrder, movedWithin, productSections, positionChanges, productFromFields, withOrder, sortProducts, validateProductForm } from './model';
 
 const product = (row: number, o: Record<string, string> = {}) =>
   productFromFields(
@@ -117,6 +117,7 @@ describe('the product form', () => {
         price_250_gross_pln: '59',
         price_500_gross_pln: '',
         price_1000_gross_pln: '220.5',
+        status: '',
       },
     });
   });
@@ -140,5 +141,77 @@ describe('the product form', () => {
     const result = validateProductForm({ ...formFromProduct(p), price250: '47', flavourProfile: 'Migdał' });
     if (!result.ok) throw new Error('expected valid');
     expect(changedProductFields(p, result.fields)).toEqual({ price_250_gross_pln: '47', flavour_profile: 'Migdał' });
+  });
+});
+
+describe('status (owner, 2026-11-26)', () => {
+  it('reads on sale (empty, as before the column), trial and withdrawn', () => {
+    expect(product(2).status).toBe('on_sale');
+    expect(product(2, { status: 'on_sale' }).status).toBe('on_sale');
+    expect(product(2, { status: 'trial' }).status).toBe('trial');
+    expect(product(2, { status: ' retired ' }).status).toBe('retired');
+    expect(product(2).problems).toEqual([]);
+  });
+
+  it('a status it cannot read is a problem, and that product never goes on an offer', () => {
+    const p = product(2, { status: 'maybe' });
+    expect(p.status).toBeNull();
+    expect(p.problems).toEqual(['Nie da się odczytać statusu „maybe” (Gwatemala), więc produkt nie trafia do oferty. Wybierz status w produkcie.']);
+    expect(isOnSale(p)).toBe(false);
+  });
+
+  it('only products on sale and not deleted go on an offer', () => {
+    expect(isOnSale(product(2))).toBe(true);
+    expect(isOnSale(product(2, { status: 'trial' }))).toBe(false);
+    expect(isOnSale(product(2, { status: 'retired' }))).toBe(false);
+    expect(isOnSale(product(2, { deleted_at: '2026-11-26T10:00:00.000Z' }))).toBe(false);
+  });
+
+  it('stores on sale as empty, trial and withdrawn by name', () => {
+    const ok = (status: string) => {
+      const result = validateProductForm({ ...emptyProductForm(), name: 'Kenia', status });
+      return result.ok ? result.fields['status'] : result.errors;
+    };
+    expect(emptyProductForm().status).toBe('on_sale');
+    expect([ok('on_sale'), ok('trial'), ok('retired')]).toEqual(['', 'trial', 'retired']);
+    expect(ok('other')).toEqual({ status: 'Wybierz status.' });
+  });
+
+  it('an unreadable status is kept as it is unless the owner chooses one; a status change is written', () => {
+    const odd = product(2, { status: 'maybe' });
+    expect(formFromProduct(odd).status).toBe(KEEP_STATUS);
+    const kept = validateProductForm({ ...formFromProduct(odd), flavourProfile: 'Migdał' });
+    expect(kept.ok && 'status' in kept.fields).toBe(false);
+    const p = product(2);
+    expect(formFromProduct(p).status).toBe('on_sale');
+    const retired = validateProductForm({ ...formFromProduct(p), status: 'retired' });
+    if (!retired.ok) throw new Error('expected valid');
+    expect(changedProductFields(p, retired.fields)).toEqual({ status: 'retired' });
+    const same = validateProductForm(formFromProduct(p));
+    expect(same.ok && changedProductFields(p, same.fields)).toEqual({});
+  });
+
+  it('lists the products in three sections, each in the owner\'s order, without deleted ones', () => {
+    const list = [
+      product(2, { name: 'A', position: '3' }),
+      product(3, { name: 'B', position: '1', status: 'trial' }),
+      product(4, { name: 'C', position: '2' }),
+      product(5, { name: 'D', status: 'retired' }),
+      product(6, { name: 'E', status: 'maybe' }),
+      product(7, { name: 'F', deleted_at: '2026-11-26T10:00:00.000Z' }),
+    ];
+    expect(productSections(list).map((s) => [s.status, s.products.map((p) => p.name)])).toEqual([
+      ['on_sale', ['C', 'A', 'E']],
+      ['trial', ['B']],
+      ['retired', ['D']],
+    ]);
+  });
+
+  it('moving a product inside its section leaves the other sections where they were', () => {
+    // Whole order: P1 (on sale), P2 (trial), P3 (on sale), P4 (trial), P5 (on sale).
+    const order = ['P1', 'P2', 'P3', 'P4', 'P5'];
+    expect(movedWithin(order, ['P1', 'P3', 'P5'], 'P5', 0)).toEqual(['P5', 'P2', 'P1', 'P4', 'P3']);
+    expect(movedWithin(order, ['P2', 'P4'], 'P2', 1)).toEqual(['P1', 'P4', 'P3', 'P2', 'P5']);
+    expect(movedWithin(order, ['P2', 'P4'], 'P2', 5)).toEqual(order); // cannot move there
   });
 });
