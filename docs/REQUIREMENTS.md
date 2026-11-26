@@ -218,7 +218,9 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
 - **[R]** Invoices are issued in **Fakturownia.pl**. Kraken only tracks the request and its status.
 - **[R] Later (owner, 2026-11-27: decided how, not built yet):** Kraken connects to the Fakturownia API through a
   small middleman on Cloudflare Workers that keeps the API token secret, so nobody can see it. The full plan is
-  in `docs/FAKTUROWNIA.md`; build exactly that when the owner asks for it.
+  in `docs/FAKTUROWNIA.md`; build exactly that when the owner asks for it. The idea of what it does (to be
+  confirmed then): create a **draft** invoice in Fakturownia from a sale with one click, and fill in the invoice
+  number in Kraken automatically.
 
 **[R] Decided with the owner (2026-11-19):**
 - **Clients** tab (built first): short name, NIP (checked: 10 digits with a valid check digit), email, registered
