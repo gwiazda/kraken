@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-26_
+_Last updated: 2026-11-27_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
@@ -16,12 +16,12 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - **Polish screens**: every screen (#41–#44).
 
 - **Phone layout for every tab** (#45), own use without "Po co?" (#46), offer discounts per invoice (#47), the 250 g
-  price fills in 500 g and 1 kg (#48), sample sizes and client details in Sales (#49).
+  price fills in 500 g and 1 kg (#48), sample sizes and client details in Sales (#49), general offer, product status
+  W sprzedaży / Próbne / Wycofane (data version 14; only products on sale on the Offer) and Sales opening on
+  "Faktura do wystawienia" (#50).
 
 ## In progress
-- Branch `claude/offer-products-start`: a general offer (no customer, no "Dla:"); Sales always opens on "Faktura do
-  wystawienia"; product status W sprzedaży / Próbne / Wycofane (data version 14), Products in three sections, only
-  products on sale on the Offer.
+- Nothing being built. The Fakturownia plan is written down (`docs/FAKTUROWNIA.md`).
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
@@ -29,6 +29,7 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 3. Offer PDF straight to Google Drive (needs a PDF library).
 4. Hand overrides of a discounted price (requirements section 5): probably not needed any more (special prices
    cover it); owner to decide whether to drop it.
+5. Connect to Fakturownia: decided how (`docs/FAKTUROWNIA.md`, 2026-11-27), not built; first decide what it should do.
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).

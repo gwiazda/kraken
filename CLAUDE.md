@@ -30,6 +30,11 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Authentication: **Google Identity Services (OAuth 2.0) in the browser**. The page calls the Google Sheets API
   directly with the signed-in user's access token. No backend and no Apps Script.
   Reason: Google enforces access through sheet sharing, there are no secrets to store, and there is nothing to host.
+  **One planned exception (decided 2026-11-27, not built yet; full plan `docs/FAKTUROWNIA.md`):** Fakturownia. A
+  small TypeScript middleman on Cloudflare Workers (free plan), in `worker/` of this repo, keeps the Fakturownia
+  API token as a secret, accepts only Kraken's own Google sign-in of the two owners and only listed actions.
+  Reason: that token gives full access to the account and a browser can never keep a secret. When it is built:
+  its address joins `connect-src`, and `wrangler` is the one extra dependency (owner's OK then).
 - The repo is **public**, because GitHub Pages on the Free plan requires it. The code is public; the data is not.
 - Front-end stack (decided 2026-11-06): **TypeScript + Vite, no UI framework** (no React).
   Reason: TypeScript is readable and catches bugs; Vite is mainstream and outputs static files. A framework can be added later if screens get complex.
