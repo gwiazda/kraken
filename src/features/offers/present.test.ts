@@ -62,6 +62,10 @@ describe('buildOffer', () => {
     ]);
   });
 
+  it('without a customer it is a general offer: no customer and no "dla" in the file name', () => {
+    for (const customer of ['', '   ', ' / ']) expect(buildOffer(products, form({ customer }), 230, 14)).toMatchObject({ customer: '', fileName: 'Oferta 16.11.2026' });
+  });
+
   it('fills in the customer, the dates, the file name and the banner', () => {
     const offer = buildOffer(products, form({ customer: '  Kawiarnia   Pod Lipą ' }), 230, 14);
     expect(offer).toMatchObject({

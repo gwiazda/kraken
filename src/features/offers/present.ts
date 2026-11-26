@@ -8,7 +8,7 @@ import { wholesalePrice } from '../../domain/prices';
 import { formatBagSize, isBagSize } from '../../domain/bagSizes';
 import { dealKey } from '../clients';
 import { isProductDeleted, productDetails, type Product } from '../products';
-import { addDays, bannerText, offerFileName, tierText, type Banner, type OfferForm } from './model';
+import { addDays, bannerText, cleanName, offerFileName, tierText, type Banner, type OfferForm } from './model';
 
 export interface OfferPriceBlock {
   /** "250 g" */
@@ -83,7 +83,8 @@ export function buildOffer(products: readonly Product[], form: OfferForm, vatTen
   });
   return {
     fileName: offerFileName(form.customer, form.date),
-    customer: form.customer.trim().replace(/\s+/g, ' '),
+    // A name with nothing left once cleaned (" / ") is no customer: a general offer, like its file name.
+    customer: cleanName(form.customer) === '' ? '' : form.customer.trim().replace(/\s+/g, ' '),
     date: formatDate(form.date),
     validUntil: formatDate(addDays(form.date, validDays)),
     year: form.date.slice(0, 4),

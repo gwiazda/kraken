@@ -42,7 +42,7 @@ export interface OfferForm {
   banner: Banner | null;
 }
 
-export type OfferErrors = Partial<Record<'customer' | 'date' | 'products' | 'sizes' | 'tiers' | 'banner', string>>;
+export type OfferErrors = Partial<Record<'date' | 'products' | 'sizes' | 'tiers' | 'banner', string>>;
 
 /** A discount name is shown next to every price, so it must stay short ("Do 10 kg", "10–20 kg"). */
 export const TIER_LABEL_MAX = 12;
@@ -61,8 +61,14 @@ export function cleanName(customer: string): string {
     .trim();
 }
 
-/** The PDF's name, e.g. "Oferta dla Kawiarnia Pod Lipą 16.11.2026" (Chrome adds ".pdf"). */
-export const offerFileName = (customer: string, date: string) => `Oferta dla ${cleanName(customer)} ${formatDate(date)}`;
+/**
+ * The PDF's name, e.g. "Oferta dla Kawiarnia Pod Lipą 16.11.2026" (Chrome adds ".pdf"); without a customer a general
+ * offer, "Oferta 16.11.2026" (owner, 2026-11-26).
+ */
+export function offerFileName(customer: string, date: string): string {
+  const name = cleanName(customer);
+  return `Oferta${name ? ` dla ${name}` : ''} ${formatDate(date)}`;
+}
 
 /** "-15%", "-12,5%" (as on the template). */
 export function discountText(tenths: number): string {
@@ -108,7 +114,6 @@ export function bannerText(tiers: readonly Tier[], sizeLabels: readonly string[]
  */
 export function validateOffer(form: OfferForm, withDeals = false, withoutPrice: readonly string[] = []): OfferErrors {
   const errors: OfferErrors = {};
-  if (cleanName(form.customer) === '') errors.customer = 'Wpisz, dla kogo jest oferta.';
   if (!isValidDate(form.date)) errors.date = 'Wybierz datę oferty.';
   if (form.productIds.length === 0) errors.products = 'Zaznacz co najmniej jeden produkt.';
   if (form.sizes.length === 0) errors.sizes = 'Zaznacz co najmniej jedną wielkość torebki.';

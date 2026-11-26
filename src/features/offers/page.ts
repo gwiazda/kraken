@@ -4,12 +4,12 @@
 // Everything from outside comes through OfferPageDeps (main.ts provides it).
 
 import { formatDate, isValidDate, localDate } from '../../core/dates';
-import { busy, button, el, message } from '../../ui/dom';
+import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, readSettings, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { isClientDeleted, offerDeals, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
-import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
+import { isOnSale, isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import { showOfferPages } from './document';
 import { MAX_TIERS, OFFER_VALID_DAYS, addDays, discountText, validateOffer, type OfferErrors, type OfferForm } from './model';
 import { buildOffer } from './present';
@@ -54,7 +54,8 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
         const { settings, problems } = readSettings(costs.settings);
         const discounts = activeDiscounts(costs.discounts);
         // A price Kraken cannot read is named here, so a missing size on the offer is not a mystery.
-        const productProblems = products.products.filter((p) => !isProductDeleted(p)).flatMap((p) => p.problems);
+        // Only the products that can go on it (and those whose status cannot be read: that says why they are missing).
+        const productProblems = products.products.filter((p) => isOnSale(p) || (!isProductDeleted(p) && p.status === null)).flatMap((p) => p.problems);
         showForm(products.products, settings, discounts.discounts, found.clients, found.deals, [...products.problems, ...problems, ...discounts.problems, ...found.problems, ...productProblems]);
       })
       .catch((error: unknown) => {
@@ -81,7 +82,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
     allDeals: readonly SpecialPrice[],
     problems: readonly string[],
   ): void {
-    const products = sortProducts(all).filter((p) => !isProductDeleted(p));
+    const products = sortProducts(all).filter(isOnSale); // only "W sprzedaży" (owner, 2026-11-26)
     const clients = sortClients(allClients).filter((c) => !isClientDeleted(c));
     const today = localDate(deps.now());
     const errorLines = new Map<keyof OfferErrors, HTMLElement>();
@@ -96,7 +97,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       return { box, node: el('label', { for: id }, box, label) };
     };
 
-    const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'np. Kawiarnia Pod Lipą' });
+    const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'puste = oferta ogólna' });
     // Pick a client (their name fills in; their special prices can be used) or type any name (not a client yet).
     const clientSelect = el('select', { id: 'offer-client' }, el('option', { value: '' }, 'Nie klient (wpisz nazwę)'), ...clients.map((c) => el('option', { value: c.id }, c.name)));
     const useDeals = el('input', { type: 'checkbox', id: 'offer-use-deals' });
@@ -111,7 +112,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       if (picked) customer.value = picked.name;
       else if (filled && customer.value === filled) customer.value = '';
       filled = picked?.name ?? '';
-      deals = picked ? offerDeals(allDeals, picked.id, all) : new Map();
+      deals = picked ? offerDeals(allDeals, picked.id, products) : new Map(); // only products on sale can be on it
       useDealsRow.hidden = deals.size === 0;
       useDeals.checked = deals.size > 0;
       useDealsLabel.textContent = ` Użyj cen specjalnych: ${picked?.name ?? ''} (${deals.size}); ta wielkość pokaże tylko ich cenę`;
@@ -277,7 +278,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
           'div',
           { class: 'fields' },
           ...(clients.length > 0 ? [el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: clientSelect.id }, 'Klient')), clientSelect)] : []),
-          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Odbiorca *')), customer, errorLine('customer')),
+          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Odbiorca'), infoTip('Zostaw puste, aby przygotować ofertę ogólną, bez „Dla:”.')), customer),
           el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Data oferty *')), date, validUntil, errorLine('date')),
         ),
         useDealsRow,
@@ -285,7 +286,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       section(
         'Produkty',
         ...(products.length === 0
-          ? [el('p', { class: 'muted' }, 'Nie ma jeszcze produktów. ', button('Dodaj je w zakładce Produkty', deps.openProducts, 'link'))]
+          ? [el('p', { class: 'muted' }, 'Nie ma produktów w sprzedaży. ', button('Dodaj je albo zmień ich status w zakładce Produkty', deps.openProducts, 'link'))]
           : [
               el('p', { class: 'muted small' }, 'Zaznacz, co trafia do oferty; ↑ ↓ ustawiają kolejność.'),
               productList,

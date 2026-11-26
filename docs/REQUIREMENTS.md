@@ -229,7 +229,7 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag; no reason asked, owner 2026-11-21; a reason saved earlier stays).
   Invoice status for sales: **To be issued → Issued (date) → Paid**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
-  The list opens on **Invoice to be issued** (filters: all first, then to be issued, issued, paid, samples, own use, with counts). The status
+  The list always opens on **Invoice to be issued** (owner, 2026-11-26; also when there is none) (filters: all first, then to be issued, issued, paid, samples, own use, with counts). The status
   is changed with **one dropdown** in the Invoice column, any status to any other (owner, 2026-11-19: simpler than
   separate buttons). **Two dates** (owner, 2026-11-19): the entry's date and the date the invoice was issued
   ("Issued on" column). Choosing Issued opens a small date box (today, or the date it already has); Paid has no date
@@ -469,7 +469,8 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   whole złoty, with the gross), plus "Another discount" for any %. The offer uses the same prices.
 - In the product form, suggested prices from a chosen lot (Costs & prices: cost of one bag × markup + VAT, whole
   złoty) are buttons that fill the price in; a price can also be typed. Only the price is saved, not the lot.
-- An **Offer** page, in **Polish** (for Polish customers): customer name, date, **valid for 14 days** (the "valid
+- An **Offer** page, in **Polish** (for Polish customers): customer name (optional: left empty it is a **general offer**, without "Dla:", file
+  "Oferta DD.MM.YYYY"; owner, 2026-11-26), date, **valid for 14 days** (the "valid
   until" date is on the offer), ticked products, ticked bag sizes and ticked discounts (from the discount setting),
   each with a name such as "Do 10 kg" (default names for 15 / 25 / 30 %: "Do 10 kg", "10–20 kg", "20+ kg").
   Prices on the offer: wholesale **net**, rounded to whole złoty (as on the product page), one block per size;
@@ -481,6 +482,12 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   the Products tab, data version 11). The Offer page starts in that order, and ↑ ↓ there still changes it for that
   one offer only (not saved). Other lists of products (Product planner, Sales) use the same order. Products without
   a position (new ones) come last, by name.
+- **Product status** (owner, 2026-11-26; data version 14, `status` column of the Products tab): **W sprzedaży** (on
+  sale; empty cell, so every product from before stays on sale), **Próbne** (trial, `trial`) or **Wycofane**
+  (withdrawn, `retired`), chosen in the product's form. The Products list is in three sections in that order (Próbne
+  and Wycofane only when they have products); dragging moves a product inside its section. **Only products on sale
+  go on the Offer.** Sales still lists every product. A status Kraken cannot read is named as a problem, the
+  product shows with those on sale but never goes on an offer, and editing it keeps the cell until a status is chosen.
 - The **yellow banner** text is made from the ticked discounts and sizes, and can be changed per offer (title, main
   line, small print; "Back to the standard text"). "Sugerowana cena…" stays on one line.
   **Discounts count per invoice** (owner, 2026-11-21; was per month): the main line has no "/ mies." and the small
@@ -563,7 +570,7 @@ Drive until the owner deletes them. A brand-new sheet is created in one all-or-n
 migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
-is built. Today (data version 13): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
+is built. Today (data version 14): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
 read), Products, Discounts, Product beans, Clients, Sales, Sale lines, Special prices (section 5, version 12), Sale
-notes (follow-up notes on samples, section 4, version 13).
+notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column.
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.

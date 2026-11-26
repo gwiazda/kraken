@@ -83,7 +83,7 @@ test that reads every import line), so CI fails if a rule is broken.
   the tab is empty the template's 15 / 25 / 30 % are used and the first change writes them), VAT and the usual roast
   loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
   rounded), `pricingFor` (Products: settings, discounts, every lot as a bean with its green price per kg and roast loss, packaging per size) and `lotLosses` (Lots page);
-  `products`: Products page (products in the owner's order, dragged by a ⠿ grip, `position` column, migration 11; saved in the background by `orderSaves.ts`, one save after another; the Offer and other lists use the same order), **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
+  `products`: Products page (sections W sprzedaży / Próbne / Wycofane, `status` column, migration 14, owner 2026-11-26: only products on sale go on the Offer; products in the owner's order, dragged by a ⠿ grip inside their section, `position` column, migration 11; saved in the background by `orderSaves.ts`, one save after another; the Offer and other lists use the same order), **the one place for prices** (owner, 2026-11-18; the Price list page was merged into it):
   list → click a product → its main gross prices and wholesale at each discount (one column per discount from Packaging & discounts), and its
   offer details, and **Cost and earnings** (cost of one bag and what the retail price earns). A product is **made of
   up to 3 beans** ("Product beans" tab, `modelBeans.ts`): a lot, or a planned bean (name, price per kg, optional
@@ -101,11 +101,11 @@ test that reads every import line), so CI fails if a rule is broken.
   (owner, 2026-11-20; "Special prices" tab, migration 12): net price per client, product and size, set on the client's
   page (`pricesSection.ts`, costs from `loadProductsWithCosts` in products), used by the Offer;
   `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19; a sample 100/150/250 g, 150 g first, or any grams), the entry's page shows its client's name, CEIDG name and discount read from Clients (owner 2026-11-24), follow-up notes on samples (`notesSection.ts`, "Sale notes" tab, migration 13),
-  invoice status to be issued → issued (date) → paid from one dropdown (Issued asks the issue date, today unless changed; paid has no date; then the list shows All), filters; no stock change;
-  `offers`: Offer page in Polish (customer typed or picked from Clients, date, valid 14 days, ticked products / sizes / discounts,
+  always opens on "Faktura do wystawienia" (owner 2026-11-26); invoice status to be issued → issued (date) → paid from one dropdown (Issued asks the issue date, today unless changed; paid has no date; then the list shows All), filters; no stock change;
+  `offers`: Offer page in Polish (customer typed or picked from Clients, or none: a general offer without "Dla:", owner 2026-11-26, date, valid 14 days, ticked products / sizes / discounts,
   "Use their special prices": a size with a deal shows only that price, no label; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file
-  name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);
+  name "Oferta dla … DD.MM.YYYY", or "Oferta DD.MM.YYYY" for a general offer; nothing stored; offer styles in style.css all start with `offer-`);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`listView.ts` a list with a search bar, a filter under every column and pages, rules in `core/listFilter.ts` (owner 2026-11-20; Roasts first); `dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner/`clickableRow` (every list: click a row to open it, no Edit or Details buttons, owner 2026-11-20), `cardTable` / `cardLabels` (every list is cards on a phone: labels and ⓘ tips from the column headings; Wypały's filters behind "Filtry"; Sales keeps its own cards; owner 2026-11-20), `googleErrors.ts` explains Google errors

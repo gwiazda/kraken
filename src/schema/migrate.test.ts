@@ -228,7 +228,8 @@ describe('version 11', () => {
 
   it('adds the position column to the Products tab, agreed on 2026-11-19', () => {
     expect(MIGRATIONS[9]?.steps).toEqual([{ kind: 'add-columns', tab: 'Products', columns: ['position'] }]);
-    expect(initialTabs(created).find((t) => t.title === 'Products')?.rows[0]).toEqual([...productsHeader, 'position']);
+    // A new sheet gets every column at once, version 14's status too.
+    expect(initialTabs(created).find((t) => t.title === 'Products')?.rows[0]).toEqual([...productsHeader, 'position', 'status']);
   });
 
   it('writes only the new header cell after the last column; every product row stays as it was', async () => {
@@ -285,11 +286,30 @@ describe('version 13', () => {
 
   it('updates a version 12 sheet with the tab, keeping the data', async () => {
     const google = sheetAt(12, [{ title: 'Sales', sheetId: 3, rows: [['id', 'kind'], ['S1', 'sample']] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 12), appVersion: 13 });
     expect(result).toMatchObject({ fromVersion: 12, toVersion: 13 });
     expect(google.files.get(ID)?.tabs.map((t) => t.title)).toEqual([META_TAB, 'Owner notes', 'Sales', 'Sale notes']);
     expect(tab(google, 'Sales')?.rows).toEqual([['id', 'kind'], ['S1', 'sample']]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '13']);
+  });
+});
+
+describe('version 14', () => {
+  const header = ['id', 'name', 'price_250_gross_pln', 'position', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
+  const product = ['P1', 'GWATEMALA', '59', '1', '2026-11-17T10:00:00.000Z', '2026-11-17T10:00:00.000Z', 'owner@example.com', ''];
+
+  it('adds the status column to the Products tab, agreed on 2026-11-26', () => {
+    expect(MIGRATIONS[12]?.steps).toEqual([{ kind: 'add-columns', tab: 'Products', columns: ['status'] }]);
+    expect(APP_SCHEMA_VERSION).toBe(14);
+  });
+
+  it('updates a version 13 sheet with only the new header cell; every product stays as it was (on sale)', async () => {
+    const google = sheetAt(13, [{ title: 'Products', sheetId: 3, rows: [[...header], [...product]] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result).toMatchObject({ fromVersion: 13, toVersion: 14 });
+    expect(tab(google, 'Products')?.rows).toEqual([[...header, 'status'], product]);
+    expect(writes(google).filter((r) => r.url.includes('Products'))).toHaveLength(1);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '14']);
   });
 });
 

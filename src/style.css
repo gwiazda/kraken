@@ -863,6 +863,27 @@ details summary {
   font-size: 1rem;
 }
 
+/* The same column widths in every section (W sprzedaży, Próbne, Wycofane; owner, 2026-11-26), so they line up. */
+.product-table {
+  table-layout: fixed;
+}
+
+.product-table .order-grip {
+  width: 2.25rem;
+}
+
+.product-table .col-origin {
+  width: 30%;
+}
+
+.product-table .col-price {
+  width: 7rem;
+}
+
+.product-table .col-actions {
+  width: 7rem;
+}
+
 .back-link {
   margin: 0 0 0.5rem;
 }

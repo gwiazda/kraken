@@ -1,12 +1,12 @@
 # Status
 
-_Last updated: 2026-11-24_
+_Last updated: 2026-11-26_
 
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 13**:
-  "Special prices" (#36) and "Sale notes" tabs; the owner clicks "Aktualizuj teraz" once if Kraken asks).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 14**:
+  "Special prices" (#36), "Sale notes" tabs and the products' status column; the owner clicks "Aktualizuj teraz" once if Kraken asks).
 - Lots, Roasts and Sync with RoasTime (lots and roasts in one step, stock left per lot).
 - Products (the one place for prices, beans, cost of one bag), Product planner, Packaging & discounts.
 - Clients with special prices; Sales (sale / sample with any grams and follow-up notes / own use, invoice status);
@@ -16,11 +16,12 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - **Polish screens**: every screen (#41–#44).
 
 - **Phone layout for every tab** (#45), own use without "Po co?" (#46), offer discounts per invoice (#47), the 250 g
-  price fills in 500 g and 1 kg (#48).
+  price fills in 500 g and 1 kg (#48), sample sizes and client details in Sales (#49).
 
 ## In progress
-- **Sales: sample sizes and client details** (branch `claude/sales-sample-client`): a sample's size is 100 / 150 / 250 g
-  (150 g first) or "Inna…" typed in; an entry's page shows the client's name, CEIDG name and discount from Clients.
+- Branch `claude/offer-products-start`: a general offer (no customer, no "Dla:"); Sales always opens on "Faktura do
+  wystawienia"; product status W sprzedaży / Próbne / Wycofane (data version 14), Products in three sections, only
+  products on sale on the Offer.
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
