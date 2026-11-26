@@ -12,6 +12,8 @@ describe('dates and the file name', () => {
   it('writes dates the Polish way and names the file after the customer and date', () => {
     expect(formatDate('2026-11-16')).toBe('16.11.2026');
     expect(offerFileName('Kawiarnia Pod Lipą', '2026-11-16')).toBe('Oferta dla Kawiarnia Pod Lipą 16.11.2026');
+    expect(offerFileName('', '2026-11-16')).toBe('Oferta 16.11.2026'); // a general offer
+    expect(offerFileName(' / ', '2026-11-16')).toBe('Oferta 16.11.2026');
   });
 
   it('removes from the name what a file name cannot have', () => {
@@ -57,13 +59,13 @@ describe('discounts and the banner', () => {
 describe('validateOffer', () => {
   const ok = { customer: 'Kawiarnia', date: '2026-11-16', productIds: ['P1'], sizes: [250], tiers: [{ tenths: 150, label: 'Do 10 kg' }], banner: null };
 
-  it('accepts a complete offer', () => {
+  it('accepts a complete offer, also without a customer (a general offer)', () => {
     expect(validateOffer(ok)).toEqual({});
+    expect(validateOffer({ ...ok, customer: '  ' })).toEqual({});
   });
 
   it('says what is missing', () => {
     expect(validateOffer({ customer: ' / ', date: '2026-02-30', productIds: [], sizes: [], tiers: [], banner: null })).toEqual({
-      customer: 'Wpisz, dla kogo jest oferta.',
       date: 'Wybierz datę oferty.',
       products: 'Zaznacz co najmniej jeden produkt.',
       sizes: 'Zaznacz co najmniej jedną wielkość torebki.',

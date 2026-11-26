@@ -75,8 +75,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let clients: Client[] = [];
   let products: Product[] = [];
   let problems: string[] = [];
-  /** The filter shown; null until the first load (then "to be issued" if there is any, else all). */
-  let filter: SalesFilter | null = null;
+  /** The filter shown: Sales always opens on the invoices to issue (owner, 2026-11-26). */
+  let filter: SalesFilter = 'to_issue';
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
   /**
@@ -171,7 +171,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function showList(note?: string, error?: Node[]): void {
     deps.formClosed();
-    filter ??= saleRows(sales, lines, 'all', clientName, productName).counts.to_issue > 0 ? 'to_issue' : 'all';
     const { rows, counts } = saleRows(sales, lines, filter, clientName, productName);
     const newestNotes = lastNotes(sampleNotes);
     const deleted = sales.filter(isDeleted);

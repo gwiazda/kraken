@@ -26,7 +26,8 @@ function pageNode(offer: OfferDocument, first: boolean): { page: HTMLElement; co
           el(
             'div',
             { class: 'offer-meta' },
-            el('div', {}, el('span', { class: 'offer-meta-label' }, 'Dla: '), el('span', { class: 'offer-meta-customer' }, offer.customer || '…')),
+            // No customer: a general offer, without "Dla:" (owner, 2026-11-26).
+            offer.customer ? el('div', {}, el('span', { class: 'offer-meta-label' }, 'Dla: '), el('span', { class: 'offer-meta-customer' }, offer.customer)) : el('div', {}),
             el(
               'div',
               { class: 'offer-meta-dates' },

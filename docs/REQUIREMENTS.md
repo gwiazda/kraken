@@ -229,7 +229,7 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag; no reason asked, owner 2026-11-21; a reason saved earlier stays).
   Invoice status for sales: **To be issued → Issued (date) → Paid**; both owners can change
   it. Sales do not change stock (not now). The old sales stay in the old sheet as history.
-  The list opens on **Invoice to be issued** (filters: all first, then to be issued, issued, paid, samples, own use, with counts). The status
+  The list always opens on **Invoice to be issued** (owner, 2026-11-26; also when there is none) (filters: all first, then to be issued, issued, paid, samples, own use, with counts). The status
   is changed with **one dropdown** in the Invoice column, any status to any other (owner, 2026-11-19: simpler than
   separate buttons). **Two dates** (owner, 2026-11-19): the entry's date and the date the invoice was issued
   ("Issued on" column). Choosing Issued opens a small date box (today, or the date it already has); Paid has no date
@@ -469,7 +469,8 @@ prices and earnings at the markups (2×, 2,5×, 3×, …). Nothing is saved, for
   whole złoty, with the gross), plus "Another discount" for any %. The offer uses the same prices.
 - In the product form, suggested prices from a chosen lot (Costs & prices: cost of one bag × markup + VAT, whole
   złoty) are buttons that fill the price in; a price can also be typed. Only the price is saved, not the lot.
-- An **Offer** page, in **Polish** (for Polish customers): customer name, date, **valid for 14 days** (the "valid
+- An **Offer** page, in **Polish** (for Polish customers): customer name (optional: left empty it is a **general offer**, without "Dla:", file
+  "Oferta DD.MM.YYYY"; owner, 2026-11-26), date, **valid for 14 days** (the "valid
   until" date is on the offer), ticked products, ticked bag sizes and ticked discounts (from the discount setting),
   each with a name such as "Do 10 kg" (default names for 15 / 25 / 30 %: "Do 10 kg", "10–20 kg", "20+ kg").
   Prices on the offer: wholesale **net**, rounded to whole złoty (as on the product page), one block per size;

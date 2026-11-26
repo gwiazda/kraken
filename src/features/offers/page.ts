@@ -4,7 +4,7 @@
 // Everything from outside comes through OfferPageDeps (main.ts provides it).
 
 import { formatDate, isValidDate, localDate } from '../../core/dates';
-import { busy, button, el, message } from '../../ui/dom';
+import { busy, button, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import { activeDiscounts, readSettings, type CostSettings, type CostsRepository, type Discount } from '../costs';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
@@ -96,7 +96,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       return { box, node: el('label', { for: id }, box, label) };
     };
 
-    const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'np. Kawiarnia Pod Lipą' });
+    const customer = el('input', { id: 'offer-customer', type: 'text', autocomplete: 'off', placeholder: 'puste = oferta ogólna' });
     // Pick a client (their name fills in; their special prices can be used) or type any name (not a client yet).
     const clientSelect = el('select', { id: 'offer-client' }, el('option', { value: '' }, 'Nie klient (wpisz nazwę)'), ...clients.map((c) => el('option', { value: c.id }, c.name)));
     const useDeals = el('input', { type: 'checkbox', id: 'offer-use-deals' });
@@ -277,7 +277,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
           'div',
           { class: 'fields' },
           ...(clients.length > 0 ? [el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: clientSelect.id }, 'Klient')), clientSelect)] : []),
-          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Odbiorca *')), customer, errorLine('customer')),
+          el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: customer.id }, 'Odbiorca'), infoTip('Zostaw puste, aby przygotować ofertę ogólną, bez „Dla:”.')), customer),
           el('div', { class: 'field' }, el('div', { class: 'label-row' }, el('label', { for: date.id }, 'Data oferty *')), date, validUntil, errorLine('date')),
         ),
         useDealsRow,
