@@ -184,6 +184,11 @@ The label font (Erbaum) is commercial: never commit its font files without a web
 - Cloud sessions (from the Claude iPhone app) can't use `gh pr create` (GitHub GraphQL is blocked there);
   open PRs with the REST API instead: `gh api -X POST repos/gwiazda/kraken/pulls -f title=... -f head=... -f base=main -f body=...`.
 
+- **Fakturownia (decided 2026-11-27, not built yet): `docs/FAKTUROWNIA.md`.** The one planned exception to "no
+  backend": a small TypeScript middleman on Cloudflare Workers (free plan) in `worker/` of this repo keeps the
+  Fakturownia API token as a secret, checks the Google sign-in is one of the two owners and allows only listed
+  actions. Reason: the token gives full access to the account and a browser can never keep a secret.
+
 ## Open decisions
 - The list of tabs and their columns (`docs/REQUIREMENTS.md` section 7, [P]): confirmed per feature as each one is built
 

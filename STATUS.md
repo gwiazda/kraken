@@ -29,6 +29,7 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 3. Offer PDF straight to Google Drive (needs a PDF library).
 4. Hand overrides of a discounted price (requirements section 5): probably not needed any more (special prices
    cover it); owner to decide whether to drop it.
+5. Connect to Fakturownia: decided how (`docs/FAKTUROWNIA.md`, 2026-11-27), not built; first decide what it should do.
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).
