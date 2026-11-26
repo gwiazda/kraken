@@ -868,6 +868,10 @@ details summary {
   table-layout: fixed;
 }
 
+.product-table .order-grip {
+  width: 2.25rem;
+}
+
 .product-table .col-origin {
   width: 30%;
 }

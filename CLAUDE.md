@@ -105,7 +105,7 @@ test that reads every import line), so CI fails if a rule is broken.
   `offers`: Offer page in Polish (customer typed or picked from Clients, or none: a general offer without "Dla:", owner 2026-11-26, date, valid 14 days, ticked products / sizes / discounts,
   "Use their special prices": a size with a deal shows only that price, no label; live preview of
   the owner's A4 template in `document.ts`, measured pagination; "Save as PDF" = Chrome's print window with the file
-  name "Oferta dla … DD.MM.YYYY"; nothing stored; offer styles in style.css all start with `offer-`);
+  name "Oferta dla … DD.MM.YYYY", or "Oferta DD.MM.YYYY" for a general offer; nothing stored; offer styles in style.css all start with `offer-`);
   lots get stock through `LotsPageDeps.loadStock`, so `lots` never imports `roasts`; see `ui/` below): `model.ts` types, validation and calculations (pure: no Google, no screen),
   `repo.ts` reads/writes its tab behind an interface (fake in tests), `page.ts` the screen, `index.ts` the public interface.
 - `ui/`: shared screen helpers (`listView.ts` a list with a search bar, a filter under every column and pages, rules in `core/listFilter.ts` (owner 2026-11-20; Roasts first); `dom.ts` el/button/message/ⓘ tooltip (one floating bubble, so tables never cut it off)/busy spinner/`clickableRow` (every list: click a row to open it, no Edit or Details buttons, owner 2026-11-20), `cardTable` / `cardLabels` (every list is cards on a phone: labels and ⓘ tips from the column headings; Wypały's filters behind "Filtry"; Sales keeps its own cards; owner 2026-11-20), `googleErrors.ts` explains Google errors

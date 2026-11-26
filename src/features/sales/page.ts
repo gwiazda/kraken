@@ -597,6 +597,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           formSaving = false;
         })
         .then(() => {
+          // A sample or own use has no invoice: show all entries so it stays in view (Sales opens on invoices to issue).
+          if (form.kind !== 'sale') filter = 'all';
           if (root.isConnected) load('Zapisano.');
         })
         .catch((error: unknown) => {

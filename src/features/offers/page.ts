@@ -112,7 +112,7 @@ export function showOfferPage(root: HTMLElement, deps: OfferPageDeps, fromClick 
       if (picked) customer.value = picked.name;
       else if (filled && customer.value === filled) customer.value = '';
       filled = picked?.name ?? '';
-      deals = picked ? offerDeals(allDeals, picked.id, all) : new Map();
+      deals = picked ? offerDeals(allDeals, picked.id, products) : new Map(); // only products on sale can be on it
       useDealsRow.hidden = deals.size === 0;
       useDeals.checked = deals.size > 0;
       useDealsLabel.textContent = ` Użyj cen specjalnych: ${picked?.name ?? ''} (${deals.size}); ta wielkość pokaże tylko ich cenę`;

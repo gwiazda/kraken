@@ -229,9 +229,11 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
    * Started inside the drop or key press, so a sign-in renewal can open Google's window. If a save fails, the list
    * goes back to the order last saved and says why. `focus`: put the keyboard focus back on the moved product's grip.
    */
-  function move(productId: string, section: readonly string[], to: number, focus = false): void {
+  function move(productId: string, to: number, focus = false): void {
     const before = sortProducts(products).filter((p) => !isDeleted(p)).map((p) => p.id);
-    const order = movedWithin(before, section, productId, to); // inside its section (owner, 2026-11-26)
+    // Inside its section (owner, 2026-11-26), as the products are now.
+    const section = productSections(products).find((s) => s.products.some((p) => p.id === productId))?.products.map((p) => p.id) ?? [];
+    const order = movedWithin(before, section, productId, to);
     if (order.every((id, i) => id === before[i])) return showList();
     products = withOrder(products, order);
     showList();
@@ -404,8 +406,8 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
     };
     const origin = (p: Product) => [p.country, p.region].filter((t) => t).join(', ');
 
-    /** `section`: the ids of the product's section, in order (a product is moved only inside it). */
-    const row = (p: Product, restorable: boolean, index: number, section: readonly string[]) => {
+    /** `index`: the place in its section (a product is moved only inside it). */
+    const row = (p: Product, restorable: boolean, index: number) => {
       const actions = el('td', { class: 'row-actions nowrap' });
       /** The grip: drag it (mouse or finger) to another row, or focus it and press ↑ / ↓. */
       const grip = () => {
@@ -413,14 +415,14 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
         handle.addEventListener('keydown', (event) => {
           if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
           event.preventDefault();
-          move(p.id, section, index + (event.key === 'ArrowUp' ? -1 : 1), true);
+          move(p.id, index + (event.key === 'ArrowUp' ? -1 : 1), true);
         });
         handle.addEventListener('pointerdown', (event) => {
           if (event.button !== 0) return;
           event.preventDefault();
           const tr = handle.closest('tr');
           const body = tr?.parentElement;
-          if (tr && body) dragRow(tr, body, event, (to) => move(p.id, section, to));
+          if (tr && body) dragRow(tr, body, event, (to) => move(p.id, to));
         });
         return el('td', { class: 'order-grip' }, handle);
       };
@@ -471,7 +473,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
               ...(restorable ? [el('th', { scope: 'col', class: 'col-actions' }, '')] : []),
             ),
           ),
-          el('tbody', {}, ...list.map((p, i) => row(p, restorable, i, list.map((x) => x.id)))),
+          el('tbody', {}, ...list.map((p, i) => row(p, restorable, i))),
         )),
       );
 
@@ -496,7 +498,7 @@ export function showProductsPage(root: HTMLElement, deps: ProductsPageDeps, note
           sections
             .filter((section) => section.status === 'on_sale' || section.products.length > 0)
             .flatMap((section) => [
-              el('h3', { class: 'products-section' }, `${STATUS_LABELS[section.status]} (${section.products.length})`),
+              el('h3', {}, `${STATUS_LABELS[section.status]} (${section.products.length})`),
               section.products.length === 0 ? el('p', { class: 'muted small' }, 'Żaden produkt nie jest teraz w sprzedaży.') : table(section.products, false),
             ])),
       ...(deleted.length > 0 ? [el('details', { class: 'small deleted-products' }, el('summary', {}, `Usunięte produkty (${deleted.length})`), table(deleted, true))] : []),
