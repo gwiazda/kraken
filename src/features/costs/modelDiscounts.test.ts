@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeDiscounts, discountFields, discountForWeight, discountFromFields, validateDiscount } from './modelDiscounts';
+import { activeDiscounts, discountFields, discountForWeight, discountsReady, discountFromFields, validateDiscount } from './modelDiscounts';
 
 const row = (r: number, percent: string, name: string, deleted = '', from = '') => discountFromFields({ id: `D${r}`, percent, name, from_kg: from, deleted_at: deleted }, r);
 
@@ -107,5 +107,14 @@ describe('where a discount starts (owner, 2026-11-27)', () => {
       'Większy rabat −30\u00a0% zaczyna się od 0\u00a0kg, a mniejszy −15\u00a0% od 20\u00a0kg: większa faktura dostałaby mniejszy rabat. Popraw wagi; do tego czasu Kraken nie dobiera rabatu do faktury.',
     ]);
     expect(discountForWeight(swapped.discounts, 25_000)).toBeNull();
+  });
+});
+
+describe('discountsReady', () => {
+  it('is true when every discount has its start in order, and with no discounts at all', () => {
+    expect(discountsReady(activeDiscounts([]).discounts)).toBe(true);
+    expect(discountsReady([])).toBe(true);
+    expect(discountsReady([{ tenths: 150, fromGrams: 0 }, { tenths: 250, fromGrams: null }])).toBe(false);
+    expect(discountsReady([{ tenths: 300, fromGrams: 0 }, { tenths: 150, fromGrams: 20_000 }])).toBe(false);
   });
 });

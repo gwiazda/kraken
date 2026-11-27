@@ -5,21 +5,26 @@
 // - **own use**: one of the owners took a bag. No reason is asked (owner, 2026-11-21): Kraken never writes the
 //   "reason" column any more, so a reason saved earlier stays exactly as it is (and is still shown in the list).
 // Samples and own use have no invoice. Sales do not change stock (owner, 2026-11-19).
-// No prices here (owner, 2026-11-19): Sales records how much went out; the owner takes the prices from the client's
-// offer when issuing the invoice, and the partner does not need to know them. The "unit_price_net_pln" column of the
-// Sale lines tab stays in the sheet (added by migration 10) but is left empty.
+// Prices (owner, 2026-11-27; until then none): a sale's prices are worked out by the invoice price rules (pricing.ts)
+// and saved with it: each line's net price ("unit_price_net_pln", migration 10) and whether it is the client's special
+// price or the discounted one ("price_kind"), and the sale's discount ("discount_percent", migration 16).
 // Pure: no Google, no screen.
 
 import { isValidDate } from '../../core/dates';
+import { parseMoney } from '../../core/numbers';
+import { percentFromCell } from '../../domain/percent';
 import { BAG_SIZES_G, isBagSize } from '../../domain/bagSizes';
 
 /** A row as read from the sheet, by column name (shared with the other sales model files). */
 export type Fields = Readonly<Record<string, string>>;
 
 export const SALES_TAB = 'Sales';
-export const SALE_COLUMNS = ['date', 'kind', 'client_id', 'place', 'reason', 'invoice_status', 'invoice_number', 'invoice_date', 'paid_date', 'notes'] as const;
+export const SALE_COLUMNS = ['date', 'kind', 'client_id', 'place', 'reason', 'invoice_status', 'invoice_number', 'invoice_date', 'paid_date', 'notes', 'discount_percent'] as const;
 export const SALE_LINES_TAB = 'Sale lines';
-export const LINE_COLUMNS = ['sale_id', 'position', 'product_id', 'bag_size_g', 'bags', 'unit_price_net_pln', 'free'] as const;
+export const LINE_COLUMNS = ['sale_id', 'position', 'product_id', 'bag_size_g', 'bags', 'unit_price_net_pln', 'free', 'price_kind'] as const;
+
+/** How a saved line price was reached: the client's special price, or the main price minus the sale's discount. */
+export type PriceKind = 'special' | 'discount';
 
 export type SaleKind = 'sale' | 'sample' | 'own_use';
 export const SALE_KINDS: readonly SaleKind[] = ['sale', 'sample', 'own_use'];
@@ -53,6 +58,8 @@ export interface Sale {
   readonly invoiceDate: string;
   readonly paidDate: string;
   readonly notes: string;
+  /** The discount the sale's weight got, saved with its prices (tenths); null for none or not saved yet. */
+  readonly discountTenths: number | null;
   readonly createdBy: string;
   readonly problems: readonly string[];
   readonly deletedAt: string;
@@ -70,6 +77,9 @@ export interface SaleLine {
   /** Whole bags; null when the cell cannot be read. */
   readonly bags: number | null;
   readonly free: boolean;
+  /** The saved net price of one bag (grosze); null when none is saved (a free bag, a sample, or not priced yet). */
+  readonly unitNetGrosze: number | null;
+  readonly priceKind: PriceKind | null;
   /** Cells Kraken could not read, one sentence each. */
   readonly problems: readonly string[];
   readonly deletedAt: string;
@@ -102,6 +112,10 @@ export function saleFromFields(fields: Fields, row: number): Sale {
     invoiceDate: text(fields, 'invoice_date'),
     paidDate: text(fields, 'paid_date'),
     notes: fields['notes'] ?? '',
+    discountTenths: (() => {
+      const tenths = percentFromCell(text(fields, 'discount_percent'));
+      return typeof tenths === 'number' && tenths > 0 ? tenths : null;
+    })(),
     createdBy: text(fields, 'created_by'),
     problems,
     deletedAt: text(fields, 'deleted_at'),
@@ -159,6 +173,11 @@ export function lineFromFields(fields: Fields, row: number): SaleLine {
     grams: isLineWeight(grams) ? grams : null,
     bags: Number.isInteger(bags) && bags > 0 ? bags : null,
     free: text(fields, 'free') === 'yes',
+    unitNetGrosze: (() => {
+      const grosze = parseMoney(text(fields, 'unit_price_net_pln'));
+      return typeof grosze === 'number' ? grosze : null;
+    })(),
+    priceKind: (['special', 'discount'] as const).find((k) => k === text(fields, 'price_kind')) ?? null,
     problems,
     deletedAt: text(fields, 'deleted_at'),
     source: fields,

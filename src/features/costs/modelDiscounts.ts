@@ -167,6 +167,14 @@ export function validateDiscount(
   return { ok: true, tenths, name, fromGrams, fields: discountFields({ tenths, name, fromGrams }) };
 }
 
+/**
+ * True when an invoice's discount can be picked from its weight: every discount has its starting weight and a bigger
+ * discount starts at a higher weight. With no discounts at all it is true (an invoice simply gets none).
+ */
+export function discountsReady(discounts: readonly { tenths: number; fromGrams: number | null }[]): boolean {
+  return discounts.every((d) => d.fromGrams !== null) && outOfOrder(discounts) === null;
+}
+
 /** The cells of a discount row. */
 export const discountFields = (d: { tenths: number; name: string; fromGrams: number | null }): Record<string, string> => ({
   percent: percentText(d.tenths),
@@ -181,7 +189,7 @@ export const discountFields = (d: { tenths: number; name: string; fromGrams: num
  * up right: one has no start yet (or it cannot be read), or a bigger discount does not start at a higher weight.
  */
 export function discountForWeight<T extends { tenths: number; fromGrams: number | null }>(discounts: readonly T[], grams: number): T | null {
-  if (discounts.some((d) => d.fromGrams === null) || outOfOrder(discounts)) return null;
+  if (!discountsReady(discounts)) return null;
   let best: T | null = null;
   let bestFrom = -1;
   for (const d of discounts) {

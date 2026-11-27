@@ -1,10 +1,14 @@
 // What the Sales page shows, as plain text, so it is tested without a browser: a short summary of each entry (who,
-// what, how many bags) and the filters with their counts. No prices (owner, 2026-11-19).
+// what, how many bags, the saved net total) and the filters with their counts, and a sale's prices (owner, 2026-11-27).
 
+import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { formatBagSize } from '../../domain/bagSizes';
+import { formatPercent } from '../../domain/percent';
+import { grossOf, netOf, roundGrosze } from '../../domain/prices';
 import { formatDate, localDate } from '../../core/dates';
 import { count } from '../../core/polish';
 import { DATE_LABELS, KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
+import type { LineToPrice, SalePricing } from './pricing';
 
 export type SalesFilter = 'all' | InvoiceStatus | 'sample' | 'own_use';
 
@@ -34,6 +38,8 @@ export interface SaleRow {
   readonly bags: string;
   /** When the invoice was issued (issued or paid); '' otherwise. */
   readonly invoiceDate: string;
+  /** The saved net total of a sale ("1472 zł"); '' for a sample, own use, or a sale not fully priced. */
+  readonly net: string;
   readonly createdBy: string;
 }
 
@@ -83,6 +89,7 @@ export function saleRows(
         items: items || '—',
         bags: bagsText(own, sale.kind),
         invoiceDate: formatDate(invoiceDate),
+        net: savedNet(sale, own),
         createdBy: sale.createdBy,
       };
     });
@@ -141,4 +148,66 @@ export function saleFacts(sale: Sale): Fact[] {
     facts.push({ label: 'Data wystawienia faktury', value: (sale.status === 'issued' || sale.status === 'paid') && sale.invoiceDate ? formatDate(sale.invoiceDate) : 'Jeszcze nie' });
   }
   return facts;
+}
+
+/**
+ * A sale's saved net total (owner, 2026-11-27), "1 472 zł"; '' for a sample or own use, and for a sale with a line
+ * (not free) that has no saved price (e.g. saved before prices existed: open it and save it again).
+ */
+export function savedNet(sale: Pick<Sale, 'kind'>, lines: readonly Pick<SaleLine, 'free' | 'bags' | 'unitNetGrosze'>[]): string {
+  if (sale.kind !== 'sale' || lines.length === 0) return '';
+  let total = 0;
+  for (const l of lines) {
+    if (l.free) continue;
+    if (l.unitNetGrosze === null || l.bags === null) return '';
+    total += l.unitNetGrosze * l.bags;
+  }
+  return formatWholePln(total);
+}
+
+export interface PriceRow {
+  /** "KENIA 1 kg" */
+  readonly item: string;
+  readonly bags: string;
+  /** The starting price of one bag, the product's main price: "39,84 zł / 49 zł" (net / gross); '' when unknown. */
+  readonly base: string;
+  /** "−25 %", "cena specjalna", "gratis", or why there is no price. */
+  readonly why: string;
+  /** The client's price of one bag: "30 zł / 36,90 zł" (net / gross); '' for a free bag or a line without a price. */
+  readonly price: string;
+  readonly missing: boolean;
+}
+
+/**
+ * A sale's prices for its page (owner, 2026-11-27): per line, one bag's starting price (the main price, net and
+ * gross), the discount or special price, and the client's price (net and gross, to the grosz); then the weight and
+ * discount, and the totals (the gross total is the net total with VAT, rounded once).
+ * `discountName`: a discount's name in Packaging & discounts ("10–20 kg"), '' when it has none or is gone.
+ */
+export function priceView(
+  lines: readonly LineToPrice[],
+  pricing: SalePricing,
+  productName: (id: string) => string | undefined,
+  discountName: (tenths: number) => string,
+  vatTenths: number,
+): { rows: PriceRow[]; summary: string; total: string; totalGross: string } {
+  const gross = (net: number) => formatPln(roundGrosze(grossOf(net, vatTenths)));
+  const rows = lines.map((line, i): PriceRow => {
+    const price = pricing.lines[i] ?? { kind: 'missing' as const, reason: '' };
+    const item = `${productName(line.productId) ?? '?'} ${line.grams === null ? '?' : formatBagSize(line.grams)}`;
+    const bags = line.bags === null ? '?' : String(line.bags);
+    if (price.kind === 'free') return { item, bags, base: '', why: 'gratis', price: '', missing: false };
+    if (price.kind === 'missing') return { item, bags, base: '', why: price.reason, price: '', missing: true };
+    const base = price.retailGross === undefined ? '' : `${formatPln(roundGrosze(netOf(price.retailGross, vatTenths)))} / ${formatWholePln(price.retailGross)}`;
+    const why = price.kind === 'special' ? 'cena specjalna' : pricing.discountTenths === null ? 'bez rabatu' : `−${formatPercent(pricing.discountTenths)}`;
+    return { item, bags, base, why: price.kept ? `${why}, jak na fakturze` : why, price: `${formatWholePln(price.unitNet)} / ${gross(price.unitNet)}`, missing: false };
+  });
+  const name = pricing.discountKept ? 'jak na fakturze' : pricing.discountTenths === null ? '' : discountName(pricing.discountTenths);
+  const discount = pricing.discountTenths === null ? 'bez rabatu' : `rabat −${formatPercent(pricing.discountTenths)}${name ? ` (${name})` : ''}`;
+  return {
+    rows,
+    summary: `${formatKg(pricing.weightGrams)} kawy na fakturze (bez gratisów) · ${discount}`,
+    total: formatWholePln(pricing.totalNet),
+    totalGross: gross(pricing.totalNet),
+  };
 }

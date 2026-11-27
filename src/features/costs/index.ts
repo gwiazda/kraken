@@ -5,4 +5,4 @@ export { showPackagingPage, type CostsPageDeps } from './page';
 export { DEFAULT_SETTINGS, readSettings, type CostSettings } from './model';
 export { lotLosses, pricingFor, type BeanLot, type LotLoss } from './present';
 export { validateLoss } from './model';
-export { activeDiscounts, type Discount } from './modelDiscounts';
+export { activeDiscounts, discountForWeight, discountsReady, type Discount } from './modelDiscounts';

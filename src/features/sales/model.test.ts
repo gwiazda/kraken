@@ -258,3 +258,13 @@ describe('sample sizes (owner, 2026-11-24)', () => {
     expect(result.ok && result.lines[0]?.bag_size_g).toBe('120');
   });
 });
+
+describe('saved prices (owner, 2026-11-27)', () => {
+  it("reads a line's saved net price and how it was reached, and the sale's discount", () => {
+    expect(line(2, { unit_price_net_pln: '112.5', price_kind: 'special' })).toMatchObject({ unitNetGrosze: 11250, priceKind: 'special' });
+    expect(line(2, { unit_price_net_pln: '', price_kind: '' })).toMatchObject({ unitNetGrosze: null, priceKind: null });
+    expect(line(2, { unit_price_net_pln: 'abc', price_kind: 'odd' })).toMatchObject({ unitNetGrosze: null, priceKind: null });
+    expect(sale(2, { discount_percent: '25' }).discountTenths).toBe(250);
+    expect(sale(2, { discount_percent: '' }).discountTenths).toBeNull();
+  });
+});

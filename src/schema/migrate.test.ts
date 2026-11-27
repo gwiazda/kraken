@@ -318,17 +318,43 @@ describe('version 15', () => {
 
   it('adds the from_kg column to the Discounts tab, agreed on 2026-11-27', () => {
     expect(MIGRATIONS[13]?.steps).toEqual([{ kind: 'add-columns', tab: 'Discounts', columns: ['from_kg'] }]);
-    expect(APP_SCHEMA_VERSION).toBe(15);
     expect(initialTabs(created).find((t) => t.title === 'Discounts')?.rows[0]).toEqual([...header, 'from_kg']);
   });
 
   it('updates a version 14 sheet with only the new header cell; every discount stays as it was', async () => {
     const google = sheetAt(14, [{ title: 'Discounts', sheetId: 3, rows: [[...header], [...discount]] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 14), appVersion: 15 });
     expect(result).toMatchObject({ fromVersion: 14, toVersion: 15 });
     expect(tab(google, 'Discounts')?.rows).toEqual([[...header, 'from_kg'], discount]);
     expect(writes(google).filter((r) => r.url.includes('Discounts'))).toHaveLength(1);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '15']);
+  });
+});
+
+describe('version 16', () => {
+  const salesHeader = ['id', 'date', 'kind', 'client_id', 'invoice_status', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
+  const sale = ['S1', '2026-11-20', 'sale', 'C1', 'to_issue', '2026-11-20T10:00:00.000Z', '2026-11-20T10:00:00.000Z', 'owner@example.com', ''];
+  const linesHeader = ['id', 'sale_id', 'position', 'product_id', 'bag_size_g', 'bags', 'unit_price_net_pln', 'free', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
+  const line = ['L1', 'S1', '1', 'P1', '1000', '2', '', '', '2026-11-20T10:00:00.000Z', '2026-11-20T10:00:00.000Z', 'owner@example.com', ''];
+
+  it('adds discount_percent to Sales and price_kind to Sale lines, agreed on 2026-11-27', () => {
+    expect(MIGRATIONS[14]?.steps).toEqual([
+      { kind: 'add-columns', tab: 'Sales', columns: ['discount_percent'] },
+      { kind: 'add-columns', tab: 'Sale lines', columns: ['price_kind'] },
+    ]);
+    expect(APP_SCHEMA_VERSION).toBe(16);
+  });
+
+  it('updates a version 15 sheet with only the two header cells; every sale and line stays as it was', async () => {
+    const google = sheetAt(15, [
+      { title: 'Sales', sheetId: 3, rows: [[...salesHeader], [...sale]] },
+      { title: 'Sale lines', sheetId: 4, rows: [[...linesHeader], [...line]] },
+    ]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result).toMatchObject({ fromVersion: 15, toVersion: 16 });
+    expect(tab(google, 'Sales')?.rows).toEqual([[...salesHeader, 'discount_percent'], sale]);
+    expect(tab(google, 'Sale lines')?.rows).toEqual([[...linesHeader, 'price_kind'], line]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '16']);
   });
 });
 
