@@ -3,18 +3,24 @@
 // - a line whose product and size has the client's special price gets that price, final (no discount on top);
 // - every other line gets the wholesale price: the main gross price without VAT, minus the discount for the sale's
 //   total weight (Packaging & discounts, "od … kg"), rounded to whole złoty, as on a product's page;
-// - the weight counts every bag that is not free, special prices included, all sizes;
+// - the weight counts every bag that is not free, special prices included, all sizes; a sale lighter than the lowest
+//   discount's start (or with no discounts at all) gets no discount: the main price without VAT, in whole złoty;
 // - free (gratis) bags have no price; samples and own use are never priced.
 // Once the invoice is issued, the saved prices stay (what was invoiced): only a changed or added line is worked out.
-// Pure: no Google, no screen.
+// No Google, no screen.
 
 import { moneyText } from '../../core/numbers';
+import { isBagSize } from '../../domain/bagSizes';
 import { percentText } from '../../domain/percent';
 import { wholesalePrice } from '../../domain/prices';
-import { discountForWeight } from '../costs';
-import type { PriceKind, Sale, SaleKind, SaleLine } from './model';
+import { dealKey, offerDeals, type SpecialPrice } from '../clients';
+import { discountForWeight, discountsReady } from '../costs';
+import { isProductDeleted, type Product } from '../products';
+import { typedBags, type LineForm, type PriceKind, type Sale, type SaleKind, type SaleLine } from './model';
 
 export interface PricingData {
+  /** The client the prices are for (its special prices; a saved issued sale keeps its prices only for its own client). */
+  clientId: string;
   /** The main gross price of a product's size (grosze); undefined when it has none (or the product is gone). */
   retail(productId: string, grams: number): number | undefined;
   /** The client's special net price for a product's size (grosze); undefined when there is none. */
@@ -58,35 +64,42 @@ export interface SalePricing {
   readonly complete: boolean;
 }
 
-/** What a saved sale already has: its discount and lines (in order), and whether its invoice is issued. */
+/** What a saved sale already has: its client, discount and lines, and whether its invoice is issued. */
 export interface StoredPrices {
-  readonly sale: Pick<Sale, 'discountTenths' | 'status'>;
+  readonly sale: Pick<Sale, 'discountTenths' | 'status' | 'clientId'>;
   readonly lines: readonly Pick<SaleLine, 'productId' | 'grams' | 'free' | 'unitNetGrosze' | 'priceKind'>[];
 }
 
 /**
- * The prices of a sale's lines. `stored`: the sale as saved; once its invoice is issued (or paid) a line with the same
- * product, size and free mark as the saved line in its place keeps the saved price, and the saved discount stays.
+ * The prices of a sale's lines. `stored`: the sale as saved. Once its invoice is issued (or paid), for the same client,
+ * a line with the same product and size as a saved, priced line keeps that saved price (each saved line used once,
+ * whatever its place, so removing a line changes no other), and the saved discount stays; a sale issued before
+ * prices existed (no saved price at all) is worked out.
  */
 export function priceSale(lines: readonly LineToPrice[], data: PricingData, stored: StoredPrices | null = null): SalePricing {
   const weightGrams = lines.reduce((sum, l) => sum + (l.free || l.grams === null || l.bags === null ? 0 : l.grams * l.bags), 0);
-  const issued = stored !== null && stored.sale.status !== null && stored.sale.status !== 'to_issue';
-  // An issued sale keeps its saved discount (one saved before prices existed has none: then it is worked out).
-  const discountKept = issued && stored.sale.discountTenths !== null;
-  const discountTenths = (issued ? stored.sale.discountTenths : null) ?? discountForWeight(data.discounts, weightGrams)?.tenths ?? null;
-  const priced = lines.map((line, i): LinePrice => {
+  const issued = stored !== null && stored.sale.status !== null && stored.sale.status !== 'to_issue' && stored.sale.clientId === data.clientId;
+  const keptLines = issued ? stored.lines.filter((l) => !l.free && l.unitNetGrosze !== null && l.priceKind !== null) : [];
+  const discountKept = keptLines.length > 0; // the invoice's discount, even "none"
+  const ready = discountsReady(data.discounts);
+  const discountTenths = discountKept ? stored!.sale.discountTenths : ready ? (discountForWeight(data.discounts, weightGrams)?.tenths ?? null) : null;
+  const used = new Set<number>();
+  const priced = lines.map((line): LinePrice => {
     if (line.free) return { kind: 'free' };
     if (line.grams === null || line.bags === null || line.productId === '') return { kind: 'missing', reason: 'brak produktu, wielkości lub liczby torebek' };
-    const retail = data.retail(line.productId, line.grams);
-    const saved = issued ? stored.lines[i] : undefined;
-    if (saved && saved.productId === line.productId && saved.grams === line.grams && !saved.free && saved.unitNetGrosze !== null && saved.priceKind !== null) {
-      return { kind: saved.priceKind, unitNet: saved.unitNetGrosze, totalNet: saved.unitNetGrosze * line.bags, kept: true, retailGross: retail };
+    const k = keptLines.findIndex((saved, i) => !used.has(i) && saved.productId === line.productId && saved.grams === line.grams);
+    const saved = keptLines[k];
+    if (saved && saved.unitNetGrosze !== null && saved.priceKind !== null) {
+      used.add(k);
+      // The starting price is not shown: today's main price may not be the one the invoice was worked out from.
+      return { kind: saved.priceKind, unitNet: saved.unitNetGrosze, totalNet: saved.unitNetGrosze * line.bags, kept: true, retailGross: undefined };
     }
+    const retail = data.retail(line.productId, line.grams);
     const special = data.special(line.productId, line.grams);
     if (special !== undefined) return { kind: 'special', unitNet: special, totalNet: special * line.bags, kept: false, retailGross: retail };
     if (retail === undefined) return { kind: 'missing', reason: 'produkt nie ma ceny za tę wielkość (zakładka Produkty)' };
-    if (discountTenths === null) return { kind: 'missing', reason: 'nie da się dobrać rabatu: ustaw, od ilu kg obowiązuje każdy rabat (Opakowania i rabaty)' };
-    const unitNet = wholesalePrice(retail, discountTenths, data.vatTenths).net;
+    if (!discountKept && !ready) return { kind: 'missing', reason: 'nie da się dobrać rabatu: ustaw, od ilu kg obowiązuje każdy rabat (Opakowania i rabaty)' };
+    const unitNet = wholesalePrice(retail, discountTenths ?? 0, data.vatTenths).net; // no discount: the main price without VAT
     return { kind: 'discount', unitNet, totalNet: unitNet * line.bags, kept: false, retailGross: retail };
   });
   return {
@@ -96,6 +109,36 @@ export function priceSale(lines: readonly LineToPrice[], data: PricingData, stor
     lines: priced,
     totalNet: priced.reduce((sum, p) => sum + ('totalNet' in p ? p.totalNet : 0), 0),
     complete: priced.every((p) => p.kind !== 'missing'),
+  };
+}
+
+/**
+ * The lines of the form, read for the prices: grams and bags as numbers (null when not a whole number above 0), and a
+ * free mark only for a sale (samples and own use are never invoiced).
+ */
+export function linesToPrice(lines: readonly LineForm[], kind: SaleKind): LineToPrice[] {
+  return lines.map((l) => {
+    const grams = Number(l.grams);
+    return { productId: l.productId, grams: l.grams.trim() !== '' && Number.isInteger(grams) && grams > 0 ? grams : null, bags: typedBags(l.bags), free: kind === 'sale' && l.free };
+  });
+}
+
+/**
+ * What a client's prices are worked out from, as Products, Clients (its usable special prices) and Packaging &
+ * discounts have them now. A deleted product, or a size it has no price for, has no main price.
+ */
+export function pricingDataFrom(
+  source: { products: readonly Product[]; deals: readonly SpecialPrice[]; discounts: PricingData['discounts']; vatTenths: number },
+  clientId: string,
+): PricingData {
+  const special = offerDeals(source.deals, clientId, source.products);
+  const byId = new Map(source.products.filter((p) => !isProductDeleted(p)).map((p) => [p.id, p]));
+  return {
+    clientId,
+    retail: (productId, grams) => (isBagSize(grams) ? byId.get(productId)?.prices[grams] : undefined),
+    special: (productId, grams) => special.get(dealKey(productId, grams)),
+    discounts: source.discounts,
+    vatTenths: source.vatTenths,
   };
 }
 

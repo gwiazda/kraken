@@ -155,6 +155,12 @@ describe('prices on the screen (owner, 2026-11-27)', () => {
     expect(view.total).toBe(formatWholePln(137600));
   });
 
+  it('says "bez rabatu" for a line priced without a discount', () => {
+    const view = priceView([{ productId: 'P2', grams: 250, bags: 4, free: false }], { weightGrams: 1_000, discountTenths: null, discountKept: false, lines: [{ kind: 'discount', unitNet: 4800, totalNet: 19200, kept: false, retailGross: 5900 }], totalNet: 19200, complete: true }, (id) => products[id], () => '', 230);
+    expect(view.rows[0]?.why).toBe('bez rabatu');
+    expect(view.summary).toContain('· bez rabatu');
+  });
+
   it('says when the discount is the one on the issued invoice', () => {
     const view = priceView([], { weightGrams: 25_000, discountTenths: 150, discountKept: true, lines: [], totalNet: 0, complete: true }, () => 'X', () => 'Do 10 kg', 230);
     expect(view.summary).toBe('25\u00a0kg kawy na fakturze (bez gratisów) · rabat −15\u00a0% (jak na fakturze)');

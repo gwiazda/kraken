@@ -9,7 +9,7 @@ import { formatPercent } from '../../domain/percent';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { isClientDeleted, offerDeals, dealKey, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
+import { isClientDeleted, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
 import { activeDiscounts, readSettings, type CostsRepository, type Discount } from '../costs';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
@@ -43,7 +43,7 @@ import {
   type SaleLine,
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
-import { priceCells, priceEntry, type LineToPrice, type PricingData } from './pricing';
+import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -83,6 +83,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let deals: SpecialPrice[] = [];
   let discounts: Discount[] = [];
   let vatTenths = 230;
+  /** Why prices cannot be worked out now ('' when they can): Special prices or Packaging & discounts did not load. */
+  let pricesUnavailable = '';
   let problems: string[] = [];
   /** The filter shown: Sales always opens on the invoices to issue (owner, 2026-11-26). */
   let filter: SalesFilter = 'to_issue';
@@ -114,20 +116,30 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function load(note?: string, fromClick = false): void {
     render(el('p', {}, busy('Wczytuję sprzedaż…')));
-    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), deps.notes.load(), deps.prices.load(), deps.costs.load()]);
+    // The prices need Special prices and Packaging & discounts; if those cannot be read the list still shows (Sales
+    // is the start screen), only sales cannot be saved until they load.
+    const pricing = () =>
+      Promise.all([deps.prices.load(), deps.costs.load()]).then(
+        ([d, costs]) => ({ d, costs, error: '' }),
+        (error: unknown) => {
+          if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
+          return { d: null, costs: null, error: deps.describeError(error) };
+        },
+      );
+    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), deps.notes.load(), pricing()]);
     (fromClick ? deps.withGoogle(all) : all())
-      .then(([s, c, p, n, d, costs]) => {
+      .then(([s, c, p, n, priced]) => {
         if (!root.isConnected) return;
         sales = s.sales;
         lines = s.lines;
         sampleNotes = n.notes;
         clients = c.clients;
         products = p.products;
-        deals = d.deals;
-        const settings = readSettings(costs.settings);
-        const found = activeDiscounts(costs.discounts);
-        vatTenths = settings.settings.vatTenths;
-        discounts = found.discounts;
+        const settings = priced.costs ? readSettings(priced.costs.settings) : null;
+        deals = priced.d?.deals ?? [];
+        vatTenths = settings?.settings.vatTenths ?? vatTenths;
+        discounts = priced.costs ? activeDiscounts(priced.costs.discounts).discounts : [];
+        pricesUnavailable = priced.error ? `Nie udało się wczytać cen (${priced.error}), więc sprzedaży nie da się teraz zapisać. Odśwież stronę.` : '';
         const active = s.sales.filter((x) => !isDeleted(x));
         const activeIds = new Set(active.map((x) => x.id));
         problems = [
@@ -135,9 +147,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ...c.problems,
           ...p.problems,
           ...n.problems,
-          ...d.problems,
-          ...settings.problems,
-          ...found.problems,
+          // Only what changes a sale's price; problems of special prices and discounts show on their own pages.
+          ...(settings?.problems ?? []),
+          ...(pricesUnavailable ? [pricesUnavailable] : []),
           ...active.flatMap((x) => x.problems),
           ...s.lines.filter((l) => l.deletedAt === '' && activeIds.has(l.saleId)).flatMap((l) => l.problems),
           ...lineSizeProblems(active, s.lines),
@@ -178,16 +190,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   const findClient = (id: string) => clients.find((c) => c.id === id);
   const clientName = (id: string) => findClient(id)?.name;
   const productName = (id: string) => products.find((p) => p.id === id)?.name;
-  /** What a sale's prices are worked out from, for this client: as Products, Clients and Packaging & discounts have them now. */
-  const pricingData = (clientId: string): PricingData => {
-    const special = offerDeals(deals, clientId, products);
-    return {
-      retail: (productId, grams) => products.find((p) => p.id === productId && !isProductDeleted(p))?.prices[grams as keyof Product['prices']],
-      special: (productId, grams) => special.get(dealKey(productId, grams)),
-      discounts,
-      vatTenths,
-    };
-  };
   const discountName = (tenths: number) => discounts.find((d) => d.tenths === tenths)?.name ?? '';
   /** The client as the Clients tab has it now (so a change there shows on the entry's page). */
   const clientInfo = (id: string): ClientInfo | undefined => {
@@ -383,18 +385,19 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const pricesBox = el('fieldset', { class: 'form-section' });
     /** The saved sale, for prices that stay once its invoice is issued. */
     const storedPrices = sale ? { sale, lines: existingLines } : null;
-    /** The lines as they are now in the form, read for the prices. */
-    const linesToPrice = (): LineToPrice[] =>
-      form.lines.map((l) => {
-        const grams = Number(l.grams);
-        return { productId: l.productId, grams: l.grams !== '' && Number.isInteger(grams) && grams > 0 ? grams : null, bags: typedBags(l.bags), free: form.kind === 'sale' && l.free };
-      });
-    const pricing = () => priceEntry(form.kind, linesToPrice(), pricingData(form.clientId), storedPrices);
+    /** The form's lines and their prices now (what saving will store). */
+    const priced = () => {
+      const toPrice = linesToPrice(form.lines, form.kind);
+      return { toPrice, pricing: priceEntry(form.kind, toPrice, pricingDataFrom({ products, deals, discounts, vatTenths }, form.clientId), storedPrices) };
+    };
     /** A sale's prices, live (owner, 2026-11-27): what saving will store. Samples and own use have none. */
     const renderPrices = () => {
       pricesBox.hidden = form.kind !== 'sale';
       if (pricesBox.hidden) return;
-      const view = priceView(linesToPrice(), pricing(), productName, discountName, vatTenths);
+      // Without special prices and discounts any price shown would be wrong: say why instead.
+      if (pricesUnavailable) return void pricesBox.replaceChildren(el('legend', {}, 'Ceny'), message(pricesUnavailable, 'error'));
+      const now = priced();
+      const view = priceView(now.toPrice, now.pricing, productName, discountName, vatTenths);
       pricesBox.replaceChildren(
         el('legend', {}, 'Ceny '),
         el('p', { class: 'muted small' }, view.summary, ' ', infoTip('Cena specjalna klienta (zakładka Klienci), jeśli ją ma; inaczej cena hurtowa: główna cena bez VAT minus rabat za wagę kawy na fakturze (Opakowania i rabaty), zaokrąglona do pełnych złotych. Ceny zapisują się z tą sprzedażą; dopóki faktura nie jest wystawiona, każde zapisanie liczy je od nowa. Po wystawieniu faktury zapisane ceny zostają.')),
@@ -644,8 +647,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       }
       errorBox.replaceChildren();
       banner.replaceChildren();
+      if (form.kind === 'sale' && pricesUnavailable) {
+        banner.replaceChildren(message(pricesUnavailable, 'error'));
+        return;
+      }
       // The prices are worked out now and saved with the sale (owner, 2026-11-27); samples and own use get none.
-      const cells = priceCells(pricing());
+      const cells = priceCells(priced().pricing);
       const fields = { ...result.fields, ...cells.sale };
       const wantedLines = result.lines.map((l, i) => ({ ...l, ...cells.lines[i] }));
       setBusy(true);

@@ -199,7 +199,7 @@ export function priceView(
     if (price.kind === 'free') return { item, bags, base: '', why: 'gratis', price: '', missing: false };
     if (price.kind === 'missing') return { item, bags, base: '', why: price.reason, price: '', missing: true };
     const base = price.retailGross === undefined ? '' : `${formatPln(roundGrosze(netOf(price.retailGross, vatTenths)))} / ${formatWholePln(price.retailGross)}`;
-    const why = price.kind === 'special' ? 'cena specjalna' : `−${formatPercent(pricing.discountTenths ?? 0)}`;
+    const why = price.kind === 'special' ? 'cena specjalna' : pricing.discountTenths === null ? 'bez rabatu' : `−${formatPercent(pricing.discountTenths)}`;
     return { item, bags, base, why: price.kept ? `${why}, jak na fakturze` : why, price: `${formatWholePln(price.unitNet)} / ${gross(price.unitNet)}`, missing: false };
   });
   const name = pricing.discountKept ? 'jak na fakturze' : pricing.discountTenths === null ? '' : discountName(pricing.discountTenths);

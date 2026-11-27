@@ -273,7 +273,12 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   the sale** (owner's choice, so what Kraken shows matches what was invoiced): each line's net price in
   `unit_price_net_pln` (migration 10) and `price_kind` (special / discount), the sale's discount in
   `discount_percent` (migration 16). While the invoice is "to be issued", every save works them out again; **once
-  issued (or paid), the saved prices and discount stay**, and only a changed or added line is worked out. Free bags,
+  issued (or paid), the saved prices and discount stay** (even "no discount"), and only a changed or added line is
+  worked out; a saved line is matched by product and size, not by its place (removing a line changes no other), and
+  only for the same client. A kept line shows no starting price (today's main price may not be the invoice's start).
+  A sale lighter than the lowest discount's start (or with no discounts) gets no discount: the main price without
+  VAT, in whole złoty. If special prices or Packaging & discounts cannot be read, the list still shows but a sale
+  cannot be saved (no wrong price is shown or saved). Free bags,
   samples and own use have no price. A line that cannot be priced (no retail price for that size, discounts not set
   up) is saved without one and says why. A sale saved before prices existed shows no "Netto" until it is saved again.
   **Issuing the invoice in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`).
