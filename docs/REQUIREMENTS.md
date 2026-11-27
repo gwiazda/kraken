@@ -224,8 +224,21 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
 
 **[R] Decided with the owner (2026-11-19):**
 - **Clients** tab (built first): short name, NIP (checked: 10 digits with a valid check digit), email, registered
-  name (CEIDG), wholesale discount chosen from Packaging & discounts. A name or NIP can be there only once. The owner
-  adds the existing clients by hand (real client data never goes into the code or tests).
+  name (CEIDG). A name or NIP can be there only once. The owner adds the existing clients by hand (real client data
+  never goes into the code or tests). **No discount per client** (owner, 2026-11-27; it was there until then): the
+  discount depends on each invoice's weight (see "Prices on an invoice" below), and a client's own prices are its
+  special prices (section 5). Kraken no longer reads or writes the `discount_percent` column; it stays in the sheet.
+- **Prices on an invoice (owner, 2026-11-27; decided, not built yet).** Invoices made in Fakturownia
+  (`docs/FAKTUROWNIA.md`) need prices calculated by these rules, for each line:
+  1. The client has a **special price** for this product and size (their page in Clients): that price, final. No
+     weight discount on top of it.
+  2. Otherwise the **wholesale price** (as on a product's page): the main gross price without VAT, minus the discount
+     for the invoice's **total weight**, rounded to whole złoty. Discount levels from Packaging & discounts:
+     below 10 kg −15 %, **10 kg** to below 20 kg −25 %, 20 kg and more −30 % (10 kg exactly is already −25 %).
+  - The total weight counts **every bag on the invoice, special prices included** (e.g. 8 kg at special prices +
+    4 kg = 12 kg, so the others get −25 %), all sizes (250 g, 500 g, 1 kg), but **not free (gratis) bags**.
+  - Open: today a discount has only a percent and a name ("Do 10 kg"); Kraken needs the weight where each one starts
+    as a number. To decide when this is built (e.g. a "from kg" column in Packaging & discounts).
 - **Sales** tab (built, data version 10: "Sales" and "Sale lines" tabs): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
   number of bags; a line can be free),
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag; no reason asked, owner 2026-11-21; a reason saved earlier stays).
@@ -237,7 +250,7 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   ("Issued on" column). Choosing Issued opens a small date box (today, or the date it already has); Paid has no date
   of its own and keeps the issue date (it asks for it only when there is none yet). Opening an entry shows these dates in a box
   at the top (owner, 2026-11-19): date of the sale, added to Kraken (day and by whom), invoice status, invoice issued on; for an entry with a client
-  also the client's **name, name in CEIDG and discount**, read from Clients each time (never copied into the sale, so
+  also the client's **name and name in CEIDG** (the discount too until 2026-11-27), read from Clients each time (never copied into the sale, so
   a change in Clients shows there; owner, 2026-11-24). It follows the client chosen in the form. Switching a new
   sample to a sale turns a size that is no bag size (100 g) into 250 g. The list then switches to **All** so the entry stays in view. No invoice number (owner, 2026-11-19): the
   `invoice_number` and `paid_date` columns stay in the sheet, unused.
@@ -296,8 +309,9 @@ migration 005 cannot be changed.
 offers are wholesale) for one product and one bag size, e.g. "Café Nowa pays 38 zł for KENIA 250 g". Kraken
 remembers it and uses it on that client's offers.
 - **Where it is set: the client's page** (Clients → click the client). A **Special prices** section, one row per deal: product,
-  size, their net price, and next to it what they would pay otherwise (their discount, as on the client: "instead of
-  41 zł at their −15 %"; a client without a discount: "instead of 48 zł", the retail price without VAT) and what you
+  size, their net price, and next to it what they would pay otherwise: the wholesale price at each discount ("instead
+  of 41 zł / 36 zł / 34 zł (−15 % / −25 % / −30 %)", since 2026-11-27 the discount depends on the invoice's weight;
+  with no discounts set: "instead of 48 zł", the retail price without VAT) and what you
   earn on one bag with the gross margin, so the cost of the deal is visible. Add a row by choosing the product and
   size and typing the price; change or delete a row there. **No end date**: a deal stays until changed or deleted.
 - The client's own discount stays **information only** on the client's page; it is not applied to offers by itself.

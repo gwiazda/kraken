@@ -69,19 +69,17 @@ describe('saleFacts', () => {
 });
 
 describe('clientFacts', () => {
-  it("shows the client's name, name in CEIDG and discount", () => {
-    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: 'Nowa Kawa Sp. z o.o.', discount: '15 %', deleted: false })).toEqual([
+  it("shows the client's name and name in CEIDG (no discount per client since 2026-11-27)", () => {
+    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: 'Nowa Kawa Sp. z o.o.', deleted: false })).toEqual([
       { label: 'Klient', value: 'Café Nowa' },
       { label: 'Nazwa w CEIDG', value: 'Nowa Kawa Sp. z o.o.' },
-      { label: 'Rabat', value: '15 %' },
     ]);
   });
 
-  it('a dash for what the client does not have, an unreadable discount as stored, and a deleted client marked', () => {
-    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: '', discount: '„abc”', deleted: true })).toEqual([
+  it('a dash for what the client does not have, and a deleted client marked', () => {
+    expect(clientFacts('C1', { name: 'Café Nowa', registeredName: '', deleted: true })).toEqual([
       { label: 'Klient', value: 'Café Nowa (usunięty)' },
       { label: 'Nazwa w CEIDG', value: '—' },
-      { label: 'Rabat', value: '„abc”' },
     ]);
   });
 

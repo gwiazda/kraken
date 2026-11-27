@@ -105,15 +105,14 @@ export interface ClientInfo {
   readonly name: string;
   /** The name in CEIDG; '' when not given. */
   readonly registeredName: string;
-  /** "15 %", "—" for none, or the stored text in quotes when it cannot be read ("„abc”"). */
-  readonly discount: string;
   readonly deleted: boolean;
 }
 
 type Fact = { label: string; value: string };
 
 /**
- * The client chosen in an entry's form (owner, 2026-11-24): name, name in CEIDG and discount, taken from Clients.
+ * The client chosen in an entry's form (owner, 2026-11-24): name and name in CEIDG, taken from Clients (no discount
+ * per client since 2026-11-27: it depends on the invoice's weight).
  * None without a client (`clientId` ''); `client` is undefined when it cannot be found.
  */
 export function clientFacts(clientId: string, client: ClientInfo | undefined): Fact[] {
@@ -122,7 +121,6 @@ export function clientFacts(clientId: string, client: ClientInfo | undefined): F
   return [
     { label: 'Klient', value: `${client.name}${client.deleted ? ' (usunięty)' : ''}` },
     { label: 'Nazwa w CEIDG', value: client.registeredName || '—' },
-    { label: 'Rabat', value: client.discount },
   ];
 }
 

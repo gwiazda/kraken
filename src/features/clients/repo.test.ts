@@ -16,12 +16,13 @@ describe('sheetClientsRepository (in-memory Google)', () => {
     await repo.add({ name: 'Café Nowa', nip: '9876543210', email: 'kawa@example.com', registered_name: '', discount_percent: '15' }, 'owner@example.com', now);
     let [c] = (await repo.load()).clients;
     if (!c) throw new Error('setup');
-    expect(c).toMatchObject({ name: 'Café Nowa', discountTenths: 150 });
+    expect(c).toMatchObject({ name: 'Café Nowa' });
 
-    await repo.update(c, { discount_percent: '25' }, later);
+    await repo.update(c, { email: 'nowa@example.com' }, later);
     [c] = (await repo.load()).clients;
     if (!c) throw new Error('setup');
-    expect(c.discountTenths).toBe(250);
+    expect(c.email).toBe('nowa@example.com');
+    expect(c.source['discount_percent']).toBe('15'); // the old column keeps what it had
 
     await repo.remove(c, later);
     [c] = (await repo.load()).clients;

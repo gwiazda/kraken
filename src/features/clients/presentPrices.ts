@@ -16,7 +16,11 @@ export interface DealRow {
   readonly size: string;
   /** "38 zł", "38,50 zł" */
   readonly price: string;
-  /** "zamiast 41 zł przy ich rabacie −15 %", "zamiast 47,97 zł (cena detaliczna netto)"; '' when unknown. */
+  /**
+   * What they would pay without the deal: at each discount (it depends on the invoice's weight, owner 2026-11-27),
+   * "zamiast 41 zł / 36 zł / 34 zł (rabat −15 % / −25 % / −30 %)"; with no discounts set, "zamiast 47,97 zł (cena detaliczna
+   * netto)"; '' when unknown.
+   */
   readonly insteadOf: string;
   /** "zarabiasz 13,85 zł · marża 36 %" / "strata 2,10 zł · marża −6 %"; '' when the cost of a bag is not known. */
   readonly earn: string;
@@ -28,18 +32,19 @@ export interface DealRow {
 }
 
 /**
- * A client's deals (not deleted), by product name and size. `discountTenths`: the client's discount (null for
- * none); `bagCosts`: the cost of one bag per product and size (grosze).
+ * A client's deals (not deleted), by product name and size. `discounts`: the wholesale discounts in tenths (Packaging
+ * & discounts); `bagCosts`: the cost of one bag per product and size (grosze).
  */
 export function dealRows(
   deals: readonly SpecialPrice[],
   clientId: string,
   products: readonly DealProduct[],
-  discountTenths: number | null,
+  discounts: readonly number[],
   vatTenths: number,
   bagCosts: ReadonlyMap<string, Partial<Record<number, number>>>,
 ): DealRow[] {
   const byId = new Map(products.map((p) => [p.id, p]));
+  const tiers = [...discounts].sort((a, b) => a - b);
   return dealsOf(deals, clientId)
     .map((deal): DealRow => {
       const product = byId.get(deal.productId);
@@ -47,8 +52,8 @@ export function dealRows(
       const insteadOf =
         retail === undefined
           ? ''
-          : discountTenths !== null
-            ? `zamiast ${formatWholePln(wholesalePrice(retail, discountTenths, vatTenths).net)} przy ich rabacie −${formatPercent(discountTenths)}`
+          : tiers.length > 0
+            ? `zamiast ${tiers.map((t) => formatWholePln(wholesalePrice(retail, t, vatTenths).net)).join(' / ')} (rabat ${tiers.map((t) => `−${formatPercent(t)}`).join(' / ')})`
             : `zamiast ${formatPln(roundGrosze(netOf(retail, vatTenths)))} (cena detaliczna netto)`;
       const cost = deal.grams === null ? undefined : bagCosts.get(deal.productId)?.[deal.grams];
       let earn = '';
