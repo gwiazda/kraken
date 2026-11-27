@@ -4,7 +4,7 @@
 import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { formatBagSize } from '../../domain/bagSizes';
 import { formatPercent } from '../../domain/percent';
-import { grossOf, roundGrosze } from '../../domain/prices';
+import { grossOf, netOf, roundGrosze } from '../../domain/prices';
 import { formatDate, localDate } from '../../core/dates';
 import { count } from '../../core/polish';
 import { DATE_LABELS, KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
@@ -169,22 +169,19 @@ export interface PriceRow {
   /** "KENIA 1 kg" */
   readonly item: string;
   readonly bags: string;
-  /** "112 zł"; '' for a free bag or a line without a price. */
-  readonly unit: string;
-  /** The same with VAT, to the grosz: "137,76 zł" (owner, 2026-11-27); '' when no price. */
-  readonly unitGross: string;
-  /** "cena specjalna", "−25 %", "gratis", or why there is no price. */
+  /** The starting price of one bag, the product's main price: "39,84 zł / 49 zł" (net / gross); '' when unknown. */
+  readonly base: string;
+  /** "−25 %", "cena specjalna", "gratis", or why there is no price. */
   readonly why: string;
-  /** "896 zł"; '' when no price. */
-  readonly total: string;
-  /** "1 102,08 zł"; '' when no price. */
-  readonly totalGross: string;
+  /** The client's price of one bag: "30 zł / 36,90 zł" (net / gross); '' for a free bag or a line without a price. */
+  readonly price: string;
   readonly missing: boolean;
 }
 
 /**
- * A sale's prices for its page (owner, 2026-11-27): one row per line, net and gross (with VAT, to the grosz), the
- * weight and discount, and the totals; the gross total is the net total with VAT (rounded once).
+ * A sale's prices for its page (owner, 2026-11-27): per line, one bag's starting price (the main price, net and
+ * gross), the discount or special price, and the client's price (net and gross, to the grosz); then the weight and
+ * discount, and the totals (the gross total is the net total with VAT, rounded once).
  * `discountName`: a discount's name in Packaging & discounts ("10–20 kg"), '' when it has none or is gone.
  */
 export function priceView(
@@ -199,20 +196,11 @@ export function priceView(
     const price = pricing.lines[i] ?? { kind: 'missing' as const, reason: '' };
     const item = `${productName(line.productId) ?? '?'} ${line.grams === null ? '?' : formatBagSize(line.grams)}`;
     const bags = line.bags === null ? '?' : String(line.bags);
-    const none = { unit: '', unitGross: '', total: '', totalGross: '' };
-    if (price.kind === 'free') return { item, bags, ...none, why: 'gratis', missing: false };
-    if (price.kind === 'missing') return { item, bags, ...none, why: price.reason, missing: true };
+    if (price.kind === 'free') return { item, bags, base: '', why: 'gratis', price: '', missing: false };
+    if (price.kind === 'missing') return { item, bags, base: '', why: price.reason, price: '', missing: true };
+    const base = price.retailGross === undefined ? '' : `${formatPln(roundGrosze(netOf(price.retailGross, vatTenths)))} / ${formatWholePln(price.retailGross)}`;
     const why = price.kind === 'special' ? 'cena specjalna' : `−${formatPercent(pricing.discountTenths ?? 0)}`;
-    return {
-      item,
-      bags,
-      unit: formatWholePln(price.unitNet),
-      unitGross: gross(price.unitNet),
-      why: price.kept ? `${why}, jak na fakturze` : why,
-      total: formatWholePln(price.totalNet),
-      totalGross: gross(price.totalNet),
-      missing: false,
-    };
+    return { item, bags, base, why: price.kept ? `${why}, jak na fakturze` : why, price: `${formatWholePln(price.unitNet)} / ${gross(price.unitNet)}`, missing: false };
   });
   const name = pricing.discountKept ? 'jak na fakturze' : pricing.discountTenths === null ? '' : discountName(pricing.discountTenths);
   const discount = pricing.discountTenths === null ? 'bez rabatu' : `rabat −${formatPercent(pricing.discountTenths)}${name ? ` (${name})` : ''}`;

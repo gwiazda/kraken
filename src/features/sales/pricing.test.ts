@@ -22,8 +22,8 @@ describe('priceSale (owner, 2026-11-27)', () => {
     expect(p.discountTenths).toBe(150);
     // 178,86 × 0,85 = 152,03 → 152 zł; 47,97 × 0,85 = 40,77 → 41 zł (whole złoty, as on a product's page).
     expect(p.lines).toEqual([
-      { kind: 'discount', unitNet: 15200, totalNet: 30400, kept: false },
-      { kind: 'discount', unitNet: 4100, totalNet: 32800, kept: false },
+      { kind: 'discount', unitNet: 15200, totalNet: 30400, kept: false, retailGross: 22000 },
+      { kind: 'discount', unitNet: 4100, totalNet: 32800, kept: false, retailGross: 5900 },
     ]);
     expect(p.totalNet).toBe(63200);
     expect(p.complete).toBe(true);
@@ -42,8 +42,8 @@ describe('priceSale (owner, 2026-11-27)', () => {
     expect(p.discountTenths).toBe(250);
     // 39,84 net × 0,75 = 29,88 → 30 zł
     expect(p.lines).toEqual([
-      { kind: 'special', unitNet: 11200, totalNet: 89600, kept: false },
-      { kind: 'discount', unitNet: 3000, totalNet: 48000, kept: false },
+      { kind: 'special', unitNet: 11200, totalNet: 89600, kept: false, retailGross: 22000 },
+      { kind: 'discount', unitNet: 3000, totalNet: 48000, kept: false, retailGross: 4900 },
     ]);
   });
 
@@ -80,8 +80,8 @@ describe('priceSale (owner, 2026-11-27)', () => {
     expect(p.discountTenths).toBe(150); // not −25 % for 12,25 kg: the invoice is issued
     expect(p.discountKept).toBe(true);
     expect(p.lines).toEqual([
-      { kind: 'discount', unitNet: 14000, totalNet: 168000, kept: true },
-      { kind: 'discount', unitNet: 3400, totalNet: 3400, kept: false }, // 39,84 × 0,85 = 33,86 → 34 zł
+      { kind: 'discount', unitNet: 14000, totalNet: 168000, kept: true, retailGross: 22000 },
+      { kind: 'discount', unitNet: 3400, totalNet: 3400, kept: false, retailGross: 4900 }, // 39,84 × 0,85 = 33,86 → 34 zł
     ]);
     // Still to be issued: everything is worked out again.
     const again = priceSale([line('K', 1000, 12)], data(), { ...stored, sale: { discountTenths: 150, status: 'to_issue' } });

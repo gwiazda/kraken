@@ -129,8 +129,8 @@ describe('prices on the screen (owner, 2026-11-27)', () => {
         discountTenths: 250,
         discountKept: false,
         lines: [
-          { kind: 'special', unitNet: 11200, totalNet: 89600, kept: false },
-          { kind: 'discount', unitNet: 3000, totalNet: 48000, kept: true },
+          { kind: 'special', unitNet: 11200, totalNet: 89600, kept: false, retailGross: 22000 },
+          { kind: 'discount', unitNet: 3000, totalNet: 48000, kept: true, retailGross: undefined },
           { kind: 'free' },
           { kind: 'missing', reason: 'produkt nie ma ceny za tę wielkość (zakładka Produkty)' },
         ],
@@ -141,18 +141,13 @@ describe('prices on the screen (owner, 2026-11-27)', () => {
       (tenths) => (tenths === 250 ? '10–20 kg' : ''),
       230,
     );
-    expect(view.rows.map((r) => [r.item, r.bags, r.unit, r.why, r.total, r.missing])).toEqual([
-      ['GWATEMALA 1 kg', '8', '112 zł', 'cena specjalna', '896 zł', false],
-      ['KENIA 250 g', '16', '30 zł', '−25 %, jak na fakturze', '480 zł', false],
+    // One bag: the starting price (main price, net / gross), the discount or special price, the client's price (net /
+    // gross, VAT 23 %, to the grosz): 220 zł is 178,86 zł net; 112 → 137,76 zł; 30 → 36,90 zł.
+    expect(view.rows.map((r) => [r.item, r.bags, r.base, r.why, r.price, r.missing])).toEqual([
+      ['GWATEMALA 1 kg', '8', `${formatPln(17886)} / ${formatWholePln(22000)}`, 'cena specjalna', `${formatWholePln(11200)} / ${formatPln(13776)}`, false],
+      ['KENIA 250 g', '16', '', '−25\u00a0%, jak na fakturze', `${formatWholePln(3000)} / ${formatPln(3690)}`, false], // no main price now: no start shown
       ['KENIA 250 g', '1', '', 'gratis', '', false],
       ['GWATEMALA 500 g', '1', '', 'produkt nie ma ceny za tę wielkość (zakładka Produkty)', '', true],
-    ]);
-    // With VAT 23 %, to the grosz: 112 → 137,76 zł; 8 × 112 = 896 → 1102,08 zł; 30 → 36,90 zł; 480 → 590,40 zł.
-    expect(view.rows.map((r) => [r.unitGross, r.totalGross])).toEqual([
-      [formatPln(13776), formatPln(110208)],
-      [formatPln(3690), formatPln(59040)],
-      ['', ''],
-      ['', ''],
     ]);
     // The gross total is the net total with VAT, rounded once: 1376 → 1692,48 zł.
     expect(view.totalGross).toBe(formatPln(169248));

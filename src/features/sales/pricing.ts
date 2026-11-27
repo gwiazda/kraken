@@ -33,7 +33,14 @@ export interface LineToPrice {
 }
 
 export type LinePrice =
-  | { readonly kind: PriceKind; readonly unitNet: number; readonly totalNet: number; readonly kept: boolean }
+  | {
+      readonly kind: PriceKind;
+      readonly unitNet: number;
+      readonly totalNet: number;
+      readonly kept: boolean;
+      /** The product's main gross price for this size now, the starting point (grosze); undefined when it has none. */
+      readonly retailGross: number | undefined;
+    }
   | { readonly kind: 'free' }
   | { readonly kind: 'missing'; readonly reason: string };
 
@@ -70,17 +77,17 @@ export function priceSale(lines: readonly LineToPrice[], data: PricingData, stor
   const priced = lines.map((line, i): LinePrice => {
     if (line.free) return { kind: 'free' };
     if (line.grams === null || line.bags === null || line.productId === '') return { kind: 'missing', reason: 'brak produktu, wielkości lub liczby torebek' };
+    const retail = data.retail(line.productId, line.grams);
     const saved = issued ? stored.lines[i] : undefined;
     if (saved && saved.productId === line.productId && saved.grams === line.grams && !saved.free && saved.unitNetGrosze !== null && saved.priceKind !== null) {
-      return { kind: saved.priceKind, unitNet: saved.unitNetGrosze, totalNet: saved.unitNetGrosze * line.bags, kept: true };
+      return { kind: saved.priceKind, unitNet: saved.unitNetGrosze, totalNet: saved.unitNetGrosze * line.bags, kept: true, retailGross: retail };
     }
     const special = data.special(line.productId, line.grams);
-    if (special !== undefined) return { kind: 'special', unitNet: special, totalNet: special * line.bags, kept: false };
-    const retail = data.retail(line.productId, line.grams);
+    if (special !== undefined) return { kind: 'special', unitNet: special, totalNet: special * line.bags, kept: false, retailGross: retail };
     if (retail === undefined) return { kind: 'missing', reason: 'produkt nie ma ceny za tę wielkość (zakładka Produkty)' };
     if (discountTenths === null) return { kind: 'missing', reason: 'nie da się dobrać rabatu: ustaw, od ilu kg obowiązuje każdy rabat (Opakowania i rabaty)' };
     const unitNet = wholesalePrice(retail, discountTenths, data.vatTenths).net;
-    return { kind: 'discount', unitNet, totalNet: unitNet * line.bags, kept: false };
+    return { kind: 'discount', unitNet, totalNet: unitNet * line.bags, kept: false, retailGross: retail };
   });
   return {
     weightGrams,

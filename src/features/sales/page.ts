@@ -404,7 +404,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           cardTable(el(
             'table',
             { class: 'data-table sale-prices' },
-            el('thead', {}, el('tr', {}, ...['Produkt', 'Torebki', 'Cena netto', 'Cena brutto', 'Razem netto', 'Razem brutto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
+            el('thead', {}, el('tr', {}, ...['Produkt', 'Torebki', 'Cena wyjściowa (netto / brutto)', 'Rabat', 'Cena dla klienta (netto / brutto)'].map((h, i) => el('th', { scope: 'col', ...(i === 1 || i === 2 || i === 4 ? { class: 'num' } : {}) }, h)))),
             el(
               'tbody',
               {},
@@ -414,11 +414,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                   {},
                   el('td', {}, r.item),
                   el('td', { class: 'num' }, r.bags),
-                  // The price and why it is that price ("cena specjalna", "−25 %", "gratis", or why there is none).
-                  el('td', { class: 'num' }, ...(r.unit ? [el('span', { class: 'nowrap' }, r.unit), ' '] : []), el('span', { class: r.missing ? 'field-error' : 'muted small' }, r.why)),
-                  el('td', { class: 'num nowrap' }, r.unitGross),
-                  el('td', { class: 'num nowrap' }, r.total),
-                  el('td', { class: 'num nowrap' }, r.totalGross),
+                  // One bag: the starting price, the discount (or special price, or why there is no price), the client's price.
+                  el('td', { class: 'num nowrap muted' }, r.base),
+                  el('td', { class: r.missing ? 'field-error' : '' }, r.why),
+                  el('td', { class: 'num nowrap' }, el('strong', {}, r.price)),
                 ),
               ),
             ),
