@@ -233,8 +233,10 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   1. The client has a **special price** for this product and size (their page in Clients): that price, final. No
      weight discount on top of it.
   2. Otherwise the **wholesale price** (as on a product's page): the main gross price without VAT, minus the discount
-     for the invoice's **total weight**, rounded to whole złoty. Discount levels from Packaging & discounts:
-     below 10 kg −15 %, **10 kg** to below 20 kg −25 %, 20 kg and more −30 % (10 kg exactly is already −25 %).
+     for the invoice's **total weight**, rounded to whole złoty. The discount levels are the ones set in **Packaging
+     & discounts** (the owner may change them; the tab decides, not this text). A level applies **from** its
+     starting weight: with today's levels, below 10 kg −15 %, **10 kg** to below 20 kg −25 %, 20 kg and more −30 %
+     (10 kg exactly is already −25 %).
   - The total weight counts **every bag on the invoice, special prices included** (e.g. 8 kg at special prices +
     4 kg = 12 kg, so the others get −25 %), all sizes (250 g, 500 g, 1 kg), but **not free (gratis) bags**.
   - Open: today a discount has only a percent and a name ("Do 10 kg"); Kraken needs the weight where each one starts
@@ -311,11 +313,10 @@ offers are wholesale) for one product and one bag size, e.g. "Café Nowa pays 38
 remembers it and uses it on that client's offers.
 - **Where it is set: the client's page** (Clients → click the client). A **Special prices** section, one row per deal: product,
   size, their net price, and next to it what they would pay otherwise: the wholesale price at each discount ("instead
-  of 41 zł / 36 zł / 34 zł (−15 % / −25 % / −30 %)", since 2026-11-27 the discount depends on the invoice's weight;
+  of 41 zł (Do 10 kg) / 36 zł (10–20 kg) / 34 zł (20+ kg)", each discount's name from Packaging & discounts, since 2026-11-27 the discount depends on the invoice's weight;
   with no discounts set: "instead of 48 zł", the retail price without VAT) and what you
   earn on one bag with the gross margin, so the cost of the deal is visible. Add a row by choosing the product and
   size and typing the price; change or delete a row there. **No end date**: a deal stays until changed or deleted.
-- The client's own discount stays **information only** on the client's page; it is not applied to offers by itself.
 - **One deal per client, product and size.** Adding a second one is refused ("Café Nowa already has a price for
   KENIA 250 g: change that one"); so is restoring a deleted deal while another one exists.
 - **Where it is used: the Offer.** The customer can be **picked from Clients**; typing a name stays possible (an

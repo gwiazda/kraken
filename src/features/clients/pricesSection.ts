@@ -107,7 +107,7 @@ export function pricesSection(client: Client, deps: PricesSectionDeps): HTMLElem
     if (!found) return;
     const { products, bagCosts, vatTenths, discounts } = found;
     const active = sortProducts(products).filter((p) => !isProductDeleted(p));
-    const rows = dealRows(deals, client.id, products, discounts.map((d) => d.tenths), vatTenths, bagCosts);
+    const rows = dealRows(deals, client.id, products, discounts, vatTenths, bagCosts);
     const deleted = deals.filter(isDealDeleted);
 
     const row = (r: (typeof rows)[number]) => {

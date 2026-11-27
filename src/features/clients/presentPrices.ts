@@ -18,8 +18,8 @@ export interface DealRow {
   readonly price: string;
   /**
    * What they would pay without the deal: at each discount (it depends on the invoice's weight, owner 2026-11-27),
-   * "zamiast 41 zł / 36 zł / 34 zł (rabat −15 % / −25 % / −30 %)"; with no discounts set, "zamiast 47,97 zł (cena detaliczna
-   * netto)"; '' when unknown.
+   * named as in Packaging & discounts, "zamiast 41 zł (Do 10 kg) / 36 zł (10–20 kg) / 34 zł (20+ kg)" (a discount
+   * without a name: "−15 %"); with no discounts set, "zamiast 47,97 zł (cena detaliczna netto)"; '' when unknown.
    */
   readonly insteadOf: string;
   /** "zarabiasz 13,85 zł · marża 36 %" / "strata 2,10 zł · marża −6 %"; '' when the cost of a bag is not known. */
@@ -32,19 +32,18 @@ export interface DealRow {
 }
 
 /**
- * A client's deals (not deleted), by product name and size. `discounts`: the wholesale discounts in tenths (Packaging
- * & discounts); `bagCosts`: the cost of one bag per product and size (grosze).
+ * A client's deals (not deleted), by product name and size. `discounts`: the wholesale discounts of Packaging &
+ * discounts, lowest first (as `activeDiscounts` gives them); `bagCosts`: the cost of one bag per product and size (grosze).
  */
 export function dealRows(
   deals: readonly SpecialPrice[],
   clientId: string,
   products: readonly DealProduct[],
-  discounts: readonly number[],
+  discounts: readonly { readonly tenths: number; readonly name: string }[],
   vatTenths: number,
   bagCosts: ReadonlyMap<string, Partial<Record<number, number>>>,
 ): DealRow[] {
   const byId = new Map(products.map((p) => [p.id, p]));
-  const tiers = [...discounts].sort((a, b) => a - b);
   return dealsOf(deals, clientId)
     .map((deal): DealRow => {
       const product = byId.get(deal.productId);
@@ -52,8 +51,8 @@ export function dealRows(
       const insteadOf =
         retail === undefined
           ? ''
-          : tiers.length > 0
-            ? `zamiast ${tiers.map((t) => formatWholePln(wholesalePrice(retail, t, vatTenths).net)).join(' / ')} (rabat ${tiers.map((t) => `−${formatPercent(t)}`).join(' / ')})`
+          : discounts.length > 0
+            ? `zamiast ${discounts.map((d) => `${formatWholePln(wholesalePrice(retail, d.tenths, vatTenths).net)} (${d.name || `−${formatPercent(d.tenths)}`})`).join(' / ')}`
             : `zamiast ${formatPln(roundGrosze(netOf(retail, vatTenths)))} (cena detaliczna netto)`;
       const cost = deal.grams === null ? undefined : bagCosts.get(deal.productId)?.[deal.grams];
       let earn = '';
