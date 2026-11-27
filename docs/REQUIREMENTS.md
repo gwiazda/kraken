@@ -472,6 +472,14 @@ need to know what price to put on my product".
   it lighter, how the beans are mixed) and, per size, "How is this worked out?" (coffee, packaging, cost of one bag,
   what your price earns after VAT, how each suggested price is reached), in plain sentences with the real numbers.
   Folded by default; they stay open while the shares or prices change.
+- **[R] Later (owner, 2026-11-27; not built): a product made from the same coffee over several deliveries.** E.g. a
+  new GWATEMALA delivery for the same product, GWATEMALA espresso. Roasting is **FIFO**: the oldest delivery is used
+  first, the next one when it is gone. Roasts and stock already work this way (section 3: a roast takes its RoasTime
+  coffee's oldest delivery first). What is missing: a product's bean points to **one** delivery (`lot_id`), so its
+  cost stays on that delivery's price after it runs out. To build: a bean can point to **the coffee** (all its
+  deliveries), and the cost of a bag uses the delivery being roasted now (the oldest one with stock left). To decide
+  then: what "the same coffee" means (the RoasTime coffee, as for roasts, seems natural), and whether the cost
+  should switch only when the old delivery is used up.
 
 **[R] Blend calculator (owner, 2026-11-17, later):** an easy way to see what a blend costs: pick coffees from the
 lots, set each one's share with a slider, and see the cost of one bag of the blend (250 g, 500 g, 1 kg) and the
