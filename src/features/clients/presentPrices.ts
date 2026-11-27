@@ -16,7 +16,11 @@ export interface DealRow {
   readonly size: string;
   /** "38 zł", "38,50 zł" */
   readonly price: string;
-  /** "zamiast 41 zł przy ich rabacie −15 %", "zamiast 47,97 zł (cena detaliczna netto)"; '' when unknown. */
+  /**
+   * What they would pay without the deal: at each discount (it depends on the invoice's weight, owner 2026-11-27),
+   * named as in Packaging & discounts, "zamiast 41 zł (Do 10 kg) / 36 zł (10–20 kg) / 34 zł (20+ kg)" (a discount
+   * without a name: "−15 %"); with no discounts set, "zamiast 47,97 zł (cena detaliczna netto)"; '' when unknown.
+   */
   readonly insteadOf: string;
   /** "zarabiasz 13,85 zł · marża 36 %" / "strata 2,10 zł · marża −6 %"; '' when the cost of a bag is not known. */
   readonly earn: string;
@@ -28,14 +32,14 @@ export interface DealRow {
 }
 
 /**
- * A client's deals (not deleted), by product name and size. `discountTenths`: the client's discount (null for
- * none); `bagCosts`: the cost of one bag per product and size (grosze).
+ * A client's deals (not deleted), by product name and size. `discounts`: the wholesale discounts of Packaging &
+ * discounts, lowest first (as `activeDiscounts` gives them); `bagCosts`: the cost of one bag per product and size (grosze).
  */
 export function dealRows(
   deals: readonly SpecialPrice[],
   clientId: string,
   products: readonly DealProduct[],
-  discountTenths: number | null,
+  discounts: readonly { readonly tenths: number; readonly name: string }[],
   vatTenths: number,
   bagCosts: ReadonlyMap<string, Partial<Record<number, number>>>,
 ): DealRow[] {
@@ -47,8 +51,8 @@ export function dealRows(
       const insteadOf =
         retail === undefined
           ? ''
-          : discountTenths !== null
-            ? `zamiast ${formatWholePln(wholesalePrice(retail, discountTenths, vatTenths).net)} przy ich rabacie −${formatPercent(discountTenths)}`
+          : discounts.length > 0
+            ? `zamiast ${discounts.map((d) => `${formatWholePln(wholesalePrice(retail, d.tenths, vatTenths).net)} (${d.name || `−${formatPercent(d.tenths)}`})`).join(' / ')}`
             : `zamiast ${formatPln(roundGrosze(netOf(retail, vatTenths)))} (cena detaliczna netto)`;
       const cost = deal.grams === null ? undefined : bagCosts.get(deal.productId)?.[deal.grams];
       let earn = '';

@@ -8,7 +8,7 @@ import { formatDate, localDate } from '../../core/dates';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { clientDiscountText, isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
+import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
   DATE_LABELS,
@@ -164,7 +164,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   /** The client as the Clients tab has it now (so a change there shows on the entry's page). */
   const clientInfo = (id: string): ClientInfo | undefined => {
     const c = findClient(id);
-    return c && { name: c.name, registeredName: c.registeredName, discount: clientDiscountText(c), deleted: isClientDeleted(c) };
+    return c && { name: c.name, registeredName: c.registeredName, deleted: isClientDeleted(c) };
   };
 
   // ---- The list ----

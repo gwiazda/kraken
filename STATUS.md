@@ -21,7 +21,9 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
   "Faktura do wystawienia" (#50).
 
 ## In progress
-- Nothing being built. The Fakturownia plan is written down (`docs/FAKTUROWNIA.md`).
+- Branch `claude/client-discount-removal`: the client "Rabat" field removed (the discount depends on each invoice's
+  weight); special prices compare with every discount; price rules for invoices written down (REQUIREMENTS
+  section 4, "Prices on an invoice").
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
@@ -29,7 +31,8 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 3. Offer PDF straight to Google Drive (needs a PDF library).
 4. Hand overrides of a discounted price (requirements section 5): probably not needed any more (special prices
    cover it); owner to decide whether to drop it.
-5. Connect to Fakturownia: decided how (`docs/FAKTUROWNIA.md`, 2026-11-27), not built; first decide what it should do.
+5. Connect to Fakturownia: decided how (`docs/FAKTUROWNIA.md`, 2026-11-27) and the invoice price rules (REQUIREMENTS
+   section 4), not built; first decide what it should do, and how each discount's starting weight is stored.
 
 ## Open questions for the owners
 - Share the Kraken sheet with the partner (owner decides when).

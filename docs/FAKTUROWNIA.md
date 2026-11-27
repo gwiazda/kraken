@@ -75,6 +75,10 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
    can be used by anyone holding an owner's Kraken sign-in, e.g. "list clients" would give them the client list
    (NIPs, emails); so only actions the feature really needs go on it, and creating invoices should create
    **drafts** if the API allows it (to check).
+   **Who may do what (owner, 2026-11-27):** the allowed list says, per action, which emails may use it. **Issuing
+   (creating) an invoice: the owner only**, never the partner. Reading (e.g. whether an invoice is paid) may be
+   both. Kraken also hides the invoice button from the partner, but the lock that counts is this check in the
+   middleman (a screen can be got around; the middleman cannot).
 4. **Middleman → Fakturownia:** a new request with the **secret token** in the `Authorization: Bearer` header.
 5. **Fakturownia → middleman → Kraken:** only what Kraken needs (e.g. invoice number, status, PDF link) is passed
    back. The token never reaches the browser.
@@ -83,7 +87,7 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 |---|---|---|---|
 | Fakturownia token | never | only here (Worker secret) | never |
 | Google sign-in | in memory, as today | passes through for the check | never |
-| The two allowed emails | | setting | never |
+| The allowed emails (owner; partner for reading only) | | secret | never |
 
 ## Who does what: a "thin" middleman
 
@@ -92,7 +96,7 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 - **The middleman is a gatekeeper, not a translator** (about 100–150 lines, written once, rarely changed):
   1. answer the browser's CORS check (Kraken's addresses only);
   2. check the Google sign-in was made for Kraken and belongs to one of the two owners;
-  3. check the action is on the allowed list;
+  3. check the action is on the allowed list **for that email** (creating an invoice: the owner's email only);
   4. check the data has the expected shape (e.g. an invoice has a buyer and 1–50 items; nothing unexpected attached);
   5. add the secret token and forward to Fakturownia;
   6. pass back only what Kraken needs.
@@ -103,9 +107,10 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 
 1. Create a free Cloudflare account.
 2. In Fakturownia, create the API token; paste it once into the Worker's Secrets in Cloudflare (it cannot be read back).
-3. Add the two owners' emails as a Worker **secret** (not a plain "variable": a deploy from GitHub replaces plain
+3. Add the emails as two Worker **secrets**, so the middleman knows who is who: `OWNER_EMAIL` (may also issue
+   invoices) and `PARTNER_EMAIL` (reading only). Secrets, not plain "variables": a deploy from GitHub replaces plain
    variables with what the code defines, which would lock both owners out, and the emails must never be in the
-   public code).
+   public code.
 4. Create a Cloudflare deploy key; save it in the GitHub repo's Secrets.
 5. Add the worker's address to Kraken's Content Security Policy (`connect-src` in `index.html`).
 

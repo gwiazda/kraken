@@ -102,10 +102,10 @@ test that reads every import line), so CI fails if a rule is broken.
   also shows the wholesale prices and a comparison with the products; the prices table and the comparison table
   are shared in `priceTable.ts` (also used by a product's page);
   `clients`: Clients page (owner, 2026-11-19): short name, NIP (check digit validated), email, registered name
-  (CEIDG), discount chosen from Packaging & discounts (information only); a name or NIP only once; **special prices**
+  (CEIDG); no discount per client (owner 2026-11-27: the discount depends on the invoice's weight; the `discount_percent` column stays, unused); a name or NIP only once; **special prices**
   (owner, 2026-11-20; "Special prices" tab, migration 12): net price per client, product and size, set on the client's
   page (`pricesSection.ts`, costs from `loadProductsWithCosts` in products), used by the Offer;
-  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices, owner 2026-11-19; a sample 100/150/250 g, 150 g first, or any grams), the entry's page shows its client's name, CEIDG name and discount read from Clients (owner 2026-11-24), follow-up notes on samples (`notesSection.ts`, "Sale notes" tab, migration 13),
+  `sales`: Sales page (owner, 2026-11-19): sale / sample / own use, lines (product, size, bags, free; no prices yet: since 2026-11-27 the partner may see them and they will be calculated by the invoice price rules, REQUIREMENTS section 4; issuing an invoice is for the owner only; a sample 100/150/250 g, 150 g first, or any grams), the entry's page shows its client's name and CEIDG name read from Clients (owner 2026-11-24), follow-up notes on samples (`notesSection.ts`, "Sale notes" tab, migration 13),
   always opens on "Faktura do wystawienia" (owner 2026-11-26); invoice status to be issued → issued (date) → paid from one dropdown (Issued asks the issue date, today unless changed; paid has no date; then the list shows All), filters; no stock change;
   `offers`: Offer page in Polish (customer typed or picked from Clients, or none: a general offer without "Dla:", owner 2026-11-26, date, valid 14 days, ticked products / sizes / discounts,
   "Use their special prices": a size with a deal shows only that price, no label; live preview of

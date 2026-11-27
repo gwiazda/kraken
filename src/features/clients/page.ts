@@ -1,22 +1,21 @@
-// The Clients screen (owner, 2026-11-19): the list of clients, and the form to add or edit one. The discount is
-// chosen from the wholesale discounts set under Packaging & discounts, so the two never differ.
+// The Clients screen (owner, 2026-11-19): the list of clients, and the form to add or edit one. No discount per
+// client (owner, 2026-11-27): it depends on each invoice's weight; a client's own prices are its special prices.
 // Everything from outside comes through ClientsPageDeps (main.ts provides it).
 
-import { formatPercent } from '../../domain/percent';
 import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { activeDiscounts, type CostsRepository, type Discount } from '../costs';
+import type { CostsRepository } from '../costs';
 import type { LotsRepository } from '../lots';
 import type { ProductsRepository } from '../products';
 import type { RoastsRepository } from '../roasts';
-import { KEEP_DISCOUNT, changedClientFields, discountText, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
+import { changedClientFields, emptyClientForm, formFromClient, formatNip, isDeleted, sortClients, validateClientForm, type Client, type ClientForm, type ClientFormErrors } from './model';
 import { pricesSection } from './pricesSection';
 import type { ClientsRepository } from './repo';
 import type { SpecialPricesRepository } from './repoPrices';
 
 export interface ClientsPageDeps {
   repo: ClientsRepository;
-  /** For the wholesale discounts (Packaging & discounts), and with the next three, what a bag costs. */
+  /** With the next three: what a bag costs and the wholesale discounts, for the special prices. */
   costs: CostsRepository;
   /** A client's special prices (owner, 2026-11-20). */
   prices: SpecialPricesRepository;
@@ -38,7 +37,7 @@ export interface ClientsPageDeps {
   busy: (on: boolean) => void;
 }
 
-const FIELDS: readonly { key: Exclude<keyof ClientForm, 'discount'>; label: string; hint?: string; tip?: string; required?: boolean }[] = [
+const FIELDS: readonly { key: keyof ClientForm; label: string; hint?: string; tip?: string; required?: boolean }[] = [
   { key: 'name', label: 'Nazwa', hint: 'Nazwa, której używasz, np. Café Nowa.', required: true },
   { key: 'registeredName', label: 'Nazwa w CEIDG', hint: 'Oficjalna nazwa, do faktury.' },
   { key: 'nip', label: 'NIP', hint: 'np. 123-456-32-18. Kraken sprawdza, czy to prawdziwy NIP.', tip: 'NIP ma 10 cyfr. Ostatnia to cyfra kontrolna, więc literówka od razu wychodzi.' },
@@ -49,11 +48,6 @@ const FIELDS: readonly { key: Exclude<keyof ClientForm, 'discount'>; label: stri
 export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?: string, fromClick = false): void {
   let clients: Client[] = [];
   let problems: string[] = [];
-  let discounts: Discount[] = [];
-  /** False when the Discounts tab could not be read: then no discount is offered or judged (it is kept as it is). */
-  let discountsKnown = false;
-  /** The discounts are read once per visit: they are only needed for the form and the labels. */
-  let discountsLoaded = false;
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
 
@@ -69,26 +63,12 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
 
   function load(note?: string, fromClick = false): void {
     render(el('p', {}, busy('Wczytuję klientów…')));
-    // The discounts are only for the form's list: if they cannot be read, the clients are still shown.
-    const discountsNow = () =>
-      discountsLoaded
-        ? Promise.resolve({ discounts, known: discountsKnown, problems: [] as string[] })
-        : deps.costs.load().then(
-            (costs) => ({ ...activeDiscounts(costs.discounts), known: true }),
-            (error: unknown) => {
-              if (deps.isSignedOut(error) || deps.isIgnorable(error)) throw error;
-              return { discounts: [] as Discount[], known: false, problems: [`Nie udało się wczytać rabatów (${deps.describeError(error)}), więc nie można teraz zmienić rabatu klienta.`] };
-            },
-          );
-    const all = () => Promise.all([deps.repo.load(), discountsNow()]);
+    const all = () => deps.repo.load();
     (fromClick ? deps.withGoogle(all) : all())
-      .then(([result, found]) => {
+      .then((result) => {
         if (!root.isConnected) return;
         clients = result.clients;
-        discounts = found.discounts;
-        discountsKnown = found.known;
-        discountsLoaded = found.known; // read again next time if it failed
-        problems = [...result.problems, ...found.problems];
+        problems = [...result.problems];
         showList(note);
       })
       .catch((error: unknown) => {
@@ -122,13 +102,6 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       });
   }
 
-  /** "15 % (Do 10 kg)", or the stored value with a note when it is not one of the discounts any more. */
-  const discountLabel = (c: Client) => {
-    if (c.discountTenths === null || !discountsKnown) return discountText(c);
-    const known = discounts.find((d) => d.tenths === c.discountTenths);
-    return known ? `${formatPercent(known.tenths)}${known.name ? ` (${known.name})` : ''}` : `${formatPercent(c.discountTenths)} (spoza Twoich rabatów)`;
-  };
-
   // ---- The list ----
 
   function showList(note?: string, error?: Node[]): void {
@@ -157,7 +130,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         actions.replaceChildren();
         const no = button('Nie', normal, 'secondary');
         confirmRow.replaceChildren(
-          el('td', { colspan: '6' }, el('span', {}, `Usunąć ${c.name}? Można go później przywrócić. `), button('Tak, usuń', () => change(c, 'remove', inRow('Usuwam…')), 'primary'), ' ', no),
+          el('td', { colspan: '5' }, el('span', {}, `Usunąć ${c.name}? Można go później przywrócić. `), button('Tak, usuń', () => change(c, 'remove', inRow('Usuwam…')), 'primary'), ' ', no),
         );
         confirmRow.hidden = false;
         no.focus();
@@ -170,7 +143,6 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
           el('td', {}, c.registeredName || el('span', { class: 'muted' }, '—')),
           el('td', { class: 'nowrap' }, c.nip ? formatNip(c.nip) : el('span', { class: 'muted' }, '—')),
           el('td', {}, c.email || el('span', { class: 'muted' }, '—')),
-          el('td', { class: 'nowrap' }, discountLabel(c)),
           actions,
         );
       if (!restorable) clickableRow(tr, () => showForm(c), `Otwórz ${c.name}`, { asking: () => !confirmRow.hidden });
@@ -184,14 +156,14 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
         cardTable(el(
           'table',
           { class: 'data-table' },
-          el('thead', {}, el('tr', {}, ...['Nazwa', 'Nazwa w CEIDG', 'NIP', 'E-mail', 'Rabat', ''].map((h) => el('th', { scope: 'col' }, h)))),
+          el('thead', {}, el('tr', {}, ...['Nazwa', 'Nazwa w CEIDG', 'NIP', 'E-mail', ''].map((h) => el('th', { scope: 'col' }, h)))),
           el('tbody', {}, ...list.flatMap((c) => row(c, restorable))),
         )),
       );
 
     render(
       el('div', { class: 'page-head' }, el('h2', {}, 'Klienci'), el('div', { class: 'head-actions' }, button('Dodaj klienta', () => showForm(null)))),
-      el('p', { class: 'muted small' }, 'Firmy, z którymi współpracujesz, i rabat hurtowy każdej z nich. Kliknij klienta, aby zobaczyć lub zmienić jego dane i ceny specjalne.'),
+      el('p', { class: 'muted small' }, 'Firmy, z którymi współpracujesz. Kliknij klienta, aby zobaczyć lub zmienić jego dane i ceny specjalne. Rabat zależy od wagi kawy na fakturze (Opakowania i rabaty).'),
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
@@ -226,33 +198,11 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
       );
     });
 
-    // The discount: one of those set under Packaging & discounts. A stored one that is not there any more, or that
-    // cannot be read, is offered as it is, so saving another change never alters it by accident.
-    const discount = el('select', { id: 'client-discount' });
-    discount.append(el('option', { value: '' }, 'Bez rabatu'));
-    for (const d of discounts) discount.append(el('option', { value: String(d.tenths) }, `${formatPercent(d.tenths)}${d.name ? ` (${d.name})` : ''}`));
-    if (initial.discount === KEEP_DISCOUNT) {
-      discount.append(el('option', { value: KEEP_DISCOUNT }, `Zostaw „${client?.discountText ?? ''}” (nie da się odczytać: wybierz rabat, aby poprawić)`));
-    } else if (initial.discount !== '' && !discounts.some((d) => String(d.tenths) === initial.discount)) {
-      discount.append(el('option', { value: initial.discount }, `${formatPercent(Number(initial.discount))}${discountsKnown ? ' (spoza Twoich rabatów)' : ''}`));
-    }
-    discount.value = initial.discount;
-    discount.disabled = !discountsKnown; // the discounts could not be read: the client keeps its discount
-    errorLines.discount = el('p', { class: 'field-error', role: 'alert' });
-    const discountField = el(
-      'div',
-      { class: 'field' },
-      el('div', { class: 'label-row' }, el('label', { for: discount.id }, 'Rabat hurtowy'), infoTip('O ile taniej ten klient kupuje Twoją kawę. Lista pochodzi z zakładki Opakowania i rabaty.')),
-      discount,
-      ...(discountsKnown ? [] : [el('p', { class: 'field-hint' }, 'Nie udało się wczytać rabatów, więc na razie zostaje bez zmian.')]),
-      errorLines.discount,
-    );
-
     const banner = el('div', { class: 'form-banner' });
     const label = client ? 'Zapisz zmiany' : 'Zapisz klienta';
     const saveButton = el('button', { type: 'submit', class: 'btn btn-primary' }, label);
     const cancelButton = button('Anuluj', () => showList(), 'secondary');
-    const readForm = (): ClientForm => ({ name: inputs.name.value, nip: inputs.nip.value, email: inputs.email.value, registeredName: inputs.registeredName.value, discount: discount.value });
+    const readForm = (): ClientForm => ({ name: inputs.name.value, nip: inputs.nip.value, email: inputs.email.value, registeredName: inputs.registeredName.value });
     const showErrors = (errors: ClientFormErrors) => {
       for (const key of Object.keys(errorLines) as (keyof ClientForm)[]) errorLines[key].textContent = errors[key] ?? '';
       for (const spec of FIELDS) inputs[spec.key].setAttribute('aria-invalid', errors[spec.key] ? 'true' : 'false');
@@ -298,7 +248,7 @@ export function showClientsPage(root: HTMLElement, deps: ClientsPageDeps, note?:
     const formNode = el(
       'form',
       { class: 'lot-form', novalidate: '' },
-      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Klient'), el('div', { class: 'fields' }, ...fieldNodes, discountField)),
+      el('fieldset', { class: 'form-section' }, el('legend', {}, 'Klient'), el('div', { class: 'fields' }, ...fieldNodes)),
       el('div', { class: 'actions' }, saveButton, cancelButton),
     );
     formNode.addEventListener('submit', (event) => {

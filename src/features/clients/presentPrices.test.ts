@@ -10,16 +10,16 @@ const burundi: DealProduct = { id: 'P2', name: 'BURUNDI', prices: { 250: 4500 },
 const costs = new Map([['P1', { 250: 2415 }]]);
 
 describe('dealRows', () => {
-  it('shows the deal next to what they would pay at their discount, and what one bag earns with the margin', () => {
+  it('shows the deal next to what they would pay at each discount, and what one bag earns with the margin', () => {
     // 59 zł is 47,97 zł without VAT; −15 % = 40,77 → 41 zł. At 38 zł a 24,15 zł bag earns 13,85 zł: 36,4 % → 36 %.
-    expect(dealRows([deal(2)], 'C1', [kenia], 150, 230, costs)).toMatchObject([
-      { product: 'KENIA', size: '250 g', price: '38 zł', insteadOf: 'zamiast 41 zł przy ich rabacie −15 %', earn: 'zarabiasz 13,85 zł · marża 36 %', losing: false, retailChanged: '', unusable: '' },
+    expect(dealRows([deal(2)], 'C1', [kenia], [{ tenths: 150, name: 'Do 10 kg' }, { tenths: 250, name: '10–20 kg' }, { tenths: 300, name: '' }], 230, costs)).toMatchObject([
+      { product: 'KENIA', size: '250 g', price: '38 zł', insteadOf: 'zamiast 41 zł (Do 10 kg) / 36 zł (10–20 kg) / 34 zł (−30 %)', earn: 'zarabiasz 13,85 zł · marża 36 %', losing: false, retailChanged: '', unusable: '' },
     ]);
   });
 
-  it('compares with the retail price without VAT for a client without a discount, and shows a loss', () => {
+  it('compares with the retail price without VAT when no discounts are set, and shows a loss', () => {
     // 20 zł on a 24,15 zł bag: loses 4,15 zł, −20,75 % → −21 %
-    expect(dealRows([deal(2, { price_net_pln: '20' })], 'C1', [kenia], null, 230, costs)[0]).toMatchObject({
+    expect(dealRows([deal(2, { price_net_pln: '20' })], 'C1', [kenia], [], 230, costs)[0]).toMatchObject({
       insteadOf: 'zamiast 47,97 zł (cena detaliczna netto)',
       earn: 'strata 4,15 zł · marża −21 %',
       losing: true,
@@ -31,13 +31,13 @@ describe('dealRows', () => {
       [deal(2, { retail_gross_pln_at_deal: '55' }), deal(3, { product_id: 'P2', bag_size_g: '1000', price_net_pln: '120.5' })],
       'C1',
       [kenia, burundi],
-      150,
+      [{ tenths: 150, name: 'Do 10 kg' }],
       230,
       costs,
     );
     expect(rows.map((r) => [r.product, r.size, r.price, r.retailChanged, r.unusable, r.earn, r.insteadOf])).toEqual([
       ['BURUNDI', '1 kg', '120,50 zł', '', 'produkt nie ma teraz ceny za 1 kg', '', ''],
-      ['KENIA', '250 g', '38 zł', 'Cena detaliczna przy ustalaniu tej ceny: 55 zł, teraz 59 zł.', '', 'zarabiasz 13,85 zł · marża 36 %', 'zamiast 41 zł przy ich rabacie −15 %'],
+      ['KENIA', '250 g', '38 zł', 'Cena detaliczna przy ustalaniu tej ceny: 55 zł, teraz 59 zł.', '', 'zarabiasz 13,85 zł · marża 36 %', 'zamiast 41 zł (Do 10 kg)'],
     ]);
   });
 });
