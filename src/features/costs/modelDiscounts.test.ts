@@ -31,7 +31,7 @@ describe('activeDiscounts', () => {
     expect(problems).toEqual([
       'Nie da się odczytać rabatu „dużo” w wierszu 2 zakładki „Discounts”, więc jest pominięty.',
       'Nie da się odczytać rabatu „0.15” w wierszu 3 zakładki „Discounts”, więc jest pominięty.',
-      'Zakładka „Discounts” ma dwa razy 15 % (wiersz 5); Kraken używa pierwszego.',
+      'Zakładka „Discounts” ma dwa razy 15\u00a0% (wiersz 5); Kraken używa pierwszego.',
       'Nazwa rabatu „Stali klienci hurt” w wierszu 6 zakładki „Discounts” ma więcej niż 12 znaków, więc nie zmieści się w ofercie. Kliknij ją tutaj, aby skrócić.',
     ]);
   });
@@ -71,14 +71,15 @@ describe('where a discount starts (owner, 2026-11-27)', () => {
       [300, null],
     ]);
     expect(problems).toEqual([
-      'Nie da się odczytać wagi „dużo” rabatu −15 % (wiersz 2 zakładki „Discounts”). Kliknij rabat tutaj, aby ją poprawić.',
+      'Nie da się odczytać wagi „dużo” rabatu −15\u00a0% (wiersz 2 zakładki „Discounts”). Kliknij rabat tutaj, aby ją poprawić.',
       'Dwa rabaty zaczynają się od 10\u00a0kg (wiersz 4 zakładki „Discounts”); Kraken liczy tylko pierwszy. Kliknij rabat tutaj, aby to poprawić.',
-      'Nie da się odczytać wagi „2000” rabatu −20 % (wiersz 5 zakładki „Discounts”). Kliknij rabat tutaj, aby ją poprawić.',
+      'Rabat −20\u00a0% zaczyna się od ponad 1000 kg („2000”, wiersz 5 zakładki „Discounts”). Kliknij rabat tutaj, aby to poprawić.',
     ]);
   });
 
   it('asks for the starting weight and refuses one already used', () => {
-    for (const bad of ['', 'x', '-5', '1000,5', '0,0001']) {
+    expect(validateDiscount({ percent: '20', name: '', from: '1000,5' }, [])).toEqual({ ok: false, errors: { from: 'Najwyżej 1000 kg.' } });
+    for (const bad of ['', 'x', '-5', '0,0001']) {
       expect(validateDiscount({ percent: '20', name: '', from: bad }, [])).toEqual({ ok: false, errors: { from: 'Wpisz, od ilu kg kawy na fakturze obowiązuje rabat, np. 10 (0 dla najmniejszych zamówień).' } });
     }
     expect(validateDiscount({ percent: '20', name: '', from: '10' }, [{ tenths: 250, fromGrams: 10_000 }])).toEqual({ ok: false, errors: { from: 'Inny rabat zaczyna się już od 10\u00a0kg.' } });
@@ -90,10 +91,21 @@ describe('where a discount starts (owner, 2026-11-27)', () => {
     expect([0, 250, 9_999, 10_000, 12_000, 19_999, 20_000, 55_000].map(at)).toEqual([150, 150, 150, 250, 250, 250, 300, 300]);
   });
 
-  it('gives no discount below the lowest starting weight, or while no starting weight is set', () => {
-    const { discounts } = activeDiscounts([row(2, '25', '', '', '10'), row(3, '15', '', '', '')]);
+  it('gives no discount below the lowest starting weight', () => {
+    const { discounts } = activeDiscounts([row(2, '25', '', '', '10'), row(3, '30', '', '', '20')]);
     expect(discountForWeight(discounts, 5_000)).toBeNull();
     expect(discountForWeight(discounts, 10_000)?.tenths).toBe(250);
-    expect(discountForWeight(activeDiscounts([row(2, '15', '')]).discounts, 50_000)).toBeNull();
+  });
+
+  it('never guesses while the discounts are not set up right: a start missing, or a bigger discount starting lower', () => {
+    // −25 % has no start yet: a 12 kg invoice must not quietly get −15 %.
+    const missing = activeDiscounts([row(2, '15', '', '', '0'), row(3, '25', '', '', ''), row(4, '30', '', '', '20')]).discounts;
+    expect([0, 12_000, 25_000].map((g) => discountForWeight(missing, g))).toEqual([null, null, null]);
+    // −30 % from 0 kg and −15 % from 20 kg (swapped by mistake): said so, and no discount is picked.
+    const swapped = activeDiscounts([row(2, '30', '', '', '0'), row(3, '15', '', '', '20')]);
+    expect(swapped.problems).toEqual([
+      'Większy rabat −30\u00a0% zaczyna się od 0\u00a0kg, a mniejszy −15\u00a0% od 20\u00a0kg: większa faktura dostałaby mniejszy rabat. Popraw wagi; do tego czasu Kraken nie dobiera rabatu do faktury.',
+    ]);
+    expect(discountForWeight(swapped.discounts, 25_000)).toBeNull();
   });
 });

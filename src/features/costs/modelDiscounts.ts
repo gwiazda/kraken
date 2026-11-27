@@ -5,6 +5,7 @@
 // its weight. Pure: no Google, no screen.
 
 import { formatKg, kgText, parseKg } from '../../core/numbers';
+import { formatPercent } from '../../domain/percent';
 import { percentFromCell, percentText } from './model';
 
 type Fields = Readonly<Record<string, string>>;
@@ -46,6 +47,12 @@ function fromGramsOf(cell: string): number | null {
   return typeof grams === 'number' && grams <= MAX_FROM_GRAMS ? grams : null;
 }
 
+/** True for a weight that reads fine but is over 1000 kg (said so, not "cannot be read"). */
+const tooHeavy = (cell: string) => {
+  const grams = parseKg(cell);
+  return typeof grams === 'number' && grams > MAX_FROM_GRAMS;
+};
+
 const text = (fields: Fields, name: string) => (fields[name] ?? '').trim();
 
 export function discountFromFields(fields: Fields, row: number): DiscountRow {
@@ -86,7 +93,7 @@ export function activeDiscounts(rows: readonly DiscountRow[]): { discounts: Disc
       continue;
     }
     if (discounts.some((d) => d.tenths === row.tenths)) {
-      problems.push(`Zakładka „Discounts” ma dwa razy ${percentText(row.tenths).replace('.', ',')} % (wiersz ${row.row}); Kraken używa pierwszego.`);
+      problems.push(`Zakładka „Discounts” ma dwa razy ${formatPercent(row.tenths)} (wiersz ${row.row}); Kraken używa pierwszego.`);
       continue;
     }
     if (row.name.length > DISCOUNT_NAME_MAX) {
@@ -94,14 +101,40 @@ export function activeDiscounts(rows: readonly DiscountRow[]): { discounts: Disc
     }
     let fromGrams = row.fromGrams;
     if (row.fromText !== '' && fromGrams === null) {
-      problems.push(`Nie da się odczytać wagi „${row.fromText}” rabatu −${percentText(row.tenths).replace('.', ',')} % (wiersz ${row.row} zakładki „Discounts”). Kliknij rabat tutaj, aby ją poprawić.`);
+      problems.push(
+        tooHeavy(row.fromText)
+          ? `Rabat −${formatPercent(row.tenths)} zaczyna się od ponad 1000 kg („${row.fromText}”, wiersz ${row.row} zakładki „Discounts”). Kliknij rabat tutaj, aby to poprawić.`
+          : `Nie da się odczytać wagi „${row.fromText}” rabatu −${formatPercent(row.tenths)} (wiersz ${row.row} zakładki „Discounts”). Kliknij rabat tutaj, aby ją poprawić.`,
+      );
     } else if (fromGrams !== null && discounts.some((d) => d.fromGrams === fromGrams)) {
       problems.push(`Dwa rabaty zaczynają się od ${formatKg(fromGrams)} (wiersz ${row.row} zakładki „Discounts”); Kraken liczy tylko pierwszy. Kliknij rabat tutaj, aby to poprawić.`);
       fromGrams = null;
     }
     discounts.push({ row, tenths: row.tenths, name: row.name, fromGrams });
   }
-  return { discounts: discounts.sort((a, b) => a.tenths - b.tenths), usingDefaults: false, problems };
+  discounts.sort((a, b) => a.tenths - b.tenths);
+  const backwards = outOfOrder(discounts);
+  if (backwards) {
+    const [smaller, bigger] = backwards;
+    problems.push(
+      `Większy rabat −${formatPercent(bigger.tenths)} zaczyna się od ${formatKg(bigger.fromGrams)}, a mniejszy −${formatPercent(smaller.tenths)} od ${formatKg(smaller.fromGrams)}: większa faktura dostałaby mniejszy rabat. Popraw wagi; do tego czasu Kraken nie dobiera rabatu do faktury.`,
+    );
+  }
+  return { discounts, usingDefaults: false, problems };
+}
+
+/**
+ * The first pair (lowest first) where a bigger discount does not start at a higher weight than a smaller one, e.g.
+ * −30 % from 0 kg and −15 % from 20 kg (a typo); null when they are in order. Discounts without a start are skipped.
+ */
+function outOfOrder<T extends { tenths: number; fromGrams: number | null }>(discounts: readonly T[]): [T & { fromGrams: number }, T & { fromGrams: number }] | null {
+  const started = discounts.filter((d): d is T & { fromGrams: number } => d.fromGrams !== null).sort((a, b) => a.tenths - b.tenths);
+  for (let i = 1; i < started.length; i++) {
+    const smaller = started[i - 1];
+    const bigger = started[i];
+    if (smaller && bigger && bigger.fromGrams <= smaller.fromGrams) return [smaller, bigger];
+  }
+  return null;
 }
 
 export interface DiscountForm {
@@ -126,7 +159,9 @@ export function validateDiscount(
   const name = form.name.trim().replace(/\s+/g, ' ');
   if (name.length > DISCOUNT_NAME_MAX) errors.name = `Najwyżej ${DISCOUNT_NAME_MAX} znaków, żeby zmieściło się przy cenach w ofercie.`;
   const fromGrams = fromGramsOf(form.from.trim());
-  if (fromGrams === null) errors.from = 'Wpisz, od ilu kg kawy na fakturze obowiązuje rabat, np. 10 (0 dla najmniejszych zamówień).';
+  if (fromGrams === null) {
+    errors.from = tooHeavy(form.from.trim()) ? 'Najwyżej 1000 kg.' : 'Wpisz, od ilu kg kawy na fakturze obowiązuje rabat, np. 10 (0 dla najmniejszych zamówień).';
+  }
   else if (others.some((d) => d.fromGrams === fromGrams)) errors.from = `Inny rabat zaczyna się już od ${formatKg(fromGrams)}.`;
   if (typeof tenths !== 'number' || fromGrams === null || Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, tenths, name, fromGrams, fields: discountFields({ tenths, name, fromGrams }) };
@@ -141,11 +176,20 @@ export const discountFields = (d: { tenths: number; name: string; fromGrams: num
 
 /**
  * The discount for an invoice with `grams` of coffee (owner, 2026-11-27): the one with the highest starting weight
- * not above it (10 kg exactly gets the discount "from 10 kg"). null when none applies: no discount has its starting
- * weight yet, or the invoice weighs less than the lowest one.
+ * not above it (10 kg exactly gets the discount "from 10 kg"). null when the invoice weighs less than the lowest
+ * start, and also, so an invoice is never quietly priced with the wrong discount, while the discounts are not set
+ * up right: one has no start yet (or it cannot be read), or a bigger discount does not start at a higher weight.
  */
-export function discountForWeight<T extends { fromGrams: number | null }>(discounts: readonly T[], grams: number): T | null {
+export function discountForWeight<T extends { tenths: number; fromGrams: number | null }>(discounts: readonly T[], grams: number): T | null {
+  if (discounts.some((d) => d.fromGrams === null) || outOfOrder(discounts)) return null;
   let best: T | null = null;
-  for (const d of discounts) if (d.fromGrams !== null && d.fromGrams <= grams && (best === null || d.fromGrams > (best.fromGrams ?? -1))) best = d;
+  let bestFrom = -1;
+  for (const d of discounts) {
+    const from = d.fromGrams ?? Number.POSITIVE_INFINITY;
+    if (from <= grams && from > bestFrom) {
+      best = d;
+      bestFrom = from;
+    }
+  }
   return best;
 }

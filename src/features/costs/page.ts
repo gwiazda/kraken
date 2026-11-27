@@ -5,7 +5,7 @@
 // - VAT and the usual roast loss.
 // The multipliers (2×, 2,5×, 3×) are fixed. Everything from outside comes through CostsPageDeps (main.ts).
 
-import { formatKg, formatPln, kgText } from '../../core/numbers';
+import { formatKg, formatPln, kgInputText } from '../../core/numbers';
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import {
@@ -140,7 +140,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         'tr',
         {},
         el('td', { class: 'num nowrap' }, `−${formatPercent(d.tenths)}`),
-        el('td', { class: 'nowrap' }, d.fromGrams === null ? el('span', { class: 'badge badge-warn' }, 'Wpisz, od ilu kg') : `od ${formatKg(d.fromGrams)}`),
+        el('td', { class: 'nowrap' }, d.fromGrams !== null ? `od ${formatKg(d.fromGrams)}` : el('span', { class: 'badge badge-warn' }, d.row?.fromText ? `Popraw: „${d.row.fromText}”` : 'Wpisz, od ilu kg')),
         el('td', {}, d.name || el('span', { class: 'muted' }, 'bez nazwy')),
         actions,
       );
@@ -206,7 +206,8 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     const name = el('input', { id: `${prefix}-name`, type: 'text', autocomplete: 'off', placeholder: 'np. Do 10 kg', maxlength: String(DISCOUNT_NAME_MAX) });
     name.value = discount?.name ?? '';
     const from = el('input', { id: `${prefix}-from`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-xs', placeholder: 'np. 10' });
-    from.value = discount?.fromGrams != null ? kgText(discount.fromGrams).replace('.', ',') : '';
+    // A start Kraken cannot read is shown as it is in the sheet, so the owner sees what to correct.
+    from.value = discount?.fromGrams != null ? kgInputText(discount.fromGrams) : (discount?.row?.fromText ?? '');
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
     const status = el('div', { class: 'save-status' });
     const form = el(
