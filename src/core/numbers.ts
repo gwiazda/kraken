@@ -48,7 +48,10 @@ export function formatWholePln(grosze: number): string {
   return formatPln(grosze).replace(/,00(?=\szł$)/, '');
 }
 
+/** A weight in kg as typed in a box: "60", "21,5". */
+export const kgInputText = (grams: number) => kgText(grams).replace('.', ',');
+
 /** For the screen: "60 kg", "21,5 kg". */
 export function formatKg(grams: number): string {
-  return `${kgText(grams).replace('.', ',')} kg`;
+  return `${kgInputText(grams)} kg`;
 }

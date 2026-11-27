@@ -14,5 +14,6 @@ import { addProductPosition } from './011-add-product-position';
 import { addSpecialPrices } from './012-add-special-prices';
 import { addSaleNotes } from './013-add-sale-notes';
 import { addProductStatus } from './014-add-product-status';
+import { addDiscountFromKg } from './015-add-discount-from-kg';
 
-export const MIGRATIONS: readonly Migration[] = [addLots, addRoasts, addCosts, addPriceList, addProducts, addDiscounts, addProductBeans, addClients, addSales, addProductPosition, addSpecialPrices, addSaleNotes, addProductStatus];
+export const MIGRATIONS: readonly Migration[] = [addLots, addRoasts, addCosts, addPriceList, addProducts, addDiscounts, addProductBeans, addClients, addSales, addProductPosition, addSpecialPrices, addSaleNotes, addProductStatus, addDiscountFromKg];

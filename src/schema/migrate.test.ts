@@ -300,16 +300,35 @@ describe('version 14', () => {
 
   it('adds the status column to the Products tab, agreed on 2026-11-26', () => {
     expect(MIGRATIONS[12]?.steps).toEqual([{ kind: 'add-columns', tab: 'Products', columns: ['status'] }]);
-    expect(APP_SCHEMA_VERSION).toBe(14);
   });
 
   it('updates a version 13 sheet with only the new header cell; every product stays as it was (on sale)', async () => {
     const google = sheetAt(13, [{ title: 'Products', sheetId: 3, rows: [[...header], [...product]] }]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 13), appVersion: 14 });
     expect(result).toMatchObject({ fromVersion: 13, toVersion: 14 });
     expect(tab(google, 'Products')?.rows).toEqual([[...header, 'status'], product]);
     expect(writes(google).filter((r) => r.url.includes('Products'))).toHaveLength(1);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '14']);
+  });
+});
+
+describe('version 15', () => {
+  const header = ['id', 'percent', 'name', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
+  const discount = ['D1', '15', 'Do 10 kg', '2026-11-18T10:00:00.000Z', '2026-11-18T10:00:00.000Z', 'owner@example.com', ''];
+
+  it('adds the from_kg column to the Discounts tab, agreed on 2026-11-27', () => {
+    expect(MIGRATIONS[13]?.steps).toEqual([{ kind: 'add-columns', tab: 'Discounts', columns: ['from_kg'] }]);
+    expect(APP_SCHEMA_VERSION).toBe(15);
+    expect(initialTabs(created).find((t) => t.title === 'Discounts')?.rows[0]).toEqual([...header, 'from_kg']);
+  });
+
+  it('updates a version 14 sheet with only the new header cell; every discount stays as it was', async () => {
+    const google = sheetAt(14, [{ title: 'Discounts', sheetId: 3, rows: [[...header], [...discount]] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result).toMatchObject({ fromVersion: 14, toVersion: 15 });
+    expect(tab(google, 'Discounts')?.rows).toEqual([[...header, 'from_kg'], discount]);
+    expect(writes(google).filter((r) => r.url.includes('Discounts'))).toHaveLength(1);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '15']);
   });
 });
 
