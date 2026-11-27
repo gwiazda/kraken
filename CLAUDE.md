@@ -84,7 +84,7 @@ test that reads every import line), so CI fails if a rule is broken.
   `roastime`: "Sync with RoasTime" (lots and roasts in one step; roasts with no coffee, or a coffee with no delivery, are samples, not tracked), `model.ts` reads the files, `plan.ts` / `roastPlan.ts` the
   preview (pure), `apply.ts` saves (at most 4 requests: lot adds, lot updates, roast adds, roast edits incl. removals and restores);
   `costs`: the **Packaging & discounts** page (owner, 2026-11-18; the Costs & prices page was removed): packaging
-  items per bag size, wholesale discounts with a name for the offer (`modelDiscounts.ts`, "Discounts" tab; while
+  items per bag size, wholesale discounts with a name for the offer and the invoice weight they start from ("od … kg", `from_kg`, migration 15, owner 2026-11-27; `discountForWeight` picks an invoice's discount) (`modelDiscounts.ts`, "Discounts" tab; while
   the tab is empty the template's 15 / 25 / 30 % are used and the first change writes them), VAT and the usual roast
   loss; multipliers fixed at 2×, 2,5×, 3× (`MARKUPS`). Also the cost calculation (`modelCalc.ts`, pure, exact until
   rounded), `pricingFor` (Products: settings, discounts, every lot as a bean with its green price per kg and roast loss, packaging per size) and `lotLosses` (Lots page);

@@ -5,8 +5,8 @@ _Last updated: 2026-11-27_
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 14**:
-  "Special prices" (#36), "Sale notes" tabs and the products' status column; the owner clicks "Aktualizuj teraz" once if Kraken asks).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 15**:
+  "Special prices" (#36), "Sale notes" tabs, the products' status and the discounts' from_kg columns; the owner clicks "Aktualizuj teraz" once if Kraken asks).
 - Lots, Roasts and Sync with RoasTime (lots and roasts in one step, stock left per lot).
 - Products (the one place for prices, beans, cost of one bag), Product planner, Packaging & discounts.
 - Clients with special prices; Sales (sale / sample with any grams and follow-up notes / own use, invoice status);

@@ -5,7 +5,7 @@
 // - VAT and the usual roast loss.
 // The multipliers (2×, 2,5×, 3×) are fixed. Everything from outside comes through CostsPageDeps (main.ts).
 
-import { formatPln } from '../../core/numbers';
+import { formatKg, formatPln, kgText } from '../../core/numbers';
 import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
 import {
@@ -126,7 +126,7 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   // ---- Wholesale discounts ----
 
   /** Writes a whole list at once: while the defaults are in use nothing is in the tab yet, so the first change does. */
-  const writeAll = (list: readonly { tenths: number; name: string }[]) => async () => {
+  const writeAll = (list: readonly { tenths: number; name: string; fromGrams: number | null }[]) => async () => {
     // Someone else may have saved discounts since this page was loaded: then writing the defaults again would
     // double them, so stop and ask to reload instead.
     if ((await deps.repo.load()).discounts.length > 0) throw new Error('Rabaty zostały w międzyczasie zmienione (może przez wspólnika). Odśwież stronę i spróbuj ponownie.');
@@ -136,10 +136,17 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
   function discountsNode(discounts: readonly Discount[], usingDefaults: boolean): HTMLElement {
     const rows = discounts.map((d) => {
       const actions = el('td', { class: 'row-actions nowrap' });
-      const tr = el('tr', {}, el('td', { class: 'num nowrap' }, `−${formatPercent(d.tenths)}`), el('td', {}, d.name || el('span', { class: 'muted' }, 'bez nazwy')), actions);
+      const tr = el(
+        'tr',
+        {},
+        el('td', { class: 'num nowrap' }, `−${formatPercent(d.tenths)}`),
+        el('td', { class: 'nowrap' }, d.fromGrams === null ? el('span', { class: 'badge badge-warn' }, 'Wpisz, od ilu kg') : `od ${formatKg(d.fromGrams)}`),
+        el('td', {}, d.name || el('span', { class: 'muted' }, 'bez nazwy')),
+        actions,
+      );
       const others = discounts.filter((o) => o !== d);
       const edit = () => {
-        const editRow: HTMLTableRowElement = el('tr', {}, el('td', { colspan: '3' }, discountForm(d, others, () => editRow.replaceWith(tr), usingDefaults ? discounts : null)));
+        const editRow: HTMLTableRowElement = el('tr', {}, el('td', { colspan: '4' }, discountForm(d, others, () => editRow.replaceWith(tr), usingDefaults ? discounts : null)));
         tr.replaceWith(editRow);
       };
       const remove = () => {
@@ -167,16 +174,19 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
         {},
         'Rabaty hurtowe ',
         infoTip(
-          'O ile taniej firma kupuje Twoją kawę. Nazwa pojawia się przy cenie w ofercie, żeby klient wiedział, kiedy rabat obowiązuje.',
+          'O ile taniej firma kupuje Twoją kawę. Rabat zależy od wagi kawy na jednej fakturze: obowiązuje od wpisanej wagi (np. od 10 kg, także przy dokładnie 10 kg) do wagi następnego rabatu. Nazwa pojawia się przy cenie w ofercie, żeby klient wiedział, kiedy rabat obowiązuje.',
         ),
       ),
-      el('p', { class: 'muted small' }, `Każdy rabat ma krótką nazwę do oferty (najwyżej ${DISCOUNT_NAME_MAX} znaków). W zakładce Oferta zaznaczasz, które trafią do oferty.`),
+      el('p', { class: 'muted small' }, `Każdy rabat obowiązuje od pewnej wagi kawy na fakturze (najmniejszy od 0 kg) i ma krótką nazwę do oferty (najwyżej ${DISCOUNT_NAME_MAX} znaków). W zakładce Oferta zaznaczasz, które trafią do oferty.`),
+      ...(discounts.some((d) => d.fromGrams === null)
+        ? [message('Wpisz, od ilu kg kawy na fakturze obowiązuje każdy rabat (kliknij rabat, aby go zmienić). Bez tego Kraken nie dobierze rabatu do faktury.', 'error')]
+        : []),
       ...(rows.length > 0
         ? [
             el(
               'table',
               { class: 'data-table discounts-table' },
-              el('thead', {}, el('tr', {}, el('th', { scope: 'col', class: 'num' }, 'Rabat'), el('th', { scope: 'col' }, 'Nazwa w ofercie'), el('th', { scope: 'col' }, ''))),
+              el('thead', {}, el('tr', {}, el('th', { scope: 'col', class: 'num' }, 'Rabat'), el('th', { scope: 'col' }, 'Od'), el('th', { scope: 'col' }, 'Nazwa w ofercie'), el('th', { scope: 'col' }, ''))),
               el('tbody', {}, ...rows),
             ),
           ]
@@ -195,6 +205,8 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     percent.value = discount ? percentText(discount.tenths).replace('.', ',') : '';
     const name = el('input', { id: `${prefix}-name`, type: 'text', autocomplete: 'off', placeholder: 'np. Do 10 kg', maxlength: String(DISCOUNT_NAME_MAX) });
     name.value = discount?.name ?? '';
+    const from = el('input', { id: `${prefix}-from`, type: 'text', inputmode: 'decimal', autocomplete: 'off', class: 'input-xs', placeholder: 'np. 10' });
+    from.value = discount?.fromGrams != null ? kgText(discount.fromGrams).replace('.', ',') : '';
     const errorLine = el('p', { class: 'field-error', role: 'alert' });
     const status = el('div', { class: 'save-status' });
     const form = el(
@@ -204,6 +216,9 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
       '−',
       percent,
       '% ',
+      el('label', { for: from.id }, 'od '),
+      from,
+      ' kg ',
       el('label', { for: name.id, class: 'visually-hidden' }, 'Nazwa w ofercie'),
       name,
       ' ',
@@ -215,12 +230,12 @@ export function showPackagingPage(root: HTMLElement, deps: CostsPageDeps, note?:
     );
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      const result = validateDiscount({ percent: percent.value, name: name.value }, others);
-      errorLine.textContent = result.ok ? '' : [result.errors.percent, result.errors.name].filter((t) => t).join(' ');
+      const result = validateDiscount({ percent: percent.value, name: name.value, from: from.value }, others);
+      errorLine.textContent = result.ok ? '' : [result.errors.percent, result.errors.from, result.errors.name].filter((t) => t).join(' ');
       if (!result.ok) return;
       const label = `−${formatPercent(result.tenths)}`;
       const row = discount?.row;
-      if (defaults) save(status, 'Zapisuję…', writeAll([...defaults.filter((d) => d !== discount), { tenths: result.tenths, name: result.name }]), `Zapisano rabat ${label}.`);
+      if (defaults) save(status, 'Zapisuję…', writeAll([...defaults.filter((d) => d !== discount), { tenths: result.tenths, name: result.name, fromGrams: result.fromGrams }]), `Zapisano rabat ${label}.`);
       else if (row) save(status, 'Zapisuję…', () => deps.repo.updateDiscount(row, result.fields, deps.now()), `Zapisano rabat ${label}.`);
       else save(status, 'Dodaję…', async () => deps.repo.addDiscounts([result.fields], await deps.whoAmI(), deps.now()), `Dodano rabat ${label}.`);
     });

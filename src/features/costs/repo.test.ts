@@ -68,11 +68,11 @@ describe('sheetCostsRepository (in-memory Google)', () => {
   it('writes the default discounts on the first change, then adds, edits and soft-deletes single ones', async () => {
     const { repo } = await setup();
     expect(activeDiscounts((await repo.load()).discounts).usingDefaults).toBe(true);
-    await repo.addDiscounts([discountFields({ tenths: 150, name: 'Do 10 kg' }), discountFields({ tenths: 200, name: 'Partnerzy' })], 'owner@example.com', now);
+    await repo.addDiscounts([discountFields({ tenths: 150, name: 'Do 10 kg', fromGrams: 0 }), discountFields({ tenths: 200, name: 'Partnerzy', fromGrams: 12_500 })], 'owner@example.com', now);
     let rows = (await repo.load()).discounts;
-    expect(activeDiscounts(rows).discounts.map((d) => [d.tenths, d.name])).toEqual([
-      [150, 'Do 10 kg'],
-      [200, 'Partnerzy'],
+    expect(activeDiscounts(rows).discounts.map((d) => [d.tenths, d.name, d.fromGrams])).toEqual([
+      [150, 'Do 10 kg', 0],
+      [200, 'Partnerzy', 12_500],
     ]);
     const partners = rows[1];
     if (!partners) throw new Error('setup');

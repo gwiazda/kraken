@@ -239,8 +239,12 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
      (10 kg exactly is already −25 %).
   - The total weight counts **every bag on the invoice, special prices included** (e.g. 8 kg at special prices +
     4 kg = 12 kg, so the others get −25 %), all sizes (250 g, 500 g, 1 kg), but **not free (gratis) bags**.
-  - Open: today a discount has only a percent and a name ("Do 10 kg"); Kraken needs the weight where each one starts
-    as a number. To decide when this is built (e.g. a "from kg" column in Packaging & discounts).
+  - **Where each discount starts (owner, 2026-11-27; built, data version 15):** each discount in Packaging &
+    discounts has an "od … kg" (`from_kg` column of the Discounts tab), the weight on one invoice from which it
+    applies; the lowest starts at 0. An invoice gets the discount with the highest start not above its weight (10 kg
+    exactly gets "from 10 kg"); below the lowest start, or while no start is typed, no discount. After the update
+    the owner types it once for each saved discount (Kraken asks); while the tab is empty the defaults start at
+    0 / 10 / 20 kg. A start can be used by one discount only.
 - **Sales** tab (built, data version 10: "Sales" and "Sale lines" tabs): one record per entry, added by either owner: a **sale** to a client (lines: product, size,
   number of bags; a line can be free),
   a **sample** left somewhere (a client, or a place typed in), or **own use** (one of us took a bag; no reason asked, owner 2026-11-21; a reason saved earlier stays).
@@ -596,7 +600,7 @@ Drive until the owner deletes them. A brand-new sheet is created in one all-or-n
 migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
-is built. Today (data version 14): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
+is built. Today (data version 15): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
 read), Products, Discounts, Product beans, Clients, Sales, Sale lines, Special prices (section 5, version 12), Sale
-notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column.
+notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column, version 15 the discounts' `from_kg`.
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.
