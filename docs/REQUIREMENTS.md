@@ -259,9 +259,10 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   250 g** (a new sample line starts on **150 g**), or **"Inna…"** to type any amount (owner, 2026-11-24). Each sample has **Follow-up notes**: a dated
   log ("2026-11-25: called, they liked the Kenia") under its form; add a note, delete an old one (can be restored);
   the newest one shows under the sample in the Sales list. Sheet: "Sale notes" tab (data version 13).
-- **No prices in Sales** (owner, 2026-11-19): it records only how much went out (bags, and which are free). The owner
-  takes the prices from the client's offer when issuing the invoice; the partner does not need to know them. The
-  `unit_price_net_pln` column of the Sale lines tab stays (migration 10) but is left empty.
+- **Prices in Sales (owner, 2026-11-27; until then "no prices in Sales", 2026-11-19):** the partner may see the
+  prices, so a sale can show them, calculated by "Prices on an invoice" above (not built yet). **Issuing the invoice
+  in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`). The `unit_price_net_pln` column of the Sale lines
+  tab stays (migration 10), still empty; whether to store the price there is decided when it is built.
 
 ---
 

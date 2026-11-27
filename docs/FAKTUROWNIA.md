@@ -75,6 +75,10 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
    can be used by anyone holding an owner's Kraken sign-in, e.g. "list clients" would give them the client list
    (NIPs, emails); so only actions the feature really needs go on it, and creating invoices should create
    **drafts** if the API allows it (to check).
+   **Who may do what (owner, 2026-11-27):** the allowed list says, per action, which emails may use it. **Issuing
+   (creating) an invoice: the owner only**, never the partner. Reading (e.g. whether an invoice is paid) may be
+   both. Kraken also hides the invoice button from the partner, but the lock that counts is this check in the
+   middleman (a screen can be got around; the middleman cannot).
 4. **Middleman → Fakturownia:** a new request with the **secret token** in the `Authorization: Bearer` header.
 5. **Fakturownia → middleman → Kraken:** only what Kraken needs (e.g. invoice number, status, PDF link) is passed
    back. The token never reaches the browser.
@@ -83,7 +87,7 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 |---|---|---|---|
 | Fakturownia token | never | only here (Worker secret) | never |
 | Google sign-in | in memory, as today | passes through for the check | never |
-| The two allowed emails | | setting | never |
+| The allowed emails (owner; partner for reading only) | | secret | never |
 
 ## Who does what: a "thin" middleman
 
