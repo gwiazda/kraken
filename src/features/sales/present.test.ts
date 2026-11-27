@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { formatWholePln } from '../../core/numbers';
 import { lineFromFields, saleFromFields } from './model';
-import { bagsText, clientFacts, deletedEntryText, saleFacts, saleRows, whoText } from './present';
+import { bagsText, clientFacts, deletedEntryText, priceView, saleFacts, savedNet, saleRows, whoText } from './present';
 
 const sale = (row: number, o: Record<string, string> = {}) =>
   saleFromFields({ id: `S${row}`, date: '2026-11-19', kind: 'sale', client_id: 'C1', invoice_status: 'to_issue', created_by: 'partner@example.com', ...o }, row);
@@ -103,5 +104,54 @@ describe('whoText and deletedEntryText', () => {
   it('writes a deleted entry without a dangling "·" when there is no who', () => {
     expect(deletedEntryText(sale(1), name)).toBe('19.11.2026 · Sprzedaż · Café Nowa');
     expect(deletedEntryText(sale(1, { kind: 'own_use', client_id: '' }), name)).toBe('19.11.2026 · Na własny użytek');
+  });
+});
+
+describe('prices on the screen (owner, 2026-11-27)', () => {
+  it('shows the saved net total of a fully priced sale, and nothing otherwise', () => {
+    const priced = [line(2, 'S2', { unit_price_net_pln: '112', bags: '8', price_kind: 'special' }), line(3, 'S2', { unit_price_net_pln: '30', bags: '16', price_kind: 'discount' }), line(4, 'S2', { unit_price_net_pln: '', free: 'yes' })];
+    expect(savedNet(sale(2), priced)).toBe(formatWholePln(137600)); // 8 × 112 + 16 × 30 = 1376 zł; the free bag is not counted
+    expect(savedNet(sale(2), [line(2, 'S2', { unit_price_net_pln: '' })])).toBe(''); // saved before prices existed
+    expect(savedNet(sale(3, { kind: 'sample', invoice_status: '' }), priced)).toBe('');
+    expect(savedNet(sale(2), [])).toBe('');
+  });
+
+  it("explains each line's price, the weight and the discount, and the total", () => {
+    const view = priceView(
+      [
+        { productId: 'P1', grams: 1000, bags: 8, free: false },
+        { productId: 'P2', grams: 250, bags: 16, free: false },
+        { productId: 'P2', grams: 250, bags: 1, free: true },
+        { productId: 'P1', grams: 500, bags: 1, free: false },
+      ],
+      {
+        weightGrams: 12_500,
+        discountTenths: 250,
+        discountKept: false,
+        lines: [
+          { kind: 'special', unitNet: 11200, totalNet: 89600, kept: false },
+          { kind: 'discount', unitNet: 3000, totalNet: 48000, kept: true },
+          { kind: 'free' },
+          { kind: 'missing', reason: 'produkt nie ma ceny za tę wielkość (zakładka Produkty)' },
+        ],
+        totalNet: 137600,
+        complete: false,
+      },
+      (id) => products[id],
+      (tenths) => (tenths === 250 ? '10–20 kg' : ''),
+    );
+    expect(view.rows.map((r) => [r.item, r.bags, r.unit, r.why, r.total, r.missing])).toEqual([
+      ['GWATEMALA 1 kg', '8', '112 zł', 'cena specjalna', '896 zł', false],
+      ['KENIA 250 g', '16', '30 zł', '−25 %, jak na fakturze', '480 zł', false],
+      ['KENIA 250 g', '1', '', 'gratis', '', false],
+      ['GWATEMALA 500 g', '1', '', 'produkt nie ma ceny za tę wielkość (zakładka Produkty)', '', true],
+    ]);
+    expect(view.summary).toBe('12,5 kg kawy na fakturze (bez gratisów) · rabat −25 % (10–20 kg)');
+    expect(view.total).toBe(formatWholePln(137600));
+  });
+
+  it('says when the discount is the one on the issued invoice', () => {
+    const view = priceView([], { weightGrams: 25_000, discountTenths: 150, discountKept: true, lines: [], totalNet: 0, complete: true }, () => 'X', () => 'Do 10 kg');
+    expect(view.summary).toBe('25\u00a0kg kawy na fakturze (bez gratisów) · rabat −15\u00a0% (jak na fakturze)');
   });
 });

@@ -2312,7 +2312,7 @@ select.list-filter {
       'date kind'
       'who who'
       'items items'
-      'bags bags'
+      'bags net'
       'status actions'
       'issued issued';
     gap: 0.25rem 0.75rem;
@@ -2364,6 +2364,13 @@ select.list-filter {
   .sales-table .c-bags {
     grid-area: bags;
     color: var(--grey);
+  }
+
+  /* A sale's saved net total, next to how many bags (owner, 2026-11-27). */
+  .sales-table .c-net {
+    grid-area: net;
+    justify-self: end;
+    font-weight: 600;
   }
 
   .sales-table .c-status {

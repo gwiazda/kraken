@@ -228,8 +228,8 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   never goes into the code or tests). **No discount per client** (owner, 2026-11-27; it was there until then): the
   discount depends on each invoice's weight (see "Prices on an invoice" below), and a client's own prices are its
   special prices (section 5). Kraken no longer reads or writes the `discount_percent` column; it stays in the sheet.
-- **Prices on an invoice (owner, 2026-11-27; decided, not built yet).** Invoices made in Fakturownia
-  (`docs/FAKTUROWNIA.md`) need prices calculated by these rules, for each line:
+- **Prices on an invoice (owner, 2026-11-27; built in Sales, `features/sales/pricing.ts`).** A sale's prices, and later
+  the invoices made in Fakturownia (`docs/FAKTUROWNIA.md`), follow these rules, for each line:
   1. The client has a **special price** for this product and size (their page in Clients): that price, final. No
      weight discount on top of it.
   2. Otherwise the **wholesale price** (as on a product's page): the main gross price without VAT, minus the discount
@@ -265,10 +265,16 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   250 g** (a new sample line starts on **150 g**), or **"Inna…"** to type any amount (owner, 2026-11-24). Each sample has **Follow-up notes**: a dated
   log ("2026-11-25: called, they liked the Kenia") under its form; add a note, delete an old one (can be restored);
   the newest one shows under the sample in the Sales list. Sheet: "Sale notes" tab (data version 13).
-- **Prices in Sales (owner, 2026-11-27; until then "no prices in Sales", 2026-11-19):** the partner may see the
-  prices, so a sale can show them, calculated by "Prices on an invoice" above (not built yet). **Issuing the invoice
-  in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`). The `unit_price_net_pln` column of the Sale lines
-  tab stays (migration 10), still empty; whether to store the price there is decided when it is built.
+- **Prices in Sales (owner, 2026-11-27; built, data version 16; until then "no prices in Sales", 2026-11-19):** the
+  partner may see them. A sale's form shows its prices live ("Ceny netto": each line's net price and why: "cena
+  specjalna" or the discount; the weight and discount; the net total), and the list a "Netto" column. **Saved with
+  the sale** (owner's choice, so what Kraken shows matches what was invoiced): each line's net price in
+  `unit_price_net_pln` (migration 10) and `price_kind` (special / discount), the sale's discount in
+  `discount_percent` (migration 16). While the invoice is "to be issued", every save works them out again; **once
+  issued (or paid), the saved prices and discount stay**, and only a changed or added line is worked out. Free bags,
+  samples and own use have no price. A line that cannot be priced (no retail price for that size, discounts not set
+  up) is saved without one and says why. A sale saved before prices existed shows no "Netto" until it is saved again.
+  **Issuing the invoice in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`).
 
 ---
 
@@ -600,7 +606,7 @@ Drive until the owner deletes them. A brand-new sheet is created in one all-or-n
 migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
-is built. Today (data version 15): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
+is built. Today (data version 16): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
 read), Products, Discounts, Product beans, Clients, Sales, Sale lines, Special prices (section 5, version 12), Sale
-notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column, version 15 the discounts' `from_kg`.
+notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column, version 15 the discounts' `from_kg`, version 16 a sale's `discount_percent` and its lines' `price_kind`.
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.

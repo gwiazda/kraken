@@ -1,14 +1,15 @@
 // The Sales screen (owner, 2026-11-19): what went out and the invoices to issue. Either owner adds entries: a sale
 // to a client (the invoice starts "to be issued"), a sample left somewhere, or own use. The list has filters
-// ("Invoice to be issued" first) and a dropdown for the invoice status (today's date is taken). No prices (owner, 2026-11-19): it
-// records how much went out; the owner takes the prices from the client's offer when issuing the invoice.
+// ("Invoice to be issued" first) and a dropdown for the invoice status (today's date is taken). A sale's prices
+// (owner, 2026-11-27) are worked out by the invoice price rules (pricing.ts), shown live in the form and saved with it.
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
 import { formatDate, localDate } from '../../core/dates';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
-import { busy, button, clickableRow, el, infoTip, message } from '../../ui/dom';
+import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
-import { isClientDeleted, sortClients, type Client, type ClientsRepository } from '../clients';
+import { isClientDeleted, offerDeals, dealKey, sortClients, type Client, type ClientsRepository, type SpecialPrice, type SpecialPricesRepository } from '../clients';
+import { activeDiscounts, readSettings, type CostsRepository, type Discount } from '../costs';
 import { isProductDeleted, sortProducts, type Product, type ProductsRepository } from '../products';
 import {
   DATE_LABELS,
@@ -40,7 +41,8 @@ import {
   type SaleKind,
   type SaleLine,
 } from './model';
-import { FILTERS, bagsText, clientFacts, deletedEntryText, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
+import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
+import { priceCells, priceEntry, type LineToPrice, type PricingData } from './pricing';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -52,6 +54,9 @@ export interface SalesPageDeps {
   notes: SaleNotesRepository;
   clients: ClientsRepository;
   products: ProductsRepository;
+  /** For a sale's prices (owner, 2026-11-27): the clients' special prices, and VAT and discounts. */
+  prices: SpecialPricesRepository;
+  costs: CostsRepository;
   whoAmI: () => Promise<string>;
   /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
@@ -74,6 +79,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let sampleNotes: SaleNote[] = [];
   let clients: Client[] = [];
   let products: Product[] = [];
+  let deals: SpecialPrice[] = [];
+  let discounts: Discount[] = [];
+  let vatTenths = 230;
   let problems: string[] = [];
   /** The filter shown: Sales always opens on the invoices to issue (owner, 2026-11-26). */
   let filter: SalesFilter = 'to_issue';
@@ -105,15 +113,20 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function load(note?: string, fromClick = false): void {
     render(el('p', {}, busy('Wczytuję sprzedaż…')));
-    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), deps.notes.load()]);
+    const all = () => Promise.all([deps.repo.load(), deps.clients.load(), deps.products.load(), deps.notes.load(), deps.prices.load(), deps.costs.load()]);
     (fromClick ? deps.withGoogle(all) : all())
-      .then(([s, c, p, n]) => {
+      .then(([s, c, p, n, d, costs]) => {
         if (!root.isConnected) return;
         sales = s.sales;
         lines = s.lines;
         sampleNotes = n.notes;
         clients = c.clients;
         products = p.products;
+        deals = d.deals;
+        const settings = readSettings(costs.settings);
+        const found = activeDiscounts(costs.discounts);
+        vatTenths = settings.settings.vatTenths;
+        discounts = found.discounts;
         const active = s.sales.filter((x) => !isDeleted(x));
         const activeIds = new Set(active.map((x) => x.id));
         problems = [
@@ -121,6 +134,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ...c.problems,
           ...p.problems,
           ...n.problems,
+          ...d.problems,
+          ...settings.problems,
+          ...found.problems,
           ...active.flatMap((x) => x.problems),
           ...s.lines.filter((l) => l.deletedAt === '' && activeIds.has(l.saleId)).flatMap((l) => l.problems),
           ...lineSizeProblems(active, s.lines),
@@ -161,6 +177,17 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   const findClient = (id: string) => clients.find((c) => c.id === id);
   const clientName = (id: string) => findClient(id)?.name;
   const productName = (id: string) => products.find((p) => p.id === id)?.name;
+  /** What a sale's prices are worked out from, for this client: as Products, Clients and Packaging & discounts have them now. */
+  const pricingData = (clientId: string): PricingData => {
+    const special = offerDeals(deals, clientId, products);
+    return {
+      retail: (productId, grams) => products.find((p) => p.id === productId && !isProductDeleted(p))?.prices[grams as keyof Product['prices']],
+      special: (productId, grams) => special.get(dealKey(productId, grams)),
+      discounts,
+      vatTenths,
+    };
+  };
+  const discountName = (tenths: number) => discounts.find((d) => d.tenths === tenths)?.name ?? '';
   /** The client as the Clients tab has it now (so a change there shows on the entry's page). */
   const clientInfo = (id: string): ClientInfo | undefined => {
     const c = findClient(id);
@@ -186,7 +213,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       const extra = el('tr', { class: 'confirm-row', hidden: '' });
       const sale = r.sale;
       const inline = (...children: (Node | string)[]) => {
-        extra.replaceChildren(el('td', { colspan: '8' }, ...children));
+        extra.replaceChildren(el('td', { colspan: '9' }, ...children));
         extra.hidden = false;
       };
       /** Puts the status dropdown back to the stored status (a date box closed without saving). */
@@ -269,6 +296,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ),
           el('td', { class: 'c-items' }, r.items),
           el('td', { class: 'num nowrap c-bags' }, r.bags || el('span', { class: 'muted' }, '—')),
+          el('td', { class: `num nowrap c-net${r.net ? '' : ' c-empty'}` }, r.net || el('span', { class: 'muted' }, '—')),
           statusCell,
           el('td', { class: `nowrap c-issued${r.invoiceDate ? '' : ' c-empty'}`, 'data-label': 'Wystawiona' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
           actions,
@@ -308,7 +336,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             el(
               'table',
               { class: 'data-table sales-table' },
-              el('thead', {}, el('tr', {}, ...['Data', 'Rodzaj', 'Klient / miejsce', 'Produkty', 'Ilość', 'Faktura', 'Wystawiona', ''].map((h) => el('th', { scope: 'col' }, h)))),
+              el('thead', {}, el('tr', {}, ...['Data', 'Rodzaj', 'Klient / miejsce', 'Produkty', 'Ilość', 'Netto', 'Faktura', 'Wystawiona', ''].map((h) => el('th', { scope: 'col' }, h)))),
               el('tbody', {}, ...rows.flatMap(row)),
             ),
           ),
@@ -351,6 +379,51 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const whoHolder = el('div', { class: 'fields' });
     const linesHolder = el('div', {});
     const totalLine = el('p', { class: 'sale-total' });
+    const pricesBox = el('fieldset', { class: 'form-section' });
+    /** The saved sale, for prices that stay once its invoice is issued. */
+    const storedPrices = sale ? { sale, lines: existingLines } : null;
+    /** The lines as they are now in the form, read for the prices. */
+    const linesToPrice = (): LineToPrice[] =>
+      form.lines.map((l) => {
+        const grams = Number(l.grams);
+        return { productId: l.productId, grams: l.grams !== '' && Number.isInteger(grams) && grams > 0 ? grams : null, bags: typedBags(l.bags), free: form.kind === 'sale' && l.free };
+      });
+    const pricing = () => priceEntry(form.kind, linesToPrice(), pricingData(form.clientId), storedPrices);
+    /** A sale's prices, live (owner, 2026-11-27): what saving will store. Samples and own use have none. */
+    const renderPrices = () => {
+      pricesBox.hidden = form.kind !== 'sale';
+      if (pricesBox.hidden) return;
+      const view = priceView(linesToPrice(), pricing(), productName, discountName);
+      pricesBox.replaceChildren(
+        el('legend', {}, 'Ceny netto '),
+        el('p', { class: 'muted small' }, view.summary, ' ', infoTip('Cena specjalna klienta (zakładka Klienci), jeśli ją ma; inaczej cena hurtowa: główna cena bez VAT minus rabat za wagę kawy na fakturze (Opakowania i rabaty), zaokrąglona do pełnych złotych. Ceny zapisują się z tą sprzedażą; dopóki faktura nie jest wystawiona, każde zapisanie liczy je od nowa. Po wystawieniu faktury zapisane ceny zostają.')),
+        el(
+          'div',
+          { class: 'table-wrap' },
+          cardTable(el(
+            'table',
+            { class: 'data-table sale-prices' },
+            el('thead', {}, el('tr', {}, ...['Produkt', 'Torebki', 'Cena netto', 'Razem netto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
+            el(
+              'tbody',
+              {},
+              ...view.rows.map((r) =>
+                el(
+                  'tr',
+                  {},
+                  el('td', {}, r.item),
+                  el('td', { class: 'num' }, r.bags),
+                  // The price and why it is that price ("cena specjalna", "−25 %", "gratis", or why there is none).
+                  el('td', { class: 'num' }, ...(r.unit ? [el('span', { class: 'nowrap' }, r.unit), ' '] : []), el('span', { class: r.missing ? 'field-error' : 'muted small' }, r.why)),
+                  el('td', { class: 'num nowrap' }, r.total),
+                ),
+              ),
+            ),
+          )),
+        ),
+        el('p', { class: 'sale-total' }, 'Razem netto: ', el('strong', {}, view.total)),
+      );
+    };
 
     const date = el('input', { id: 'sale-date', type: 'date' });
     date.value = form.date;
@@ -402,6 +475,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         select.addEventListener('change', () => {
           form.clientId = select.value;
           renderWho();
+          renderPrices(); // special prices are the client's
         });
         fields.push(
           el(
@@ -424,6 +498,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const showTotal = () => {
       const text = bagsText(form.lines.map((l) => ({ bags: typedBags(l.bags), free: l.free })), form.kind);
       totalLine.replaceChildren(...(text ? ['Razem: ', el('strong', {}, text)] : []));
+      renderPrices();
     };
 
     /** A sample's size: 100, 150 or 250 g, or "Inna" with any amount typed in (owner, 2026-11-24). */
@@ -459,7 +534,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         const bagSize = () => {
           const size = el('select', { 'aria-label': `Pozycja ${i + 1}: wielkość torebki` }, ...BAG_SIZES_G.map((g) => el('option', { value: String(g) }, formatBagSize(g))));
           size.value = line.grams;
-          size.addEventListener('change', () => (line.grams = size.value));
+          size.addEventListener('change', () => {
+            line.grams = size.value;
+            showTotal();
+          });
           return [size];
         };
         const bags = el('input', { type: 'text', inputmode: 'numeric', class: 'input-xs', 'aria-label': `Pozycja ${i + 1}: ${sample ? 'liczba opakowań' : 'liczba torebek'}`, autocomplete: 'off' });
@@ -468,6 +546,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         free.checked = line.free;
         product.addEventListener('change', () => {
           line.productId = product.value;
+          showTotal();
         });
         bags.addEventListener('input', () => {
           line.bags = bags.value;
@@ -563,6 +642,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       }
       errorBox.replaceChildren();
       banner.replaceChildren();
+      // The prices are worked out now and saved with the sale (owner, 2026-11-27); samples and own use get none.
+      const cells = priceCells(pricing());
+      const fields = { ...result.fields, ...cells.sale };
+      const wantedLines = result.lines.map((l, i) => ({ ...l, ...cells.lines[i] }));
       setBusy(true);
       appBusy(true);
       formSaving = true;
@@ -572,14 +655,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           const by = async () => (email ??= await deps.whoAmI());
           if (savedId === null) {
             if (sale) {
-              const changes = changedSaleFields(sale, saleEditFields(sale, form.kind, result.fields));
+              const changes = changedSaleFields(sale, saleEditFields(sale, form.kind, fields));
               if (Object.keys(changes).length > 0) await deps.repo.update(sale, changes, deps.now());
               savedId = sale.id;
-              await deps.repo.saveLines(sale.id, result.lines, existingLines, by, deps.now());
+              await deps.repo.saveLines(sale.id, wantedLines, existingLines, by, deps.now());
             } else {
               // The sale first, then its lines: if the lines fail, a retry saves only them (never a second sale).
-              savedId = await deps.repo.add({ ...result.fields, ...startingInvoice(form.kind) }, await by(), deps.now());
-              await deps.repo.saveLines(savedId, result.lines, [], by, deps.now());
+              savedId = await deps.repo.add({ ...fields, ...startingInvoice(form.kind) }, await by(), deps.now());
+              await deps.repo.saveLines(savedId, wantedLines, [], by, deps.now());
             }
             return;
           }
@@ -587,10 +670,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           const fresh = await deps.repo.load();
           const stored = fresh.sales.find((s) => s.id === savedId);
           if (stored) {
-            const changes = changedSaleFields(stored, result.fields);
+            const changes = changedSaleFields(stored, fields);
             if (Object.keys(changes).length > 0) await deps.repo.update(stored, changes, deps.now());
           }
-          await deps.repo.saveLines(savedId, result.lines, linesOf(fresh.lines, savedId), by, deps.now());
+          await deps.repo.saveLines(savedId, wantedLines, linesOf(fresh.lines, savedId), by, deps.now());
         })
         .finally(() => {
           appBusy(false);
@@ -618,6 +701,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Co to było?'), kindHolder),
       el('fieldset', { class: 'form-section' }, whoLegend, whoHolder),
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Produkty'), linesHolder, totalLine),
+      pricesBox,
       el('fieldset', { class: 'form-section' }, el('legend', {}, 'Uwagi'), el('div', { class: 'field field-wide' }, el('label', { for: notes.id, class: 'visually-hidden' }, 'Uwagi'), notes)),
       errorBox,
       el('div', { class: 'actions' }, saveButton, cancelButton),

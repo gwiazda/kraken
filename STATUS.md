@@ -5,8 +5,8 @@ _Last updated: 2026-11-27_
 Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUDE.md` for lasting decisions.
 
 ## Done (all merged and live at https://gwiazda.github.io/kraken/)
-- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 15**:
-  "Special prices" (#36), "Sale notes" tabs, the products' status and the discounts' from_kg columns; the owner clicks "Aktualizuj teraz" once if Kraken asks).
+- Sign-in, choose/create the Kraken sheet, versioned migrations with backup (sheet needs **data version 16**:
+  "Special prices" (#36), "Sale notes" tabs, the products' status, the discounts' from_kg and the sales' price columns; the owner clicks "Aktualizuj teraz" once if Kraken asks).
 - Lots, Roasts and Sync with RoasTime (lots and roasts in one step, stock left per lot).
 - Products (the one place for prices, beans, cost of one bag), Product planner, Packaging & discounts.
 - Clients with special prices; Sales (sale / sample with any grams and follow-up notes / own use, invoice status);
@@ -18,11 +18,12 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
 - **Phone layout for every tab** (#45), own use without "Po co?" (#46), offer discounts per invoice (#47), the 250 g
   price fills in 500 g and 1 kg (#48), sample sizes and client details in Sales (#49), general offer, product status
   W sprzedaży / Próbne / Wycofane (data version 14; only products on sale on the Offer) and Sales opening on
-  "Faktura do wystawienia" (#50), no discount per client and the invoice price rules written down (#52).
+  "Faktura do wystawienia" (#50), no discount per client and the invoice price rules written down (#52), each
+  discount's starting weight "od … kg" (#53).
 
 ## In progress
-- Branch `claude/discount-from-kg`: each discount gets the weight it starts from ("od … kg"), so Kraken can pick an
-  invoice's discount from its weight.
+- Branch `claude/sale-prices`: a sale's prices (special price, else wholesale at the discount for its weight),
+  shown live in the form and saved with the sale (data version 16); "Netto" in the list; kept once invoiced.
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
