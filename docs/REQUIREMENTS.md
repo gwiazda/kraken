@@ -266,8 +266,9 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   log ("2026-11-25: called, they liked the Kenia") under its form; add a note, delete an old one (can be restored);
   the newest one shows under the sample in the Sales list. Sheet: "Sale notes" tab (data version 13).
 - **Prices in Sales (owner, 2026-11-27; built, data version 16; until then "no prices in Sales", 2026-11-19):** the
-  partner may see them. A sale's form shows its prices live ("Ceny netto": each line's net price and why: "cena
-  specjalna" or the discount; the weight and discount; the net total), and the list a "Netto" column. **Saved with
+  partner may see them. A sale's form shows its prices live ("Ceny": each line's net price and why: "cena
+  specjalna" or the discount; its gross price with VAT, to the grosz (owner, 2026-11-27); the weight and discount;
+  the net and gross totals, the gross total being the net total with VAT), and the list a "Netto" column. **Saved with
   the sale** (owner's choice, so what Kraken shows matches what was invoiced): each line's net price in
   `unit_price_net_pln` (migration 10) and `price_kind` (special / discount), the sale's discount in
   `discount_percent` (migration 16). While the invoice is "to be issued", every save works them out again; **once

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatWholePln } from '../../core/numbers';
+import { formatPln, formatWholePln } from '../../core/numbers';
 import { lineFromFields, saleFromFields } from './model';
 import { bagsText, clientFacts, deletedEntryText, priceView, saleFacts, savedNet, saleRows, whoText } from './present';
 
@@ -139,6 +139,7 @@ describe('prices on the screen (owner, 2026-11-27)', () => {
       },
       (id) => products[id],
       (tenths) => (tenths === 250 ? '10–20 kg' : ''),
+      230,
     );
     expect(view.rows.map((r) => [r.item, r.bags, r.unit, r.why, r.total, r.missing])).toEqual([
       ['GWATEMALA 1 kg', '8', '112 zł', 'cena specjalna', '896 zł', false],
@@ -146,12 +147,21 @@ describe('prices on the screen (owner, 2026-11-27)', () => {
       ['KENIA 250 g', '1', '', 'gratis', '', false],
       ['GWATEMALA 500 g', '1', '', 'produkt nie ma ceny za tę wielkość (zakładka Produkty)', '', true],
     ]);
+    // With VAT 23 %, to the grosz: 112 → 137,76 zł; 8 × 112 = 896 → 1102,08 zł; 30 → 36,90 zł; 480 → 590,40 zł.
+    expect(view.rows.map((r) => [r.unitGross, r.totalGross])).toEqual([
+      [formatPln(13776), formatPln(110208)],
+      [formatPln(3690), formatPln(59040)],
+      ['', ''],
+      ['', ''],
+    ]);
+    // The gross total is the net total with VAT, rounded once: 1376 → 1692,48 zł.
+    expect(view.totalGross).toBe(formatPln(169248));
     expect(view.summary).toBe('12,5 kg kawy na fakturze (bez gratisów) · rabat −25 % (10–20 kg)');
     expect(view.total).toBe(formatWholePln(137600));
   });
 
   it('says when the discount is the one on the issued invoice', () => {
-    const view = priceView([], { weightGrams: 25_000, discountTenths: 150, discountKept: true, lines: [], totalNet: 0, complete: true }, () => 'X', () => 'Do 10 kg');
+    const view = priceView([], { weightGrams: 25_000, discountTenths: 150, discountKept: true, lines: [], totalNet: 0, complete: true }, () => 'X', () => 'Do 10 kg', 230);
     expect(view.summary).toBe('25\u00a0kg kawy na fakturze (bez gratisów) · rabat −15\u00a0% (jak na fakturze)');
   });
 });

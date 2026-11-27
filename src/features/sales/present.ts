@@ -1,9 +1,10 @@
 // What the Sales page shows, as plain text, so it is tested without a browser: a short summary of each entry (who,
 // what, how many bags, the saved net total) and the filters with their counts, and a sale's prices (owner, 2026-11-27).
 
-import { formatKg, formatWholePln } from '../../core/numbers';
+import { formatKg, formatPln, formatWholePln } from '../../core/numbers';
 import { formatBagSize } from '../../domain/bagSizes';
 import { formatPercent } from '../../domain/percent';
+import { grossOf, roundGrosze } from '../../domain/prices';
 import { formatDate, localDate } from '../../core/dates';
 import { count } from '../../core/polish';
 import { DATE_LABELS, KIND_LABELS, STATUS_LABELS, bagCount, isDeleted, linesOf, sortSales, type InvoiceStatus, type Sale, type SaleKind, type SaleLine } from './model';
@@ -170,15 +171,20 @@ export interface PriceRow {
   readonly bags: string;
   /** "112 zł"; '' for a free bag or a line without a price. */
   readonly unit: string;
+  /** The same with VAT, to the grosz: "137,76 zł" (owner, 2026-11-27); '' when no price. */
+  readonly unitGross: string;
   /** "cena specjalna", "−25 %", "gratis", or why there is no price. */
   readonly why: string;
   /** "896 zł"; '' when no price. */
   readonly total: string;
+  /** "1 102,08 zł"; '' when no price. */
+  readonly totalGross: string;
   readonly missing: boolean;
 }
 
 /**
- * A sale's prices for its page (owner, 2026-11-27): one row per line, the weight and discount, and the net total.
+ * A sale's prices for its page (owner, 2026-11-27): one row per line, net and gross (with VAT, to the grosz), the
+ * weight and discount, and the totals; the gross total is the net total with VAT (rounded once).
  * `discountName`: a discount's name in Packaging & discounts ("10–20 kg"), '' when it has none or is gone.
  */
 export function priceView(
@@ -186,17 +192,34 @@ export function priceView(
   pricing: SalePricing,
   productName: (id: string) => string | undefined,
   discountName: (tenths: number) => string,
-): { rows: PriceRow[]; summary: string; total: string } {
+  vatTenths: number,
+): { rows: PriceRow[]; summary: string; total: string; totalGross: string } {
+  const gross = (net: number) => formatPln(roundGrosze(grossOf(net, vatTenths)));
   const rows = lines.map((line, i): PriceRow => {
     const price = pricing.lines[i] ?? { kind: 'missing' as const, reason: '' };
     const item = `${productName(line.productId) ?? '?'} ${line.grams === null ? '?' : formatBagSize(line.grams)}`;
     const bags = line.bags === null ? '?' : String(line.bags);
-    if (price.kind === 'free') return { item, bags, unit: '', why: 'gratis', total: '', missing: false };
-    if (price.kind === 'missing') return { item, bags, unit: '', why: price.reason, total: '', missing: true };
+    const none = { unit: '', unitGross: '', total: '', totalGross: '' };
+    if (price.kind === 'free') return { item, bags, ...none, why: 'gratis', missing: false };
+    if (price.kind === 'missing') return { item, bags, ...none, why: price.reason, missing: true };
     const why = price.kind === 'special' ? 'cena specjalna' : `−${formatPercent(pricing.discountTenths ?? 0)}`;
-    return { item, bags, unit: formatWholePln(price.unitNet), why: price.kept ? `${why}, jak na fakturze` : why, total: formatWholePln(price.totalNet), missing: false };
+    return {
+      item,
+      bags,
+      unit: formatWholePln(price.unitNet),
+      unitGross: gross(price.unitNet),
+      why: price.kept ? `${why}, jak na fakturze` : why,
+      total: formatWholePln(price.totalNet),
+      totalGross: gross(price.totalNet),
+      missing: false,
+    };
   });
   const name = pricing.discountKept ? 'jak na fakturze' : pricing.discountTenths === null ? '' : discountName(pricing.discountTenths);
   const discount = pricing.discountTenths === null ? 'bez rabatu' : `rabat −${formatPercent(pricing.discountTenths)}${name ? ` (${name})` : ''}`;
-  return { rows, summary: `${formatKg(pricing.weightGrams)} kawy na fakturze (bez gratisów) · ${discount}`, total: formatWholePln(pricing.totalNet) };
+  return {
+    rows,
+    summary: `${formatKg(pricing.weightGrams)} kawy na fakturze (bez gratisów) · ${discount}`,
+    total: formatWholePln(pricing.totalNet),
+    totalGross: gross(pricing.totalNet),
+  };
 }

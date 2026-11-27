@@ -5,6 +5,7 @@
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
 import { formatDate, localDate } from '../../core/dates';
+import { formatPercent } from '../../domain/percent';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
 import { googleErrorNodes } from '../../ui/googleErrors';
@@ -393,9 +394,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const renderPrices = () => {
       pricesBox.hidden = form.kind !== 'sale';
       if (pricesBox.hidden) return;
-      const view = priceView(linesToPrice(), pricing(), productName, discountName);
+      const view = priceView(linesToPrice(), pricing(), productName, discountName, vatTenths);
       pricesBox.replaceChildren(
-        el('legend', {}, 'Ceny netto '),
+        el('legend', {}, 'Ceny '),
         el('p', { class: 'muted small' }, view.summary, ' ', infoTip('Cena specjalna klienta (zakładka Klienci), jeśli ją ma; inaczej cena hurtowa: główna cena bez VAT minus rabat za wagę kawy na fakturze (Opakowania i rabaty), zaokrąglona do pełnych złotych. Ceny zapisują się z tą sprzedażą; dopóki faktura nie jest wystawiona, każde zapisanie liczy je od nowa. Po wystawieniu faktury zapisane ceny zostają.')),
         el(
           'div',
@@ -403,7 +404,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           cardTable(el(
             'table',
             { class: 'data-table sale-prices' },
-            el('thead', {}, el('tr', {}, ...['Produkt', 'Torebki', 'Cena netto', 'Razem netto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
+            el('thead', {}, el('tr', {}, ...['Produkt', 'Torebki', 'Cena netto', 'Cena brutto', 'Razem netto', 'Razem brutto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
             el(
               'tbody',
               {},
@@ -415,13 +416,15 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                   el('td', { class: 'num' }, r.bags),
                   // The price and why it is that price ("cena specjalna", "−25 %", "gratis", or why there is none).
                   el('td', { class: 'num' }, ...(r.unit ? [el('span', { class: 'nowrap' }, r.unit), ' '] : []), el('span', { class: r.missing ? 'field-error' : 'muted small' }, r.why)),
+                  el('td', { class: 'num nowrap' }, r.unitGross),
                   el('td', { class: 'num nowrap' }, r.total),
+                  el('td', { class: 'num nowrap' }, r.totalGross),
                 ),
               ),
             ),
           )),
         ),
-        el('p', { class: 'sale-total' }, 'Razem netto: ', el('strong', {}, view.total)),
+        el('p', { class: 'sale-total' }, 'Razem netto: ', el('strong', {}, view.total), ' · brutto: ', el('strong', {}, view.totalGross), ` (VAT ${formatPercent(vatTenths)})`),
       );
     };
 
