@@ -167,18 +167,6 @@ export function ksefState(status: string | null): { kind: KsefKind; text: string
 }
 
 /**
- * The sales whose invoice Kraken issued is not in KSeF yet (not sent, an error, or only KSeF's test mode), as far as
- * Fakturownia said this visit (`states` by Fakturownia id), for the note at the top of Sales.
- */
-export function ksefWaiting(sales: readonly Sale[], states: ReadonlyMap<number, Pick<InvoiceState, 'ksefStatus'>>): Sale[] {
-  return sales.filter((s) => {
-    if (s.deletedAt !== '' || s.fakturowniaId === null) return false;
-    const state = states.get(s.fakturowniaId);
-    return state !== undefined && ksefState(state.ksefStatus).warn;
-  });
-}
-
-/**
  * The sales to set to "Opłacona": those Kraken issued whose invoice Fakturownia now shows as paid (a partly paid one
  * stays "Faktura wystawiona"). Each with the cells to write (the issue date is kept).
  */

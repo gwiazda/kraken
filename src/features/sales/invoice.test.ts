@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../clients';
-import { cardDiffers, chooseClient, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, ksefWaiting, paidUpdates, pricesUpToDate } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, paidUpdates, pricesUpToDate } from './invoice';
 import { lineFromFields, saleFromFields } from './model';
 import { priceSale, type PricingData } from './pricing';
 
@@ -172,17 +172,3 @@ describe('ksefState (owner, 2026-11-28)', () => {
   });
 });
 
-describe('ksefWaiting', () => {
-  it('lists the sales whose invoice is not in KSeF yet, as far as Fakturownia said', () => {
-    const issued2 = (row: number, id: string, o: Record<string, string> = {}) => sale(row, { invoice_status: 'issued', invoice_date: '2026-11-28', fakturownia_id: id, ...o });
-    const sales = [issued2(2, '1'), issued2(3, '2'), issued2(4, '3'), issued2(5, '4'), issued2(6, '5', { deleted_at: 'x' }), issued2(7, '6'), sale(8)];
-    const states = new Map([
-      [1, { ksefStatus: null }],
-      [2, { ksefStatus: 'ok' }],
-      [3, { ksefStatus: 'send_error' }],
-      [4, { ksefStatus: 'demo_ok' }],
-      [5, { ksefStatus: null }],
-    ]);
-    expect(ksefWaiting(sales, states).map((s) => s.id)).toEqual(['S2', 'S4', 'S5']); // 6: not asked yet; 5: deleted
-  });
-});

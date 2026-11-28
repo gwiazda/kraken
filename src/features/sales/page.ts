@@ -47,7 +47,7 @@ import {
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
-import { cardDiffers, chooseClient, invoiceDraft, invoiceIdsToAsk, issuedFields, ksefState, ksefWaiting, paidUpdates, pricesUpToDate, type InvoiceDraft } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, invoiceIdsToAsk, issuedFields, ksefState, paidUpdates, pricesUpToDate, type InvoiceDraft } from './invoice';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -457,20 +457,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
-      ...(() => {
-        // At a glance (owner, 2026-11-28): invoices Kraken issued that are not in KSeF yet (the owner sends them in Fakturownia).
-        const waiting = ksefWaiting(sales, invoiceStates);
-        return waiting.length === 0
-          ? []
-          : [
-              el(
-                'p',
-                { class: 'message message-error', role: 'status' },
-                `${count(waiting.length, 'faktura nie jest', 'faktury nie są', 'faktur nie jest')} jeszcze w KSeF: wyślij ${waiting.length === 1 ? 'ją' : 'je'} w Fakturowni („Wyślij do KSeF”). `,
-                ...(filter === 'all' ? [] : [button('Pokaż', () => ((filter = 'all'), showList()), 'link')]),
-              ),
-            ];
-      })(),
       el('p', { class: 'compare-sizes sales-filters small' }, ...FILTERS.flatMap(({ filter: f, label }) => [chip(f, label), ' '])),
       rows.length === 0
         ? el('p', { class: 'muted' }, filter === 'to_issue' ? 'Brak faktur do wystawienia.' : 'Na razie nic tu nie ma.')
