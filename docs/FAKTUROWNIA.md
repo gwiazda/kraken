@@ -120,8 +120,38 @@ Create a new token in Fakturownia and paste it into Cloudflare. **Not checked ye
 working by itself or has to be removed separately in Fakturownia: check this when it is built, and write the
 exact steps here.
 
-## Still to decide when it is built
+## What it does (decided with the owner on 2026-11-28)
 
-- What Kraken does with Fakturownia first, which sets the allowed list. The earlier idea (requirements section 4):
-  create a **draft** invoice from a sale with one click, and fill in the invoice number in Kraken automatically;
-  another: read whether an invoice is paid.
+Checked first in the API docs (https://github.com/fakturownia/API, its `KSeF.md`, and pomoc.fakturownia.pl):
+**the API has no draft invoice** (only a real document such as `kind: "vat"`, numbered when created, or a
+`proforma`); a client can be searched by NIP (`GET /clients.json?tax_no=…`); an invoice's `status` / `paid` can be
+read; a public PDF link is built from the invoice's `token`.
+
+1. **Issue a VAT invoice from a sale ("Wystaw fakturę"), owner only.** Kraken first shows a check screen with exactly
+   what will be sent (buyer, lines, net / gross, VAT, payment term). Only after "Wystaw" does it create the
+   `kind: "vat"` invoice (number given by Fakturownia). Kraken then saves the invoice number and Fakturownia's
+   invoice id with the sale and sets it to "Faktura wystawiona" (issue date: today). The prices are the sale's
+   saved prices (REQUIREMENTS section 4); the sale is saved first so they are fresh.
+2. **KSeF stays manual (owner, at least at first).** Kraken never sends to KSeF: it never uses `gov_save_and_send`
+   or `send_to_ksef`. In Fakturownia the switch "Automatycznie wysyłaj tworzone dokumenty do KSeF" (Ustawienia >
+   Integracje i dodatki > KSeF > Ustawienia) must be **off**; then the invoice waits for "Wyślij do KSeF" in
+   Fakturownia, and until it is sent it can still be edited or deleted there. Kraken may show the KSeF state
+   (`gov_status`, `gov_id`). With the KSeF integration on, Fakturownia blocks the PDF and e-mail until the invoice has
+   its KSeF number, so the PDF link works only after sending. To check when built: what an API-created invoice does
+   with auto-send off (the docs only describe it with auto-send on), and whether the "validate for KSeF" option
+   (`validate_invoices_for_gov`) refuses Kraken's invoices.
+3. **Buyer: found by NIP, else created.** Kraken looks the client up by NIP (`GET /clients.json?tax_no=…`; whether the
+   match is exact is to check) and uses its `client_id`, so the address on the Fakturownia card is used. With no
+   such client, Kraken creates one from Klienci: `name` = the CEIDG name (the short name if empty), `tax_no` = NIP,
+   `email`, `company: true`, and the owner's defaults **`payment_to_kind: 14`** (14 days) and **`default_tax: 23`**;
+   the owner adds the address in Fakturownia once. A client without a NIP: Kraken asks for one first (Klienci).
+   Every invoice sends `buyer_company: true` (KSeF.md: always send it).
+4. **Invoice details:** payment term **14 days** (`payment_to_kind: 14`), payment by transfer, sell date = the
+   sale's date, issue date = today; VAT **23 %** (the VAT in Packaging & discounts). Lines: **"KENIA 1 kg"** (product
+   name and bag size), `quantity` = bags, unit `szt.`, `price_net` = the saved net price, `tax` = VAT. Free bags are
+   left off the invoice. No discount field: the discounted net price is the line's price.
+5. **Paid, automatically (both owners may read).** When Sprzedaż opens, Kraken asks Fakturownia about the sales it
+   issued that are not yet paid (`GET /invoices.json?invoice_ids=…`) and sets "Opłacona" for those Fakturownia shows
+   as `paid`.
+6. **Allowed list in the middleman:** owner: find client by NIP, create client, create invoice, read invoices;
+   partner: read invoices only. Nothing else (no delete, no sending to KSeF, no client list).
