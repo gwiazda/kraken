@@ -65,11 +65,12 @@ export class FakturowniaError extends Error {
 
 export function fakturowniaClient(client: SheetsClient, url = FAKTUROWNIA_PROXY_URL): Fakturownia {
   async function call<T>(action: string, data: Record<string, unknown> = {}): Promise<T> {
+    const token = client.getToken(); // signed out: its own error (sign in), not "no internet"
     let response: Response;
     try {
       response = await client.fetch(url, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${client.getToken()}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...data }),
       });
     } catch {

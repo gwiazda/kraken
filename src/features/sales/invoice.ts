@@ -89,11 +89,23 @@ export function pricesUpToDate(pricing: SalePricing, sale: Sale, lines: readonly
  * Which Fakturownia client to invoice (owner, 2026-11-28): the first with this NIP, or none (then Kraken adds it, with
  * its e-mail). A card there without an e-mail stops the invoice: the invoice goes to that e-mail.
  */
-export function chooseClient(found: readonly { id: number; name: string; email: string }[]): { ok: true; id: number | null } | { ok: false; problem: string } {
+export function chooseClient(
+  found: readonly { id: number; name: string; email: string }[],
+): { ok: true; card: { id: number; name: string; email: string } | null } | { ok: false; problem: string } {
   const client = found[0];
-  if (!client) return { ok: true, id: null };
+  if (!client) return { ok: true, card: null };
   if (client.email.trim() === '') return { ok: false, problem: `Klient „${client.name}” w Fakturowni nie ma adresu e-mail: dodaj go na karcie klienta w Fakturowni, a potem wystaw fakturę.` };
-  return { ok: true, id: client.id };
+  return { ok: true, card: { id: client.id, name: client.name, email: client.email.trim() } };
+}
+
+/**
+ * When the Fakturownia card of the client differs from Klienci (the invoice uses the card): one sentence for the
+ * check screen, or '' when name and e-mail are the same (capitals and spaces ignored).
+ */
+export function cardDiffers(card: { name: string; email: string }, buyer: { name: string; email: string }): string {
+  const same = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
+  const diff = [...(same(card.name, buyer.name) ? [] : ['nazwę']), ...(same(card.email, buyer.email) ? [] : ['e-mail'])];
+  return diff.length === 0 ? '' : `Karta klienta w Fakturowni ma inną ${diff.join(' i ')} niż zakładka Klienci; faktura użyje danych z Fakturowni. Jeśli są nieaktualne, popraw je najpierw na karcie w Fakturowni.`;
 }
 
 /** The sale's cells once its invoice is issued: "Faktura wystawiona" today, with the number, id and link. */

@@ -46,7 +46,8 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
 - Published at `https://gwiazda.github.io/kraken/` (the address follows the repo name, `gwiazda/kraken`). Vite `base: './'` (relative links).
 - CSP is a `<meta>` tag in `index.html`. Scripts: only self, `accounts.google.com` (sign-in) and `apis.google.com` (Picker).
   Inline styles are allowed because the Google Picker injects its own (checked in Chrome); inline scripts are not.
-  `connect-src`: `sheets.googleapis.com`, `www.googleapis.com` (Drive copy for backups) and `accounts.google.com`.
+  `connect-src`: `sheets.googleapis.com`, `www.googleapis.com` (Drive copy for backups), `accounts.google.com` and the
+  Fakturownia middleman `kraken-fakturownia.krakcoffee.workers.dev`.
 - Google Cloud project `kraken` (owner's account, no billing): Sheets, Drive and Picker APIs enabled; OAuth consent screen
   External, in **Testing** with both owners as test users; Client ID, Picker key and project number are in `src/config.ts`.
   Picker key website restrictions must be `http://localhost:5173/*` and `https://gwiazda.github.io/*` (no `/kraken/` path):

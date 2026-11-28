@@ -47,7 +47,7 @@ import {
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
-import { chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds, type InvoiceDraft } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds, type InvoiceDraft } from './invoice';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -100,8 +100,13 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let fakturowniaAsked = false;
   /** The list is on screen (not a sale's page). */
   let onList = false;
-  /** Sales changed in the background (marked paid) while a sale's page was open: read again on the way back. */
-  let reloadOnList = false;
+  /**
+   * Sales changed in the background (marked paid) while something was going on (a sale's page open, or an answer or
+   * save in progress on the list): read again, with this note, the next time the list is shown. '' when not needed.
+   */
+  let reloadNote: string | null = null;
+  /** The open sale's page adds "Wystaw fakturę" when it learns the owner is signed in (set by showForm). */
+  let roleKnown: (() => void) | null = null;
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
   /**
@@ -187,30 +192,53 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
    * be reached nothing is shown or changed: it is tried again the next time Sales opens.
    */
   async function askFakturownia(): Promise<void> {
-    try {
-      role = await deps.fakturownia.whoAmI();
-    } catch {
-      return;
-    }
+    if (!(await learnRole())) return;
     const chunks = unpaidInvoiceIds(sales);
     if (chunks.length === 0) return;
+    let written = 0;
     try {
       const states = (await Promise.all(chunks.map((ids) => deps.fakturownia.readInvoices(ids)))).flat();
       const updates = paidUpdates(sales, states);
       if (updates.length === 0) return;
       appBusy(true);
       try {
-        for (const u of updates) await deps.repo.update(u.sale, u.fields, deps.now());
+        for (const u of updates) {
+          await deps.repo.update(u.sale, u.fields, deps.now());
+          written += 1;
+        }
       } finally {
         appBusy(false);
       }
-      const note = `Fakturownia: ${count(updates.length, 'sprzedaż opłacona', 'sprzedaże opłacone', 'sprzedaży opłaconych')} (zmieniono na „Opłacona”).`;
-      if (!root.isConnected) return;
-      if (onList) load(note);
-      else reloadOnList = true;
     } catch {
-      // Tried again the next time Sales opens.
+      // The rest is tried again the next time Sales opens.
     }
+    if (written === 0 || !root.isConnected) return;
+    // What was written is shown (also after a failure partway), without breaking off anything going on on the list.
+    const note = `Fakturownia: ${count(written, 'sprzedaż opłacona', 'sprzedaże opłacone', 'sprzedaży opłaconych')} (zmieniono na „Opłacona”).`;
+    const listBusy = busyCount > 0 || root.querySelector('.sales-table tr.confirm-row:not([hidden])') !== null;
+    if (onList && !listBusy) load(note);
+    else reloadNote = note;
+  }
+
+  /**
+   * Who is signed in, for Fakturownia (only the owner issues). Asked again after a failure, at the next opening of a
+   * sale. True when known.
+   */
+  let asking: Promise<boolean> | null = null;
+  function learnRole(): Promise<boolean> {
+    if (role !== null) return Promise.resolve(true);
+    asking ??= deps.fakturownia.whoAmI().then(
+      (r) => {
+        role = r;
+        roleKnown?.();
+        return true;
+      },
+      () => {
+        asking = null; // try again later
+        return false;
+      },
+    );
+    return asking;
   }
 
   function lockPage(): void {
@@ -250,9 +278,10 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   // ---- The list ----
 
   function showList(note?: string, error?: Node[]): void {
-    if (reloadOnList) {
-      reloadOnList = false;
-      return load(note);
+    if (reloadNote !== null && !error) {
+      const deferred = reloadNote;
+      reloadNote = null;
+      return load([note, deferred].filter((t) => t).join(' '));
     }
     onList = true;
     deps.formClosed();
@@ -423,6 +452,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   function showForm(sale: Sale | null): void {
     onList = false;
+    roleKnown = null;
     deps.formOpened();
     const existingLines = sale ? linesOf(lines, sale.id) : [];
     const form: SaleForm = sale ? formFromSale(sale, existingLines) : emptySaleForm(today());
@@ -790,9 +820,19 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Odśwież sprzedaż (bez tego formularza)'),
         })
       : null;
+    // "Wystaw fakturę" for the owner: shown now if Kraken already knows who is signed in, else as soon as it does.
+    const invoiceSlot = el('div', {});
+    const showInvoiceBox = () => {
+      if (sale && role === 'owner' && sale.kind === 'sale' && sale.status === 'to_issue' && sale.fakturowniaId === null && invoiceSlot.childElementCount === 0) {
+        invoiceSlot.append(invoiceBox(sale, existingLines, () => JSON.stringify(form) === saved));
+      }
+    };
+    roleKnown = showInvoiceBox;
     renderKind();
     renderWho();
     renderLines();
+    showInvoiceBox();
+    if (sale && role === null) void learnRole();
     render(
       el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
       el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
@@ -800,7 +840,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       ...(sale?.fakturowniaUrl
         ? [el('p', {}, 'Faktura ', el('strong', {}, sale.source['invoice_number'] ?? ''), ' w Fakturowni: ', el('a', { href: sale.fakturowniaUrl, target: '_blank', rel: 'noopener noreferrer' }, 'otwórz'), ' ', infoTip('Strona faktury w Fakturowni. PDF jest dostępny, gdy faktura ma już numer KSeF (wyślij ją do KSeF w Fakturowni).'))]
         : []),
-      ...(sale && role === 'owner' && sale.kind === 'sale' && sale.status === 'to_issue' && sale.fakturowniaId === null ? [invoiceBox(sale, existingLines, () => JSON.stringify(form) === saved)] : []),
+      invoiceSlot,
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),
       banner,
       formNode,
@@ -860,9 +900,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         async () => {
           const chosen = chooseClient(await deps.fakturownia.findClient(draft.buyer.nip));
           if (!chosen.ok) throw new InvoiceStopped(chosen.problem);
-          return chosen.id;
+          return chosen.card;
         },
-        (clientId) => (clientId === null ? addClient(draft) : check(draft, clientId, 'found')),
+        (card) => (card === null ? addClient(draft) : check(draft, card.id, card)),
         () => lookUpClient(draft),
         false,
       );
@@ -870,7 +910,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const addClient = (draft: InvoiceDraft): void => {
       const add = button(
         'Dodaj klienta do Fakturowni',
-        () => ask('Dodaję klienta…', () => deps.fakturownia.createClient(draft.buyer), (id) => check(draft, id, 'added'), () => addClient(draft), true),
+        () => ask('Dodaję klienta…', () => deps.fakturownia.createClient(draft.buyer), (id) => check(draft, id, null), () => addClient(draft), true),
         'primary',
       );
       box.replaceChildren(
@@ -893,21 +933,27 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       add.focus();
     };
 
-    /** Step 2: the invoice, for the client found in (or just added to) Fakturownia. */
-    const check = (draft: InvoiceDraft, clientId: number, client: 'found' | 'added'): void => {
+    /**
+     * Step 2: the invoice, for the client found in Fakturownia (`card`: the invoice uses that card's name and e-mail,
+     * so those are shown) or just added from Klienci (`card` null).
+     */
+    const check = (draft: InvoiceDraft, clientId: number, card: { name: string; email: string } | null): void => {
       const status = el('div', {});
       const issue = button('Wystaw fakturę', () => send(draft, clientId, issue, cancel, status), 'primary');
       const cancel = cancelButton();
+      const buyer = card ?? draft.buyer;
+      const differs = card ? cardDiffers(card, draft.buyer) : '';
       box.replaceChildren(
         el('h3', {}, 'Sprawdź fakturę'),
-        message(client === 'found' ? `Klient jest już w Fakturowni (NIP ${draft.buyer.nip}) ✓` : `Dodano klienta ${draft.buyer.name} do Fakturowni ✓`),
+        message(card ? `Klient jest już w Fakturowni (NIP ${draft.buyer.nip}) ✓` : `Dodano klienta ${draft.buyer.name} do Fakturowni ✓`),
+        ...(differs ? [message(differs, 'error')] : []),
         el(
           'dl',
           { class: 'product-details' },
           ...[
-            ['Nabywca', draft.buyer.name],
+            ['Nabywca', buyer.name],
             ['NIP', draft.buyer.nip],
-            ['E-mail', draft.buyer.email || '—'],
+            ['E-mail', buyer.email || '—'],
             ['Data sprzedaży', formatDate(draft.request.sellDate)],
             ['Data wystawienia', formatDate(draft.request.issueDate)],
             ['Płatność', `przelew, ${draft.request.paymentDays} dni`],
@@ -941,7 +987,16 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             ),
           ),
         ),
-        el('p', { class: 'sale-total' }, 'Razem netto: ', el('strong', {}, formatWholePln(draft.totalNet)), ' · brutto: ', el('strong', {}, formatPln(draft.totalGross)), ` (VAT ${draft.vatPercent} %)`),
+        el(
+          'p',
+          { class: 'sale-total' },
+          'Razem netto: ',
+          el('strong', {}, formatWholePln(draft.totalNet)),
+          ' · brutto ok. ',
+          el('strong', {}, formatPln(draft.totalGross)),
+          ` (VAT ${draft.vatPercent} %) `,
+          infoTip('Brutto liczy Fakturownia; przy cenach z groszami może się różnić o grosz lub dwa od tej kwoty.'),
+        ),
         el(
           'p',
           { class: 'muted small' },
@@ -971,7 +1026,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             if (!made) throw error;
             invoice = made;
           }
-          await deps.repo.update(sale, issuedFields(invoice, today()), deps.now());
+          await deps.repo.update(sale, issuedFields(invoice, draft.request.issueDate), deps.now()); // the date on the invoice
           return invoice;
         })
         .finally(() => appBusy(false))

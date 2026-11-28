@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../clients';
-import { chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds } from './invoice';
 import { lineFromFields, saleFromFields } from './model';
 import { priceSale, type PricingData } from './pricing';
 
@@ -110,11 +110,20 @@ describe('after issuing, and paid', () => {
 
 describe('chooseClient (owner, 2026-11-28)', () => {
   it('uses the Fakturownia client with this NIP, or none (Kraken adds it); a card without an e-mail stops the invoice', () => {
-    expect(chooseClient([{ id: 7, name: 'Nowa Kawa', email: 'k@example.com' }, { id: 8, name: 'Other', email: 'o@example.com' }])).toEqual({ ok: true, id: 7 });
-    expect(chooseClient([])).toEqual({ ok: true, id: null });
+    expect(chooseClient([{ id: 7, name: 'Nowa Kawa', email: ' k@example.com ' }, { id: 8, name: 'Other', email: 'o@example.com' }])).toEqual({ ok: true, card: { id: 7, name: 'Nowa Kawa', email: 'k@example.com' } });
+    expect(chooseClient([])).toEqual({ ok: true, card: null });
     expect(chooseClient([{ id: 7, name: 'Nowa Kawa', email: '' }])).toEqual({
       ok: false,
       problem: 'Klient „Nowa Kawa” w Fakturowni nie ma adresu e-mail: dodaj go na karcie klienta w Fakturowni, a potem wystaw fakturę.',
     });
+  });
+});
+
+describe('cardDiffers', () => {
+  it('says when the Fakturownia card has another name or e-mail than Klienci (the invoice uses the card)', () => {
+    const buyer = { name: 'Nowa Kawa Sp. z o.o.', email: 'kawa@example.com' };
+    expect(cardDiffers({ name: 'nowa kawa  sp. z o.o.', email: 'KAWA@example.com' }, buyer)).toBe('');
+    expect(cardDiffers({ name: 'Stara Nazwa', email: 'kawa@example.com' }, buyer)).toBe('Karta klienta w Fakturowni ma inną nazwę niż zakładka Klienci; faktura użyje danych z Fakturowni. Jeśli są nieaktualne, popraw je najpierw na karcie w Fakturowni.');
+    expect(cardDiffers({ name: 'Stara Nazwa', email: 'old@example.com' }, buyer)).toContain('inną nazwę i e-mail');
   });
 });

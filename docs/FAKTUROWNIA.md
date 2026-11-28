@@ -155,9 +155,12 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
   "Nowy klient w Fakturowni" screen with its data and "Dodaj klienta do Fakturowni"; only after that the check
   screen ("Dodano klienta … ✓"). The check screen shows buyer, NIP, e-mail, dates, "przelew, 14 dni", the lines and
   the totals, and says the invoice is issued at once with a number but not sent to KSeF. "Wystaw fakturę": the
-  invoice (if creating fails, `findInvoice` looks for one already made with this sale's mark), then the
+  invoice (for a client found there the check screen shows the card's name and e-mail, which the invoice uses, and
+  warns when they differ from Klienci; if creating fails, `findInvoice` looks for one already made with this sale's mark), then the
   sale becomes "Faktura wystawiona" today with the number, `fakturownia_id` and `fakturownia_url` (migration 17).
-  The sale's page then links to the invoice in Fakturownia.
+  The sale's page then links to the invoice in Fakturownia. Setting the sale back to "Faktura do wystawienia" (or
+  changing its kind) forgets the link, so it can be issued again after the owner deleted the invoice in Fakturownia;
+  if the invoice still exists, Fakturownia refuses a second one with the sale's mark and Kraken links the old one.
 - Paid: once per visit to Sales, in the background, Kraken asks about its issued, unpaid invoices and sets those
   Fakturownia shows as `paid` to "Opłacona" (keeping the issue date). If Fakturownia cannot be reached, nothing
   changes and nothing is shown.

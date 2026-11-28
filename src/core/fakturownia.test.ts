@@ -45,4 +45,10 @@ describe('fakturowniaClient', () => {
     const api = fakturowniaClient({ getToken: () => 't', fetch: async () => Promise.reject(new TypeError('Failed to fetch')) } as never, 'https://middleman.example');
     await expect(api.whoAmI()).rejects.toEqual(new FakturowniaError(0, 'Nie udało się połączyć z Fakturownią (brak internetu?). Spróbuj ponownie.'));
   });
+
+  it('a missing sign-in stays a sign-in problem, not "no internet"', async () => {
+    const signedOut = new SheetsError('signed-out', 401, 'Not signed in');
+    const api = fakturowniaClient({ getToken: () => { throw signedOut; }, fetch: async () => new Response('{}') } as never, 'https://middleman.example');
+    await expect(api.whoAmI()).rejects.toBe(signedOut);
+  });
 });
