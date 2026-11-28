@@ -168,6 +168,8 @@ read; a public PDF link is built from the invoice's `token`.
    left off the invoice. No discount field: the discounted net price is the line's price.
 5. **Paid, automatically (both owners may read).** When Sprzedaż opens, Kraken asks Fakturownia about the sales it
    issued that are not yet paid (`GET /invoices.json?invoice_ids=…`) and sets "Opłacona" for those Fakturownia shows
-   as `paid`.
+   as `paid`. **Only invoices Kraken itself issued** (their Fakturownia ids are saved with those sales): Kraken never
+   lists, reads or imports invoices made by hand in Fakturownia, and nothing new is ever added to Kraken from
+   Fakturownia (owner, 2026-11-28). The middleman has no "list all invoices" action, only "read these ids".
 6. **Allowed list in the middleman:** owner: find client by NIP, create client, create invoice, read invoices;
    partner: read invoices only. Nothing else (no delete, no sending to KSeF, no client list).
