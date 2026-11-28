@@ -826,16 +826,81 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       }
       const result = invoiceDraft(sale, saleLines, clients.find((c) => c.id === sale.clientId), productName, vatTenths, today());
       if (!result.ok) return refuse(...result.problems);
-      check(result.draft);
+      lookUpClient(result.draft);
     };
     const startButton = () => button('Wystaw fakturę w Fakturowni…', start, 'secondary');
+    const cancelButton = () => button('Anuluj', () => box.replaceChildren(startButton()), 'secondary');
 
-    const check = (draft: InvoiceDraft) => {
+    /** Talks to Fakturownia inside the click (sign-in renewed if needed), showing `working`; `retry` after an error. */
+    const ask = <T,>(working: string, action: () => Promise<T>, done: (value: T) => void, retry: () => void, saving: boolean) => {
+      box.replaceChildren(el('p', {}, busy(working)));
+      if (saving) appBusy(true);
+      deps
+        .withGoogle(action)
+        .finally(() => saving && appBusy(false))
+        .then((value) => {
+          if (root.isConnected) done(value);
+        })
+        .catch((error: unknown) => {
+          if (!root.isConnected) return;
+          if (deps.isIgnorable(error)) return box.replaceChildren(startButton());
+          if (error instanceof InvoiceStopped) return box.replaceChildren(message(error.message, 'error'), startButton());
+          const show = (e: unknown) => box.replaceChildren(...errorNodes(e, retry, 'Zaloguj się i spróbuj ponownie', show, saving, 'Odśwież sprzedaż'), cancelButton());
+          show(error);
+        });
+    };
+
+    /**
+     * Step 1 (owner, 2026-11-28, option A): is the client in Fakturownia (by NIP)? Yes: straight to the invoice. No:
+     * first "Dodaj klienta do Fakturowni", then the invoice. A card there without an e-mail stops it.
+     */
+    const lookUpClient = (draft: InvoiceDraft): void =>
+      ask(
+        'Sprawdzam klienta w Fakturowni…',
+        async () => {
+          const chosen = chooseClient(await deps.fakturownia.findClient(draft.buyer.nip));
+          if (!chosen.ok) throw new InvoiceStopped(chosen.problem);
+          return chosen.id;
+        },
+        (clientId) => (clientId === null ? addClient(draft) : check(draft, clientId, 'found')),
+        () => lookUpClient(draft),
+        false,
+      );
+
+    const addClient = (draft: InvoiceDraft): void => {
+      const add = button(
+        'Dodaj klienta do Fakturowni',
+        () => ask('Dodaję klienta…', () => deps.fakturownia.createClient(draft.buyer), (id) => check(draft, id, 'added'), () => addClient(draft), true),
+        'primary',
+      );
+      box.replaceChildren(
+        el('h3', {}, 'Nowy klient w Fakturowni'),
+        el('p', {}, `W Fakturowni nie ma jeszcze klienta z NIP-em ${draft.buyer.nip}. Najpierw dodaj go z danymi z zakładki Klienci; potem zobaczysz fakturę.`),
+        el(
+          'dl',
+          { class: 'product-details' },
+          ...[
+            ['Nazwa', draft.buyer.name],
+            ['NIP', draft.buyer.nip],
+            ['E-mail', draft.buyer.email],
+            ['Termin płatności', '14 dni'],
+            ['VAT', '23 %'],
+          ].flatMap(([label, value]) => [el('dt', {}, label ?? ''), el('dd', {}, value ?? '')]),
+        ),
+        el('p', { class: 'muted small' }, 'Adres klienta uzupełnisz potem na jego karcie w Fakturowni.'),
+        el('div', { class: 'actions' }, add, cancelButton()),
+      );
+      add.focus();
+    };
+
+    /** Step 2: the invoice, for the client found in (or just added to) Fakturownia. */
+    const check = (draft: InvoiceDraft, clientId: number, client: 'found' | 'added'): void => {
       const status = el('div', {});
-      const issue = button('Wystaw fakturę', () => send(draft, issue, cancel, status), 'primary');
-      const cancel = button('Anuluj', () => box.replaceChildren(startButton()), 'secondary');
+      const issue = button('Wystaw fakturę', () => send(draft, clientId, issue, cancel, status), 'primary');
+      const cancel = cancelButton();
       box.replaceChildren(
         el('h3', {}, 'Sprawdź fakturę'),
+        message(client === 'found' ? `Klient jest już w Fakturowni (NIP ${draft.buyer.nip}) ✓` : `Dodano klienta ${draft.buyer.name} do Fakturowni ✓`),
         el(
           'dl',
           { class: 'product-details' },
@@ -880,7 +945,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         el(
           'p',
           { class: 'muted small' },
-          'Faktura zostanie od razu wystawiona w Fakturowni, z numerem. Nie trafi do KSeF: wyślesz ją tam sam w Fakturowni („Wyślij do KSeF”), a do tego czasu możesz ją tam jeszcze poprawić albo usunąć. Nabywcę Kraken znajdzie w Fakturowni po NIP-ie; jeśli go nie ma, doda go (14 dni na płatność, VAT 23 %).',
+          'Faktura zostanie od razu wystawiona w Fakturowni, z numerem. Nie trafi do KSeF: wyślesz ją tam sam w Fakturowni („Wyślij do KSeF”), a do tego czasu możesz ją tam jeszcze poprawić albo usunąć.',
         ),
         el('div', { class: 'actions' }, issue, cancel),
         status,
@@ -888,8 +953,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       issue.focus();
     };
 
-    /** Creates it: the buyer by NIP (or added), the invoice (never twice: the sale's mark), then the sale is updated. */
-    const send = (draft: InvoiceDraft, issue: HTMLButtonElement, cancel: HTMLButtonElement, status: HTMLElement) => {
+    /** Creates the invoice (never twice: the sale's mark), then the sale is updated. */
+    const send = (draft: InvoiceDraft, clientId: number, issue: HTMLButtonElement, cancel: HTMLButtonElement, status: HTMLElement) => {
       issue.disabled = true;
       cancel.disabled = true;
       status.replaceChildren(busy('Wystawiam fakturę…'));
@@ -897,9 +962,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       deps
         .withGoogle(async (): Promise<IssuedInvoice> => {
           const f = deps.fakturownia;
-          const chosen = chooseClient(await f.findClient(draft.buyer.nip));
-          if (!chosen.ok) throw new InvoiceStopped(chosen.problem);
-          const clientId = chosen.id ?? (await f.createClient(draft.buyer));
           let invoice: IssuedInvoice;
           try {
             invoice = await f.createInvoice({ ...draft.request, clientId });
@@ -921,9 +983,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           issue.disabled = false;
           cancel.disabled = false;
           if (deps.isIgnorable(error)) return status.replaceChildren();
-          // Stopped before anything was made or saved: just say why.
-          if (error instanceof InvoiceStopped) return status.replaceChildren(message(error.message, 'error'));
-          const show = (e: unknown) => status.replaceChildren(...errorNodes(e, () => send(draft, issue, cancel, status), 'Zaloguj się i wystaw fakturę', show, true, 'Odśwież sprzedaż'));
+          const show = (e: unknown) => status.replaceChildren(...errorNodes(e, () => send(draft, clientId, issue, cancel, status), 'Zaloguj się i wystaw fakturę', show, true, 'Odśwież sprzedaż'));
           show(error);
         });
     };

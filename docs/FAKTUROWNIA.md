@@ -150,9 +150,12 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
   `paidUpdates`.
 - Sales: on a saved sale "to be issued", the owner (asked of the middleman once per visit: `whoAmI`) sees "Wystaw
   fakturę w Fakturowni…". It is refused while the form has unsaved changes or the prices changed since saving
-  (save first). The check screen shows buyer, NIP, e-mail, dates, "przelew, 14 dni", the lines and the totals, and
-  says the invoice is issued at once with a number but not sent to KSeF. "Wystaw fakturę": the buyer by NIP (else
-  added), the invoice (if creating fails, `findInvoice` looks for one already made with this sale's mark), then the
+  (save first). **Two steps only for a new client (owner, 2026-11-28, option A):** Kraken first looks the client up
+  in Fakturownia by NIP. Found: straight to the check screen ("Klient jest już w Fakturowni ✓"). Not found: a
+  "Nowy klient w Fakturowni" screen with its data and "Dodaj klienta do Fakturowni"; only after that the check
+  screen ("Dodano klienta … ✓"). The check screen shows buyer, NIP, e-mail, dates, "przelew, 14 dni", the lines and
+  the totals, and says the invoice is issued at once with a number but not sent to KSeF. "Wystaw fakturę": the
+  invoice (if creating fails, `findInvoice` looks for one already made with this sale's mark), then the
   sale becomes "Faktura wystawiona" today with the number, `fakturownia_id` and `fakturownia_url` (migration 17).
   The sale's page then links to the invoice in Fakturownia.
 - Paid: once per visit to Sales, in the background, Kraken asks about its issued, unpaid invoices and sets those
