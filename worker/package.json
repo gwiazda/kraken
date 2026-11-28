@@ -1,0 +1,8 @@
+{
+  "name": "kraken-fakturownia-worker",
+  "private": true,
+  "description": "Publishing tool for the Fakturownia middleman only (docs/FAKTUROWNIA.md); the app does not use it.",
+  "devDependencies": {
+    "wrangler": "4.160.1"
+  }
+}

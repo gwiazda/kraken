@@ -103,16 +103,41 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 - It does not re-check prices: only the two owners use Kraken. (Re-checking would be needed only if someone not fully
   trusted used it.)
 
-## One-time setup (when it is built; Claude guides the owner step by step)
+## The code (built 2026-11-28)
 
-1. Create a free Cloudflare account.
-2. In Fakturownia, create the API token; paste it once into the Worker's Secrets in Cloudflare (it cannot be read back).
-3. Add the emails as two Worker **secrets**, so the middleman knows who is who: `OWNER_EMAIL` (may also issue
-   invoices) and `PARTNER_EMAIL` (reading only). Secrets, not plain "variables": a deploy from GitHub replaces plain
-   variables with what the code defines, which would lock both owners out, and the emails must never be in the
-   public code.
-4. Create a Cloudflare deploy key; save it in the GitHub repo's Secrets.
-5. Add the worker's address to Kraken's Content Security Policy (`connect-src` in `index.html`).
+`worker/src/index.ts` (with `worker/src/index.test.ts`, run with the app's tests and type check in CI;
+`vite.config.ts` and `tsconfig.json` include `worker/`). One endpoint: `POST` with JSON `{ action, … }` and the
+Google access token in `Authorization: Bearer`. Actions: `findClient` (`nip`), `createClient` (`name`, `nip`,
+`email`), `createInvoice` (`clientId`, `sellDate`, `issueDate`, `paymentDays`, `positions`: `name`, `quantity`,
+`priceNet` as "112.5", `tax`, and `orderId`: the sale's id), `findInvoice` (`orderId`), `readInvoices` (`ids`, up to
+100). Every invoice carries the sale's mark (`oid` "KRAKEN-<sale id>" with `oid_unique: yes`, documented in the API
+README), so a retried "Wystaw" never makes a second invoice; `findInvoice` finds the invoice of a sale whose answer
+was lost (among the last 30 days, exact mark only). `readInvoices` passes back only the ids asked for, even if
+Fakturownia answers with more. Errors come back as `{ error }` in Polish (shown as they are): 400 bad data, 401
+sign-in, 403 not allowed or another page, 405 not POST, 413 too much data, 422 Fakturownia's own message, 500 the
+middleman's secrets missing or the Fakturownia address mistyped, 502 Fakturownia or Google did not answer.
+`worker/wrangler.toml` names it `kraken-fakturownia`; `.github/workflows/worker.yml` publishes it (main only, one at a
+time; tests and type check first) after a merge that changes `worker/`, or when run by hand. It uses Cloudflare's tool
+`wrangler`, locked with all its parts in `worker/package.json` / `worker/package-lock.json` (install scripts not run):
+only that workflow uses it, the app does not (owner informed 2026-11-28). Its address will be `https://kraken-fakturownia.<the account's workers.dev subdomain>.workers.dev`.
+
+## One-time setup (Claude guides the owner step by step)
+
+1. Create a free Cloudflare account (done 2026-11-28; 2-step verification on).
+2. In Cloudflare, choose the account's `workers.dev` subdomain (Workers & Pages, first visit).
+3. Create a Cloudflare API token that can only edit Workers ("Edit Cloudflare Workers" template), and save it with
+   the account ID as the GitHub repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (done
+   2026-11-28). A merge that changes `worker/` publishes the middleman; otherwise run it by hand once (Actions →
+   "Publish Fakturownia middleman" → Run workflow).
+4. In the Worker (Settings → Variables and Secrets), add four values of type **Secret**: `FAKTUROWNIA_TOKEN` (from
+   Fakturownia: Ustawienia → Ustawienia konta → Integracja → Kod autoryzacyjny API; it cannot be read back),
+   `FAKTUROWNIA_DOMAIN` (the account's address without `.fakturownia.pl`), `OWNER_EMAIL` (may also issue invoices)
+   and `PARTNER_EMAIL` (reading only). Secrets, not plain variables: plain ones would be shown in Cloudflare and the
+   emails must never be in the public code.
+5. Add the worker's address to Kraken (`src/config.ts`) and to its Content Security Policy (`connect-src` in
+   `index.html`).
+6. When the Fakturownia work is finished, remove `http://localhost:5173` from `ALLOWED_ORIGINS` in the middleman
+   (owner, 2026-11-28: only the published Kraken may call it).
 
 ## Cutting off access
 
@@ -120,8 +145,40 @@ Create a new token in Fakturownia and paste it into Cloudflare. **Not checked ye
 working by itself or has to be removed separately in Fakturownia: check this when it is built, and write the
 exact steps here.
 
-## Still to decide when it is built
+## What it does (decided with the owner on 2026-11-28)
 
-- What Kraken does with Fakturownia first, which sets the allowed list. The earlier idea (requirements section 4):
-  create a **draft** invoice from a sale with one click, and fill in the invoice number in Kraken automatically;
-  another: read whether an invoice is paid.
+Checked first in the API docs (https://github.com/fakturownia/API, its `KSeF.md`, and pomoc.fakturownia.pl):
+**the API has no draft invoice** (only a real document such as `kind: "vat"`, numbered when created, or a
+`proforma`); a client can be searched by NIP (`GET /clients.json?tax_no=…`); an invoice's `status` / `paid` can be
+read; a public PDF link is built from the invoice's `token`.
+
+1. **Issue a VAT invoice from a sale ("Wystaw fakturę"), owner only.** Kraken first shows a check screen with exactly
+   what will be sent (buyer, lines, net / gross, VAT, payment term). Only after "Wystaw" does it create the
+   `kind: "vat"` invoice (number given by Fakturownia). Kraken then saves the invoice number and Fakturownia's
+   invoice id with the sale and sets it to "Faktura wystawiona" (issue date: today). The prices are the sale's
+   saved prices (REQUIREMENTS section 4); the sale is saved first so they are fresh.
+2. **KSeF stays manual (owner, at least at first).** Kraken never sends to KSeF: it never uses `gov_save_and_send`
+   or `send_to_ksef`. In Fakturownia the switch "Automatycznie wysyłaj tworzone dokumenty do KSeF" (Ustawienia >
+   Integracje i dodatki > KSeF > Ustawienia) must be **off**; then the invoice waits for "Wyślij do KSeF" in
+   Fakturownia, and until it is sent it can still be edited or deleted there. Kraken may show the KSeF state
+   (`gov_status`, `gov_id`). With the KSeF integration on, Fakturownia blocks the PDF and e-mail until the invoice has
+   its KSeF number, so the PDF link works only after sending. To check when built: what an API-created invoice does
+   with auto-send off (the docs only describe it with auto-send on), and whether the "validate for KSeF" option
+   (`validate_invoices_for_gov`) refuses Kraken's invoices.
+3. **Buyer: found by NIP, else created.** Kraken looks the client up by NIP (`GET /clients.json?tax_no=…`; whether the
+   match is exact is to check) and uses its `client_id`, so the address on the Fakturownia card is used. With no
+   such client, Kraken creates one from Klienci: `name` = the CEIDG name (the short name if empty), `tax_no` = NIP,
+   `email`, `company: true`, and the owner's defaults **`payment_to_kind: 14`** (14 days) and **`default_tax: 23`**;
+   the owner adds the address in Fakturownia once. A client without a NIP: Kraken asks for one first (Klienci).
+   Every invoice sends `buyer_company: true` (KSeF.md: always send it).
+4. **Invoice details:** payment term **14 days** (`payment_to_kind: 14`), payment by transfer, sell date = the
+   sale's date, issue date = today; VAT **23 %** (the VAT in Packaging & discounts). Lines: **"KENIA 1 kg"** (product
+   name and bag size), `quantity` = bags, unit `szt.`, `price_net` = the saved net price, `tax` = VAT. Free bags are
+   left off the invoice. No discount field: the discounted net price is the line's price.
+5. **Paid, automatically (both owners may read).** When Sprzedaż opens, Kraken asks Fakturownia about the sales it
+   issued that are not yet paid (`GET /invoices.json?invoice_ids=…`) and sets "Opłacona" for those Fakturownia shows
+   as `paid`. **Only invoices Kraken itself issued** (their Fakturownia ids are saved with those sales): Kraken never
+   lists, reads or imports invoices made by hand in Fakturownia, and nothing new is ever added to Kraken from
+   Fakturownia (owner, 2026-11-28). The middleman has no "list all invoices" action, only "read these ids".
+6. **Allowed list in the middleman:** owner: find client by NIP, create client, create invoice, read invoices;
+   partner: read invoices only. Nothing else (no delete, no sending to KSeF, no client list).

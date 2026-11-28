@@ -1,0 +1,9 @@
+# The Fakturownia middleman on Cloudflare Workers (docs/FAKTUROWNIA.md). Published by .github/workflows/worker.yml.
+# No secrets here (this repo is public): FAKTUROWNIA_TOKEN, FAKTUROWNIA_DOMAIN, OWNER_EMAIL and PARTNER_EMAIL are
+# set once in Cloudflare (Workers → kraken-fakturownia → Settings → Variables and Secrets, type "Secret"), and a
+# deploy keeps them.
+name = "kraken-fakturownia"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+keep_vars = true
