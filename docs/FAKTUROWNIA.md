@@ -103,16 +103,32 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 - It does not re-check prices: only the two owners use Kraken. (Re-checking would be needed only if someone not fully
   trusted used it.)
 
-## One-time setup (when it is built; Claude guides the owner step by step)
+## The code (built 2026-11-28)
 
-1. Create a free Cloudflare account.
-2. In Fakturownia, create the API token; paste it once into the Worker's Secrets in Cloudflare (it cannot be read back).
-3. Add the emails as two Worker **secrets**, so the middleman knows who is who: `OWNER_EMAIL` (may also issue
-   invoices) and `PARTNER_EMAIL` (reading only). Secrets, not plain "variables": a deploy from GitHub replaces plain
-   variables with what the code defines, which would lock both owners out, and the emails must never be in the
-   public code.
-4. Create a Cloudflare deploy key; save it in the GitHub repo's Secrets.
-5. Add the worker's address to Kraken's Content Security Policy (`connect-src` in `index.html`).
+`worker/src/index.ts` (with `worker/src/index.test.ts`, run with the app's tests and type check in CI;
+`vite.config.ts` and `tsconfig.json` include `worker/`). One endpoint: `POST` with JSON `{ action, … }` and the
+Google access token in `Authorization: Bearer`. Actions: `findClient` (`nip`), `createClient` (`name`, `nip`,
+`email`), `createInvoice` (`clientId`, `sellDate`, `issueDate`, `paymentDays`, `positions`: `name`, `quantity`,
+`priceNet` as "112.5", `tax`), `readInvoices` (`ids`, up to 100). Errors come back as `{ error }` (401 sign-in, 403
+not allowed, 400 bad data, 422 Fakturownia's own message, 502 Fakturownia or Google did not answer).
+`worker/wrangler.toml` names it `kraken-fakturownia`; `.github/workflows/worker.yml` publishes it after a merge that
+changes `worker/` (tests first) with Cloudflare's tool `wrangler` (exact version, run only there: not a dependency of
+the app). Its address will be `https://kraken-fakturownia.<the account's workers.dev subdomain>.workers.dev`.
+
+## One-time setup (Claude guides the owner step by step)
+
+1. Create a free Cloudflare account (done 2026-11-28; 2-step verification on).
+2. In Cloudflare, choose the account's `workers.dev` subdomain (Workers & Pages, first visit).
+3. Create a Cloudflare API token that can only edit Workers ("Edit Cloudflare Workers" template), and save it with
+   the account ID as the GitHub repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The next
+   merge (or running the workflow by hand) publishes the middleman.
+4. In the Worker (Settings → Variables and Secrets), add four values of type **Secret**: `FAKTUROWNIA_TOKEN` (from
+   Fakturownia: Ustawienia → Ustawienia konta → Integracja → Kod autoryzacyjny API; it cannot be read back),
+   `FAKTUROWNIA_DOMAIN` (the account's address without `.fakturownia.pl`), `OWNER_EMAIL` (may also issue invoices)
+   and `PARTNER_EMAIL` (reading only). Secrets, not plain variables: plain ones would be shown in Cloudflare and the
+   emails must never be in the public code.
+5. Add the worker's address to Kraken (`src/config.ts`) and to its Content Security Policy (`connect-src` in
+   `index.html`).
 
 ## Cutting off access
 

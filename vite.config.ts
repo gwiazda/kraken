@@ -11,6 +11,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // worker/: the Fakturownia middleman (docs/FAKTUROWNIA.md), tested and type checked with the app.
+    include: ['src/**/*.test.ts', 'worker/**/*.test.ts'],
   },
 });

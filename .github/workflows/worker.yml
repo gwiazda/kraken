@@ -1,0 +1,41 @@
+# Publishes the Fakturownia middleman (worker/) to Cloudflare after a merge to main that changes it
+# (docs/FAKTUROWNIA.md). Tests run first; nothing is published if they fail. Needs two repository secrets:
+# CLOUDFLARE_API_TOKEN (a Cloudflare token that can only edit Workers) and CLOUDFLARE_ACCOUNT_ID. Until they are set,
+# the publish step says so and stops without failing.
+name: Publish Fakturownia middleman
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - 'src/config.ts'
+      - '.github/workflows/worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Publish to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Cloudflare is not set up yet (repository secrets missing): nothing published."
+            exit 0
+          fi
+          # wrangler is Cloudflare's own publishing tool; only used here, never part of the app (exact version).
+          npx --yes wrangler@4.160.1 deploy --config worker/wrangler.toml

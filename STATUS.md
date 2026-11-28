@@ -19,11 +19,12 @@ Snapshot of where work stopped. Rewritten at the end of each session; see `CLAUD
   price fills in 500 g and 1 kg (#48), sample sizes and client details in Sales (#49), general offer, product status
   W sprzedaży / Próbne / Wycofane (data version 14; only products on sale on the Offer) and Sales opening on
   "Faktura do wystawienia" (#50), no discount per client and the invoice price rules written down (#52), each
-  discount's starting weight "od … kg" (#53).
+  discount's starting weight "od … kg" (#53), prices in Sales (#54).
 
 ## In progress
-- Branch `claude/sale-prices`: a sale's prices (special price, else wholesale at the discount for its weight),
-  shown live in the form and saved with the sale (data version 16); "Netto" in the list; kept once invoiced.
+- **Fakturownia** (branch `claude/fakturownia`; plan `docs/FAKTUROWNIA.md`): what it does is decided (2026-11-28);
+  the middleman `worker/` is written and tested; the owner has a Cloudflare account (KSeF auto-send is off in
+  Fakturownia). Next: the rest of the one-time setup, then "Wystaw fakturę" and reading paid status in Kraken.
 
 ## Next steps (owner decides the order)
 1. Filters and pages on the other lists (owner wants Roasts first, then the rest once happy).
