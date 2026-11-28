@@ -283,7 +283,9 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   up) is saved without one and says why. A sale saved before prices existed shows no "Netto" until it is saved again.
   **Issuing the invoice in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`; built 2026-11-28, data
   version 17: "Wystaw fakturę w Fakturowni…" on a saved sale, a check screen, then the VAT invoice; Kraken saves its
-  number and link and reads back which invoices are paid; KSeF stays manual in Fakturownia).
+  number and link and reads back which invoices are paid; KSeF stays manual in Fakturownia). The invoice carries Krak's own
+  bank account (owner, 2026-11-28: the Fakturownia account's default account is another one), set once as a
+  Cloudflare secret, never in the code.
 
 ---
 

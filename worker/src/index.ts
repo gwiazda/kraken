@@ -21,6 +21,27 @@ export interface Env {
   OWNER_EMAIL: string;
   /** The partner's Gmail: may only read. A secret. */
   PARTNER_EMAIL: string;
+  /**
+   * Optional (owner, 2026-11-28): the bank account for Krak's invoices, typed exactly as Fakturownia shows the saved
+   * account, when it is not the account's default. A secret (not in the public code). Empty: the default account.
+   */
+  FAKTUROWNIA_BANK_ACCOUNT?: string;
+}
+
+/**
+ * The bank account to put on invoices: the secret as typed (only trimmed, so Fakturownia can match its saved account),
+ * when it is a real Polish account number: 26 digits (spaces of any kind allowed, "PL" first optional) whose check
+ * digits are right (IBAN mod 97, like the NIP's check digit), so a mistyped digit never reaches an invoice. null if not.
+ */
+export function bankAccount(value: string | undefined): string | null {
+  const typed = (value ?? '').trim();
+  const digits = typed.replace(/^PL/i, '').replace(/\s/g, '');
+  if (!/^\d{26}$/.test(digits)) return null;
+  // IBAN: the country (P = 25, L = 21) and the 2 check digits go to the end; the whole number mod 97 must be 1.
+  const rearranged = `${digits.slice(2)}2521${digits.slice(0, 2)}`;
+  let rest = 0;
+  for (const d of rearranged) rest = (rest * 10 + Number(d)) % 97;
+  return rest === 1 ? typed : null;
 }
 
 /** Kraken's own addresses: the only pages that may call the middleman. */
@@ -180,6 +201,11 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       return { id: made['id'] };
     }
     case 'createInvoice': {
+      // Only invoices need the bank account: a typo there never stops anything else (e.g. the partner's reading).
+      const account = bankAccount(env.FAKTUROWNIA_BANK_ACCOUNT);
+      if ((env.FAKTUROWNIA_BANK_ACCOUNT ?? '').trim() !== '' && account === null) {
+        throw new Refused(500, 'Numer konta w Cloudflare (FAKTUROWNIA_BANK_ACCOUNT) jest źle wpisany: 26 cyfr z poprawnymi cyframi kontrolnymi, tak jak w Fakturowni.');
+      }
       const lines = Array.isArray(body['positions']) ? (body['positions'] as unknown[]) : fail('pozycje');
       if (lines.length < 1 || lines.length > 50) fail('pozycje');
       const invoice = {
@@ -193,6 +219,8 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
         payment_to_kind: int(body['paymentDays'], 'termin płatności', 0, 120),
         payment_type: 'transfer',
         buyer_company: true,
+        // Krak's own account (owner, 2026-11-28): Fakturownia uses the saved account with this number (only this one).
+        ...(account ? { bank_accounts: [{ bank_account_number: account }] } : {}),
         positions: lines.map((raw) => {
           const line = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : fail('pozycja');
           const quantity = int(line['quantity'], 'ilość', 1, 999);

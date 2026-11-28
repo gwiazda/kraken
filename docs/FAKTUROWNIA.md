@@ -137,7 +137,13 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
    Fakturownia: Ustawienia → Ustawienia konta → Integracja → Kod autoryzacyjny API; it cannot be read back),
    `FAKTUROWNIA_DOMAIN` (the account's address without `.fakturownia.pl`), `OWNER_EMAIL` (may also issue invoices)
    and `PARTNER_EMAIL` (reading only). Secrets, not plain variables: plain ones would be shown in Cloudflare and the
-   emails must never be in the public code.
+   emails must never be in the public code. Optional fifth (owner, 2026-11-28): `FAKTUROWNIA_BANK_ACCOUNT`, Krak's
+   own account number, **typed exactly as Fakturownia shows the saved account** (when it is not the default one):
+   the middleman puts it on every invoice as typed (`bank_accounts`, docs: API_RACHUNKI_BANKOWE.md; an existing
+   number means Fakturownia uses that saved account, and only it; whether its matching ignores spaces is to check on
+   the first invoice). The check digits are checked (IBAN mod 97), so a mistyped number is refused (only issuing
+   stops, with a clear message). If "zabezpieczone zmiany numeru konta bankowego" is on in Fakturownia, it ignores
+   this (to check).
 5. Add the worker's address to Kraken (`src/config.ts`) and to its Content Security Policy (`connect-src` in
    `index.html`).
 6. When the Fakturownia work is finished, remove `http://localhost:5173` from `ALLOWED_ORIGINS` in the middleman

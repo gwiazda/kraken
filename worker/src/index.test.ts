@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GOOGLE_CLIENT_ID } from '../../src/config';
-import { handle, type Env } from './index';
+import { bankAccount, handle, type Env } from './index';
 
 // Made-up people, domain and token only (the repo is public).
 const env: Env = { FAKTUROWNIA_TOKEN: 'secret-token-123', FAKTUROWNIA_DOMAIN: 'example-roastery', OWNER_EMAIL: 'owner@example.com', PARTNER_EMAIL: 'partner@example.com' };
@@ -236,5 +236,40 @@ describe('the actions', () => {
   it('accepts a big line within the limits (999 × 20 000 zł + 23 %)', async () => {
     const big = { ...invoice, positions: [{ name: 'X', quantity: 999, priceNet: '20000', totalGross: '24575400', tax: 23 }] };
     expect((await call(big, {}, { 'POST /invoices.json': [201, { id: 1, number: '1', token: 't' }] })).status).toBe(200);
+  });
+
+  // Made-up account numbers with right check digits (not Krak's).
+  const ACCOUNT = '03 1111 2222 0000 3333 4444 5555';
+
+  it("puts Krak's own bank account on the invoice, exactly as typed, when it is set", async () => {
+    const net = fakeNet({ 'POST /invoices.json': [201, { id: 1, number: '1', token: 't' }] });
+    const response = await handle(request(invoice), { ...env, FAKTUROWNIA_BANK_ACCOUNT: ` ${ACCOUNT} ` }, net.fetchFn);
+    expect(response.status).toBe(200);
+    const sent = JSON.parse(String(net.calls.find((c) => c.url.endsWith('/invoices.json'))?.init?.body));
+    expect(sent.invoice.bank_accounts).toEqual([{ bank_account_number: ACCOUNT }]);
+    // Not set: no bank_accounts, so Fakturownia's default account (as before).
+    const plain = await call(invoice, {}, { 'POST /invoices.json': [201, { id: 1, number: '1', token: 't' }] });
+    expect(JSON.parse(String(plain.calls.find((c) => c.url.endsWith('/invoices.json'))?.init?.body)).invoice).not.toHaveProperty('bank_accounts');
+  });
+
+  it('a mistyped bank account stops only invoices (before Fakturownia), never reading', async () => {
+    const wrong = { ...env, FAKTUROWNIA_BANK_ACCOUNT: '03 1111 2222 0000 3333 4444 5556' }; // one digit off
+    const net = fakeNet({ 'GET /invoices.json?period=all&per_page=100&invoice_ids=5': [200, []] });
+    const issuing = await handle(request(invoice), wrong, net.fetchFn);
+    expect(issuing.status).toBe(500);
+    expect(net.calls.some((c) => c.url.includes('/invoices.json') && c.init?.method === 'POST')).toBe(false);
+    const reading = await handle(request({ action: 'readInvoices', ids: [5] }, { token: 'goog-partner-token' }), wrong, net.fetchFn);
+    expect(reading.status).toBe(200);
+  });
+});
+
+describe('bankAccount', () => {
+  it('accepts a real Polish account number as typed (any spaces, "PL" or not), and refuses a wrong check digit', () => {
+    expect(bankAccount('03 1111 2222 0000 3333 4444 5555')).toBe('03 1111 2222 0000 3333 4444 5555');
+    expect(bankAccount(' PL03111122220000333344445555 ')).toBe('PL03111122220000333344445555');
+    expect(bankAccount('77\u00a09999\u00a08888\u00a07777\u00a06666\u00a05555\u00a04444')).toBe('77\u00a09999\u00a08888\u00a07777\u00a06666\u00a05555\u00a04444'); // spaces from a web page
+    for (const bad of ['', undefined, '03 1111', '30 1111 2222 0000 3333 4444 5555', '03 1111 2222 0000 3333 4444 5556', 'ab03 1111 2222 0000 3333 4444 5555', '03-1111-2222-0000-3333-4444-5555']) {
+      expect(bankAccount(bad)).toBeNull();
+    }
   });
 });
