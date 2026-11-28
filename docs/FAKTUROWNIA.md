@@ -177,13 +177,11 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
   Cloudflare's free 50 calls; four at a time, one batch after another, and an invoice whose answer fails is left
   out until next time). Paid invoices with no invoice date are asked too; one paid more than 60 days ago that never
   reached KSeF drops out of the reminder (kept small on purpose). Those Fakturownia shows as `paid` become "Opłacona" (keeping the issue date). The KSeF
-  state (owner, 2026-11-28; `ksefState`) is shown, not stored (owner, 2026-11-28: just the status, no note at the top): a
-  short badge after each invoice date (owner, 2026-11-28: "KSeF ✓" sent, "KSeF ✗" not sent, "KSeF ⏳" on its way,
-  "KSeF ⚠" error, "KSeF test", and "usunięta?" when not in Fakturownia; the full words on hover and on the sale's page:
-  "nie wysłana do KSeF", "błąd KSeF: sprawdź w
-  Fakturowni"; only KSeF's test mode, "w KSeF (tryb testowy)", is yellow like those still to send), and on the sale's page
-  with its KSeF number. Redrawing for it keeps the note shown and an open "Usunięte wpisy". An invoice Kraken issued that Fakturownia no longer has
-  (a 404; the middleman lists it in `missing`) gets a yellow "nie ma jej w Fakturowni" badge, and on its page no
+  state (owner, 2026-11-28; `ksefState`) is shown, not stored, **only on the sale's page** (owner, 2026-11-28: not in
+  the list, no note): next to the invoice link, "KSeF: w KSeF (nr …)", "nie wysłana do KSeF", "wysyłana do KSeF",
+  "czeka na KSeF (offline)", "błąd KSeF: sprawdź w Fakturowni", "w KSeF (tryb testowy)" (yellow, like those still to
+  send) or "nie dotyczy KSeF"; filled in when Fakturownia answers, also if the page was opened before. An invoice Kraken issued that Fakturownia no longer has
+  (a 404; the middleman lists it in `missing`) shows on its page "nie ma jej w Fakturowni" in yellow instead of the
   link, with an ⓘ on what to do: set the sale back to "Faktura do wystawienia" to invoice it again, or delete it (owner,
   2026-11-28: just the status, no note at the top; nothing is changed automatically). A 404 may have another cause (e.g. a mistyped
   Fakturownia address), hence the careful words; re-issuing one that still exists makes no duplicate (the sale's
