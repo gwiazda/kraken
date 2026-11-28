@@ -36,6 +36,7 @@ const ACTIONS: Readonly<Record<string, readonly Role[]>> = {
   createInvoice: ['owner'],
   findInvoice: ['owner'],
   readInvoices: ['owner', 'partner'],
+  whoAmI: ['owner', 'partner'],
 };
 
 /** The mark of the invoices Kraken makes: "KRAKEN-" + the sale's id (Fakturownia's oid, unique). */
@@ -80,6 +81,7 @@ export async function handle(request: Request, env: Env, fetchFn: Fetch): Promis
     const allowed = ACTIONS[action];
     if (!allowed) throw new Refused(400, 'Nieznane działanie.');
     if (!allowed.includes(role)) throw new Refused(403, 'To może zrobić tylko właściciel.');
+    if (action === 'whoAmI') return reply(200, { role }); // so Kraken shows "Wystaw fakturę" only to the owner
     return reply(200, await run(action, body, env, fetchFn));
   } catch (error) {
     if (error instanceof Refused) return reply(error.status, { error: error.message });
@@ -154,15 +156,15 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       return {
         clients: list
           .filter((c) => typeof c['tax_no'] === 'string' && c['tax_no'].replace(/\D/g, '') === wanted)
-          .map((c) => ({ id: c['id'], name: c['name'] })),
+          .map((c) => ({ id: c['id'], name: c['name'], email: typeof c['email'] === 'string' ? c['email'] : '' })),
       };
     }
     case 'createClient': {
-      // The owner's defaults (2026-11-28): 14 days to pay, VAT 23 %.
+      // The owner's defaults (2026-11-28): 14 days to pay, VAT 23 %; always with an e-mail (the invoice goes to it).
       const client = {
         name: str(body['name'], 'nazwa', 200),
         tax_no: nip(body['nip']),
-        email: body['email'] === '' || body['email'] === undefined ? '' : str(body['email'], 'e-mail', 200),
+        email: typeof body['email'] === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body['email'].trim()) && body['email'].length <= 200 ? body['email'].trim() : fail('e-mail'),
         company: true,
         payment_to_kind: 14,
         default_tax: 23,
@@ -197,7 +199,7 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       };
       // Never sent to KSeF from here: the owner sends it in Fakturownia (docs/FAKTUROWNIA.md).
       const made = (await api('/invoices.json', { method: 'POST', body: JSON.stringify({ invoice }) })) as Record<string, unknown>;
-      return { id: made['id'], number: made['number'], token: made['token'] };
+      return { id: made['id'], number: made['number'], url: viewUrl(env, made['token']) };
     }
     case 'findInvoice': {
       // After a "Wystaw" whose answer was lost: the invoice Kraken made for this sale, if Fakturownia has it. Only the
@@ -205,7 +207,7 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       const oid = ORDER_PREFIX + orderId(body['orderId']);
       const found = (await api('/invoices.json?period=last_30_days&per_page=100&order=updated_at.desc')) as unknown;
       const match = (Array.isArray(found) ? (found as Record<string, unknown>[]) : []).find((i) => i['oid'] === oid);
-      return { invoice: match ? { id: match['id'], number: match['number'], token: match['token'] } : null };
+      return { invoice: match ? { id: match['id'], number: match['number'], url: viewUrl(env, match['token']) } : null };
     }
     case 'readInvoices': {
       const ids = Array.isArray(body['ids']) ? (body['ids'] as unknown[]) : fail('faktury');
@@ -223,7 +225,6 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
           paidDate: i['paid_date'],
           ksefStatus: i['gov_status'] ?? null,
           ksefNumber: i['gov_id'] ?? null,
-          token: i['token'],
           })),
       };
     }
@@ -231,6 +232,13 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       return fail('działanie');
   }
 }
+
+/**
+ * The invoice's own page in Fakturownia (its public link, from the invoice's token; Fakturownia shows its PDF only once
+ * it has its KSeF number). '' when Fakturownia gave no token.
+ */
+const viewUrl = (env: Env, token: unknown): string =>
+  typeof token === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(token) ? `https://${env.FAKTUROWNIA_DOMAIN}.fakturownia.pl/invoice/${token}` : '';
 
 /** One call to Fakturownia with the secret token in the header (never in the address). */
 async function fakturownia(env: Env, fetchFn: Fetch, path: string, init: RequestInit): Promise<unknown> {

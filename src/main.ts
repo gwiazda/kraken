@@ -1,6 +1,7 @@
 // Kraken start screen: sign in, then connect to the Kraken spreadsheet.
 // All text is set with textContent (never innerHTML), so nothing from Google or the sheet can inject code.
 
+import { fakturowniaClient } from './core/fakturownia';
 import {
   SignInSuperseded,
   getToken,
@@ -496,6 +497,7 @@ function showSales(info: SpreadsheetInfo, fromClick = false, move: HistoryMove =
       products: sheetProductsRepository(client, info.id),
       prices: sheetSpecialPricesRepository(client, info.id),
       costs: sheetCostsRepository(client, info.id),
+      fakturownia: fakturowniaClient(client),
       formOpened: () => record('sale-form', currentScreen === 'sale-form' ? 'replace' : 'push'),
       formClosed: () => {
         currentScreen = 'sales';

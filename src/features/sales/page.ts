@@ -5,6 +5,9 @@
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
 import { formatDate, localDate } from '../../core/dates';
+import type { Fakturownia, FakturowniaRole, IssuedInvoice } from '../../core/fakturownia';
+import { formatPln, formatWholePln, parseMoney } from '../../core/numbers';
+import { count } from '../../core/polish';
 import { formatPercent } from '../../domain/percent';
 import { BAG_SIZES_G, formatBagSize } from '../../domain/bagSizes';
 import { busy, button, cardTable, clickableRow, el, infoTip, message } from '../../ui/dom';
@@ -44,6 +47,7 @@ import {
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds, type InvoiceDraft } from './invoice';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -58,6 +62,8 @@ export interface SalesPageDeps {
   /** For a sale's prices (owner, 2026-11-27): the clients' special prices, and VAT and discounts. */
   prices: SpecialPricesRepository;
   costs: CostsRepository;
+  /** Fakturownia through Kraken's middleman (owner, 2026-11-28): issuing invoices, reading which are paid. */
+  fakturownia: Fakturownia;
   whoAmI: () => Promise<string>;
   /** Runs an action that talks to Google, renewing the sign-in first if needed. Call it inside a click. */
   withGoogle: <T>(action: () => Promise<T>) => Promise<T>;
@@ -88,6 +94,19 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   let problems: string[] = [];
   /** The filter shown: Sales always opens on the invoices to issue (owner, 2026-11-26). */
   let filter: SalesFilter = 'to_issue';
+  /** Who is signed in, for Fakturownia (null until known, or when it cannot be reached): only the owner issues. */
+  let role: FakturowniaRole | null = null;
+  /** Fakturownia is asked once per visit to Sales (who is signed in, which invoices are paid). */
+  let fakturowniaAsked = false;
+  /** The list is on screen (not a sale's page). */
+  let onList = false;
+  /**
+   * Sales changed in the background (marked paid) while something was going on (a sale's page open, or an answer or
+   * save in progress on the list): read again, with this note, the next time the list is shown. '' when not needed.
+   */
+  let reloadNote: string | null = null;
+  /** The open sale's page adds "Wystaw fakturę" when it learns the owner is signed in (set by showForm). */
+  let roleKnown: (() => void) | null = null;
 
   const render = (...children: (Node | string)[]) => root.replaceChildren(...children);
   /**
@@ -155,12 +174,71 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           ...lineSizeProblems(active, s.lines),
         ];
         showList(note);
+        if (!fakturowniaAsked) {
+          fakturowniaAsked = true;
+          void askFakturownia();
+        }
       })
       .catch((error: unknown) => {
         if (!root.isConnected || deps.isIgnorable(error)) return;
         const show = (e: unknown) => render(...errorNodes(e, () => load(), 'Zaloguj się i pokaż sprzedaż', show, false));
         show(error);
       });
+  }
+
+  /**
+   * In the background, once per visit (owner, 2026-11-28): who is signed in (so only the owner sees "Wystaw fakturę"),
+   * and which invoices Kraken issued are now paid in Fakturownia; those sales become "Opłacona". If Fakturownia cannot
+   * be reached nothing is shown or changed: it is tried again the next time Sales opens.
+   */
+  async function askFakturownia(): Promise<void> {
+    if (!(await learnRole())) return;
+    const chunks = unpaidInvoiceIds(sales);
+    if (chunks.length === 0) return;
+    let written = 0;
+    try {
+      const states = (await Promise.all(chunks.map((ids) => deps.fakturownia.readInvoices(ids)))).flat();
+      const updates = paidUpdates(sales, states);
+      if (updates.length === 0) return;
+      appBusy(true);
+      try {
+        for (const u of updates) {
+          await deps.repo.update(u.sale, u.fields, deps.now());
+          written += 1;
+        }
+      } finally {
+        appBusy(false);
+      }
+    } catch {
+      // The rest is tried again the next time Sales opens.
+    }
+    if (written === 0 || !root.isConnected) return;
+    // What was written is shown (also after a failure partway), without breaking off anything going on on the list.
+    const note = `Fakturownia: ${count(written, 'sprzedaż opłacona', 'sprzedaże opłacone', 'sprzedaży opłaconych')} (zmieniono na „Opłacona”).`;
+    const listBusy = busyCount > 0 || root.querySelector('.sales-table tr.confirm-row:not([hidden])') !== null;
+    if (onList && !listBusy) load(note);
+    else reloadNote = note;
+  }
+
+  /**
+   * Who is signed in, for Fakturownia (only the owner issues). Asked again after a failure, at the next opening of a
+   * sale. True when known.
+   */
+  let asking: Promise<boolean> | null = null;
+  function learnRole(): Promise<boolean> {
+    if (role !== null) return Promise.resolve(true);
+    asking ??= deps.fakturownia.whoAmI().then(
+      (r) => {
+        role = r;
+        roleKnown?.();
+        return true;
+      },
+      () => {
+        asking = null; // try again later
+        return false;
+      },
+    );
+    return asking;
   }
 
   function lockPage(): void {
@@ -200,6 +278,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   // ---- The list ----
 
   function showList(note?: string, error?: Node[]): void {
+    if (reloadNote !== null && !error) {
+      const deferred = reloadNote;
+      reloadNote = null;
+      return load([note, deferred].filter((t) => t).join(' '));
+    }
+    onList = true;
     deps.formClosed();
     const { rows, counts } = saleRows(sales, lines, filter, clientName, productName);
     const newestNotes = lastNotes(sampleNotes);
@@ -367,10 +451,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   // ---- The form ----
 
   function showForm(sale: Sale | null): void {
+    onList = false;
+    roleKnown = null;
     deps.formOpened();
     const existingLines = sale ? linesOf(lines, sale.id) : [];
     const form: SaleForm = sale ? formFromSale(sale, existingLines) : emptySaleForm(today());
     if (form.lines.length === 0) form.lines.push(emptyLine(form.kind));
+    /** The form as saved: an invoice is issued only from a saved sale with nothing changed since. */
+    const saved = JSON.stringify(form);
     const activeClients = sortClients(clients).filter((c) => !isClientDeleted(c));
     const activeProducts = sortProducts(products).filter((p) => !isProductDeleted(p));
 
@@ -418,9 +506,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                   el('td', {}, r.item),
                   el('td', { class: 'num' }, r.bags),
                   // One bag: the starting price, the discount (or special price, or why there is no price), the client's price.
-                  el('td', { class: 'num nowrap muted' }, r.base),
+                  el('td', { class: 'num nowrap muted' }, r.base || '—'),
                   el('td', { class: r.missing ? 'field-error' : '' }, r.why),
-                  el('td', { class: 'num nowrap' }, el('strong', {}, r.price)),
+                  el('td', { class: 'num nowrap' }, r.price ? el('strong', {}, r.price) : el('span', { class: 'muted' }, '—')),
                 ),
               ),
             ),
@@ -732,13 +820,27 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           errorNodes: (error, retry, label, show) => errorNodes(error, retry, label, show, true, 'Odśwież sprzedaż (bez tego formularza)'),
         })
       : null;
+    // "Wystaw fakturę" for the owner: shown now if Kraken already knows who is signed in, else as soon as it does.
+    const invoiceSlot = el('div', {});
+    const showInvoiceBox = () => {
+      if (sale && role === 'owner' && sale.kind === 'sale' && sale.status === 'to_issue' && sale.fakturowniaId === null && invoiceSlot.childElementCount === 0) {
+        invoiceSlot.append(invoiceBox(sale, existingLines, () => JSON.stringify(form) === saved));
+      }
+    };
+    roleKnown = showInvoiceBox;
     renderKind();
     renderWho();
     renderLines();
+    showInvoiceBox();
+    if (sale && role === null) void learnRole();
     render(
       el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
       el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
       factsBox,
+      ...(sale?.fakturowniaUrl
+        ? [el('p', {}, 'Faktura ', el('strong', {}, sale.source['invoice_number'] ?? ''), ' w Fakturowni: ', el('a', { href: sale.fakturowniaUrl, target: '_blank', rel: 'noopener noreferrer' }, 'otwórz'), ' ', infoTip('Strona faktury w Fakturowni. PDF jest dostępny, gdy faktura ma już numer KSeF (wyślij ją do KSeF w Fakturowni).'))]
+        : []),
+      invoiceSlot,
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),
       banner,
       formNode,
@@ -746,5 +848,207 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     );
   }
 
+  // ---- Issuing the invoice in Fakturownia (owner only, 2026-11-28) ----
+
+  /**
+   * "Wystaw fakturę w Fakturowni…" on a saved sale to be invoiced: first a check screen with exactly what will be sent;
+   * only "Wystaw fakturę" there creates it. `unchanged`: the form still is as saved.
+   */
+  function invoiceBox(sale: Sale, saleLines: readonly SaleLine[], unchanged: () => boolean): HTMLElement {
+    const box = el('section', { class: 'product-card invoice-box' });
+    const start = () => {
+      const refuse = (...texts: string[]) => box.replaceChildren(...texts.map((t) => message(t, 'error')), startButton());
+      if (pricesUnavailable) return refuse(pricesUnavailable);
+      if (!unchanged()) return refuse('Najpierw zapisz zmiany (Zapisz), potem wystaw fakturę.');
+      const priced = priceEntry('sale', linesToPrice(formFromSale(sale, saleLines).lines, 'sale'), pricingDataFrom({ products, deals, discounts, vatTenths }, sale.clientId), { sale, lines: saleLines });
+      if (!pricesUpToDate(priced, sale, saleLines)) {
+        return refuse('Ceny tej sprzedaży zmieniły się od zapisania (np. nowa cena produktu, cena specjalna albo rabat). Kliknij Zapisz, żeby je przeliczyć, a potem wystaw fakturę.');
+      }
+      const result = invoiceDraft(sale, saleLines, clients.find((c) => c.id === sale.clientId), productName, vatTenths, today());
+      if (!result.ok) return refuse(...result.problems);
+      lookUpClient(result.draft);
+    };
+    const startButton = () => button('Wystaw fakturę w Fakturowni…', start, 'secondary');
+    const cancelButton = () => button('Anuluj', () => box.replaceChildren(startButton()), 'secondary');
+
+    /** Talks to Fakturownia inside the click (sign-in renewed if needed), showing `working`; `retry` after an error. */
+    const ask = <T,>(working: string, action: () => Promise<T>, done: (value: T) => void, retry: () => void, saving: boolean) => {
+      box.replaceChildren(el('p', {}, busy(working)));
+      if (saving) appBusy(true);
+      deps
+        .withGoogle(action)
+        .finally(() => saving && appBusy(false))
+        .then((value) => {
+          if (root.isConnected) done(value);
+        })
+        .catch((error: unknown) => {
+          if (!root.isConnected) return;
+          if (deps.isIgnorable(error)) return box.replaceChildren(startButton());
+          if (error instanceof InvoiceStopped) return box.replaceChildren(message(error.message, 'error'), startButton());
+          const show = (e: unknown) => box.replaceChildren(...errorNodes(e, retry, 'Zaloguj się i spróbuj ponownie', show, saving, 'Odśwież sprzedaż'), cancelButton());
+          show(error);
+        });
+    };
+
+    /**
+     * Step 1 (owner, 2026-11-28, option A): is the client in Fakturownia (by NIP)? Yes: straight to the invoice. No:
+     * first "Dodaj klienta do Fakturowni", then the invoice. A card there without an e-mail stops it.
+     */
+    const lookUpClient = (draft: InvoiceDraft): void =>
+      ask(
+        'Sprawdzam klienta w Fakturowni…',
+        async () => {
+          const chosen = chooseClient(await deps.fakturownia.findClient(draft.buyer.nip));
+          if (!chosen.ok) throw new InvoiceStopped(chosen.problem);
+          return chosen.card;
+        },
+        (card) => (card === null ? addClient(draft) : check(draft, card.id, card)),
+        () => lookUpClient(draft),
+        false,
+      );
+
+    const addClient = (draft: InvoiceDraft): void => {
+      const add = button(
+        'Dodaj klienta do Fakturowni',
+        () => ask('Dodaję klienta…', () => deps.fakturownia.createClient(draft.buyer), (id) => check(draft, id, null), () => addClient(draft), true),
+        'primary',
+      );
+      box.replaceChildren(
+        el('h3', {}, 'Nowy klient w Fakturowni'),
+        el('p', {}, `W Fakturowni nie ma jeszcze klienta z NIP-em ${draft.buyer.nip}. Najpierw dodaj go z danymi z zakładki Klienci; potem zobaczysz fakturę.`),
+        el(
+          'dl',
+          { class: 'product-details' },
+          ...[
+            ['Nazwa', draft.buyer.name],
+            ['NIP', draft.buyer.nip],
+            ['E-mail', draft.buyer.email],
+            ['Termin płatności', '14 dni'],
+            ['VAT', '23 %'],
+          ].flatMap(([label, value]) => [el('dt', {}, label ?? ''), el('dd', {}, value ?? '')]),
+        ),
+        el('p', { class: 'muted small' }, 'Adres klienta uzupełnisz potem na jego karcie w Fakturowni.'),
+        el('div', { class: 'actions' }, add, cancelButton()),
+      );
+      add.focus();
+    };
+
+    /**
+     * Step 2: the invoice, for the client found in Fakturownia (`card`: the invoice uses that card's name and e-mail,
+     * so those are shown) or just added from Klienci (`card` null).
+     */
+    const check = (draft: InvoiceDraft, clientId: number, card: { name: string; email: string } | null): void => {
+      const status = el('div', {});
+      const issue = button('Wystaw fakturę', () => send(draft, clientId, issue, cancel, status), 'primary');
+      const cancel = cancelButton();
+      const buyer = card ?? draft.buyer;
+      const differs = card ? cardDiffers(card, draft.buyer) : '';
+      box.replaceChildren(
+        el('h3', {}, 'Sprawdź fakturę'),
+        message(card ? `Klient jest już w Fakturowni (NIP ${draft.buyer.nip}) ✓` : `Dodano klienta ${draft.buyer.name} do Fakturowni ✓`),
+        ...(differs ? [message(differs, 'error')] : []),
+        el(
+          'dl',
+          { class: 'product-details' },
+          ...[
+            ['Nabywca', buyer.name],
+            ['NIP', draft.buyer.nip],
+            ['E-mail', buyer.email || '—'],
+            ['Data sprzedaży', formatDate(draft.request.sellDate)],
+            ['Data wystawienia', formatDate(draft.request.issueDate)],
+            ['Płatność', `przelew, ${draft.request.paymentDays} dni`],
+          ].flatMap(([label, value]) => [el('dt', {}, label ?? ''), el('dd', {}, value ?? '')]),
+        ),
+        el(
+          'div',
+          { class: 'table-wrap' },
+          cardTable(
+            el(
+              'table',
+              { class: 'data-table' },
+              el('thead', {}, el('tr', {}, ...['Pozycja', 'Ilość', 'Cena netto', 'VAT', 'Wartość netto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
+              el(
+                'tbody',
+                {},
+                ...draft.request.positions.map((p) => {
+                  const unit = parseMoney(p.priceNet);
+                  const net = typeof unit === 'number' ? unit : 0;
+                  return el(
+                    'tr',
+                    {},
+                    el('td', {}, p.name),
+                    el('td', { class: 'num' }, `${p.quantity} szt.`),
+                    el('td', { class: 'num nowrap' }, formatWholePln(net)),
+                    el('td', { class: 'num' }, `${p.tax} %`),
+                    el('td', { class: 'num nowrap' }, formatWholePln(net * p.quantity)),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+        el(
+          'p',
+          { class: 'sale-total' },
+          'Razem netto: ',
+          el('strong', {}, formatWholePln(draft.totalNet)),
+          ' · brutto ok. ',
+          el('strong', {}, formatPln(draft.totalGross)),
+          ` (VAT ${draft.vatPercent} %) `,
+          infoTip('Brutto liczy Fakturownia; przy cenach z groszami może się różnić o grosz lub dwa od tej kwoty.'),
+        ),
+        el(
+          'p',
+          { class: 'muted small' },
+          'Faktura zostanie od razu wystawiona w Fakturowni, z numerem. Nie trafi do KSeF: wyślesz ją tam sam w Fakturowni („Wyślij do KSeF”), a do tego czasu możesz ją tam jeszcze poprawić albo usunąć.',
+        ),
+        el('div', { class: 'actions' }, issue, cancel),
+        status,
+      );
+      issue.focus();
+    };
+
+    /** Creates the invoice (never twice: the sale's mark), then the sale is updated. */
+    const send = (draft: InvoiceDraft, clientId: number, issue: HTMLButtonElement, cancel: HTMLButtonElement, status: HTMLElement) => {
+      issue.disabled = true;
+      cancel.disabled = true;
+      status.replaceChildren(busy('Wystawiam fakturę…'));
+      appBusy(true);
+      deps
+        .withGoogle(async (): Promise<IssuedInvoice> => {
+          const f = deps.fakturownia;
+          let invoice: IssuedInvoice;
+          try {
+            invoice = await f.createInvoice({ ...draft.request, clientId });
+          } catch (error) {
+            // Maybe it was made but the answer was lost (or this is a retry): then it is there with this sale's mark.
+            const made = await f.findInvoice(sale.id).catch(() => null);
+            if (!made) throw error;
+            invoice = made;
+          }
+          await deps.repo.update(sale, issuedFields(invoice, draft.request.issueDate), deps.now()); // the date on the invoice
+          return invoice;
+        })
+        .finally(() => appBusy(false))
+        .then((invoice) => {
+          filter = 'all'; // keep it in view
+          if (root.isConnected) load(`Wystawiono fakturę ${invoice.number} w Fakturowni. Wyślij ją do KSeF w Fakturowni, gdy ją sprawdzisz.`);
+        })
+        .catch((error: unknown) => {
+          issue.disabled = false;
+          cancel.disabled = false;
+          if (deps.isIgnorable(error)) return status.replaceChildren();
+          const show = (e: unknown) => status.replaceChildren(...errorNodes(e, () => send(draft, clientId, issue, cancel, status), 'Zaloguj się i wystaw fakturę', show, true, 'Odśwież sprzedaż'));
+          show(error);
+        });
+    };
+
+    box.append(el('h3', {}, 'Faktura'), el('p', { class: 'muted small' }, 'Wystaw fakturę VAT w Fakturowni z cenami tej sprzedaży. Najpierw zobaczysz, co dokładnie zostanie wysłane.'), startButton());
+    return box;
+  }
+
   load(note, fromClick);
 }
+
+/** Issuing stopped on purpose before anything was created or saved (e.g. the client's card has no e-mail). */
+class InvoiceStopped extends Error {}

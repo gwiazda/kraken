@@ -8,7 +8,7 @@ export const META_TAB = '_meta';
  * The data structure version this app version expects: the version of the last migration in `migrations/index.ts`
  * (a test checks they match). Raise it only together with a new migration and its tests.
  */
-export const APP_SCHEMA_VERSION = 16;
+export const APP_SCHEMA_VERSION = 17;
 
 /** Version 1 is a sheet with only `_meta`; every later structure comes from the migrations. */
 export const BASE_SCHEMA_VERSION = 1;

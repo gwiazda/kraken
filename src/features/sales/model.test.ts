@@ -149,8 +149,8 @@ describe('validateSale', () => {
 
 describe('the invoice status', () => {
   it('starts as to be issued for a sale, and has none for samples and own use', () => {
-    expect(startingInvoice('sale')).toEqual({ invoice_status: 'to_issue' });
-    expect(startingInvoice('sample')).toEqual({ invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '' });
+    expect(startingInvoice('sale')).toEqual({ invoice_status: 'to_issue', fakturownia_id: '', fakturownia_url: '' });
+    expect(startingInvoice('sample')).toEqual({ invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '', fakturownia_id: '', fakturownia_url: '' });
   });
 
   const issued = sale(2, { invoice_status: 'issued', invoice_date: '2026-11-12' });
@@ -190,7 +190,8 @@ describe('the invoice status', () => {
   });
 
   it('going back to "to be issued" clears the issue date (a mistake can be undone)', () => {
-    expect(statusChange(paid, 'to_issue', '')).toEqual({ ok: true, fields: { invoice_status: 'to_issue', invoice_date: '' } });
+    // Back to "to be issued" also forgets the Fakturownia invoice (owner deleted it to correct it): it can be issued again.
+    expect(statusChange(paid, 'to_issue', '')).toEqual({ ok: true, fields: { invoice_status: 'to_issue', invoice_date: '', invoice_number: '', fakturownia_id: '', fakturownia_url: '' } });
   });
 });
 
@@ -202,8 +203,8 @@ describe('editing', () => {
   it('a changed kind starts the invoice again; an unreadable kind with a readable status keeps it', () => {
     const fields = { date: '2026-11-19', kind: 'sale', client_id: 'C1', place: '', reason: '', notes: '' };
     expect(saleEditFields(sale(2, { invoice_status: 'paid' }), 'sale', fields)).toEqual(fields);
-    expect(saleEditFields(sale(2, { kind: 'sample', invoice_status: '' }), 'sale', fields)).toEqual({ ...fields, invoice_status: 'to_issue' });
-    expect(saleEditFields(sale(2), 'own_use', fields)).toEqual({ ...fields, invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '' });
+    expect(saleEditFields(sale(2, { kind: 'sample', invoice_status: '' }), 'sale', fields)).toEqual({ ...fields, invoice_status: 'to_issue', fakturownia_id: '', fakturownia_url: '' });
+    expect(saleEditFields(sale(2), 'own_use', fields)).toEqual({ ...fields, invoice_status: '', invoice_number: '', invoice_date: '', paid_date: '', fakturownia_id: '', fakturownia_url: '' });
     const typo = sale(2, { kind: 'Sale', invoice_status: 'paid' });
     expect(changedSaleFields(typo, saleEditFields(typo, 'sale', fields))).toEqual({ kind: 'sale' });
     expect(saleEditFields(sale(2, { kind: 'Sale', invoice_status: 'whatever' }), 'sale', fields)).toMatchObject({ invoice_status: 'to_issue' });

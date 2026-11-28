@@ -139,6 +139,32 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
 6. When the Fakturownia work is finished, remove `http://localhost:5173` from `ALLOWED_ORIGINS` in the middleman
    (owner, 2026-11-28: only the published Kraken may call it).
 
+## In Kraken (built 2026-11-28)
+
+- `src/core/fakturownia.ts`: talks to the middleman (`FAKTUROWNIA_PROXY_URL` in `src/config.ts`, also in the CSP's
+  `connect-src`); a 401 is treated as an expired sign-in (sign in again), any other refusal shows the middleman's
+  Polish words.
+- `src/features/sales/invoice.ts` (pure, tested): `invoiceDraft` (the invoice from the sale as saved, or why it
+  cannot be issued: not a sale, already issued, no client or no NIP, no priced lines, only free bags),
+  `pricesUpToDate` (saved prices still what the sale is priced at now), `issuedFields`, `unpaidInvoiceIds`,
+  `paidUpdates`.
+- Sales: on a saved sale "to be issued", the owner (asked of the middleman once per visit: `whoAmI`) sees "Wystaw
+  fakturę w Fakturowni…". It is refused while the form has unsaved changes or the prices changed since saving
+  (save first). **Two steps only for a new client (owner, 2026-11-28, option A):** Kraken first looks the client up
+  in Fakturownia by NIP. Found: straight to the check screen ("Klient jest już w Fakturowni ✓"). Not found: a
+  "Nowy klient w Fakturowni" screen with its data and "Dodaj klienta do Fakturowni"; only after that the check
+  screen ("Dodano klienta … ✓"). The check screen shows buyer, NIP, e-mail, dates, "przelew, 14 dni", the lines and
+  the totals, and says the invoice is issued at once with a number but not sent to KSeF. "Wystaw fakturę": the
+  invoice (for a client found there the check screen shows the card's name and e-mail, which the invoice uses, and
+  warns when they differ from Klienci; if creating fails, `findInvoice` looks for one already made with this sale's mark), then the
+  sale becomes "Faktura wystawiona" today with the number, `fakturownia_id` and `fakturownia_url` (migration 17).
+  The sale's page then links to the invoice in Fakturownia. Setting the sale back to "Faktura do wystawienia" (or
+  changing its kind) forgets the link, so it can be issued again after the owner deleted the invoice in Fakturownia;
+  if the invoice still exists, Fakturownia refuses a second one with the sale's mark and Kraken links the old one.
+- Paid: once per visit to Sales, in the background, Kraken asks about its issued, unpaid invoices and sets those
+  Fakturownia shows as `paid` to "Opłacona" (keeping the issue date). If Fakturownia cannot be reached, nothing
+  changes and nothing is shown.
+
 ## Cutting off access
 
 Create a new token in Fakturownia and paste it into Cloudflare. **Not checked yet** whether the old token then stops
@@ -169,7 +195,9 @@ read; a public PDF link is built from the invoice's `token`.
    match is exact is to check) and uses its `client_id`, so the address on the Fakturownia card is used. With no
    such client, Kraken creates one from Klienci: `name` = the CEIDG name (the short name if empty), `tax_no` = NIP,
    `email`, `company: true`, and the owner's defaults **`payment_to_kind: 14`** (14 days) and **`default_tax: 23`**;
-   the owner adds the address in Fakturownia once. A client without a NIP: Kraken asks for one first (Klienci).
+   the owner adds the address in Fakturownia once. **E-mail required (owner, 2026-11-28: the invoice goes to it):**
+   no invoice for a client without an e-mail in Klienci; the middleman never creates a client without one; if the
+   client found in Fakturownia has no e-mail on its card, Kraken stops before creating the invoice and says so. A client without a NIP: Kraken asks for one first (Klienci).
    Every invoice sends `buyer_company: true` (KSeF.md: always send it).
 4. **Invoice details:** payment term **14 days** (`payment_to_kind: 14`), payment by transfer, sell date = the
    sale's date, issue date = today; VAT **23 %** (the VAT in Packaging & discounts). Lines: **"KENIA 1 kg"** (product

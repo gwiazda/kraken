@@ -11,6 +11,12 @@ export const GOOGLE_PICKER_API_KEY = 'AIzaSyBdYoj-fzrBsEOEsOdWK_4Oy9625IRNa44';
 /** Google Cloud project number (the first part of the Client ID). The Picker needs it to grant drive.file access. */
 export const GOOGLE_PROJECT_NUMBER = '931901713438';
 
+/**
+ * The Fakturownia middleman (docs/FAKTUROWNIA.md): a Cloudflare Worker that keeps the Fakturownia API token. Its address
+ * is public by design; it answers only Kraken, and only for the owners' Google sign-in.
+ */
+export const FAKTUROWNIA_PROXY_URL = 'https://kraken-fakturownia.krakcoffee.workers.dev';
+
 /** drive.file: Kraken can only use files it created or that the user picked in Kraken. */
 export const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
 

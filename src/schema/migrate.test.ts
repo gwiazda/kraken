@@ -342,7 +342,6 @@ describe('version 16', () => {
       { kind: 'add-columns', tab: 'Sales', columns: ['discount_percent'] },
       { kind: 'add-columns', tab: 'Sale lines', columns: ['price_kind'] },
     ]);
-    expect(APP_SCHEMA_VERSION).toBe(16);
   });
 
   it('updates a version 15 sheet with only the two header cells; every sale and line stays as it was', async () => {
@@ -350,11 +349,29 @@ describe('version 16', () => {
       { title: 'Sales', sheetId: 3, rows: [[...salesHeader], [...sale]] },
       { title: 'Sale lines', sheetId: 4, rows: [[...linesHeader], [...line]] },
     ]);
-    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS.slice(0, 15), appVersion: 16 });
     expect(result).toMatchObject({ fromVersion: 15, toVersion: 16 });
     expect(tab(google, 'Sales')?.rows).toEqual([[...salesHeader, 'discount_percent'], sale]);
     expect(tab(google, 'Sale lines')?.rows).toEqual([[...linesHeader, 'price_kind'], line]);
     expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '16']);
+  });
+});
+
+describe('version 17', () => {
+  const header = ['id', 'date', 'kind', 'client_id', 'invoice_status', 'invoice_number', 'discount_percent', 'created_at', 'updated_at', 'created_by', 'deleted_at'];
+  const sale = ['S1', '2026-11-20', 'sale', 'C1', 'issued', 'FV 1/11', '15', '2026-11-20T10:00:00.000Z', '2026-11-20T10:00:00.000Z', 'owner@example.com', ''];
+
+  it('adds fakturownia_id and fakturownia_url to Sales, agreed on 2026-11-28', () => {
+    expect(MIGRATIONS[15]?.steps).toEqual([{ kind: 'add-columns', tab: 'Sales', columns: ['fakturownia_id', 'fakturownia_url'] }]);
+    expect(APP_SCHEMA_VERSION).toBe(17);
+  });
+
+  it('updates a version 16 sheet with only the two header cells; every sale stays as it was', async () => {
+    const google = sheetAt(16, [{ title: 'Sales', sheetId: 3, rows: [[...header], [...sale]] }]);
+    const result = await migrateSpreadsheet(googleSheetOps(google), ID, { backup: true, now, migrations: MIGRATIONS, appVersion: APP_SCHEMA_VERSION });
+    expect(result).toMatchObject({ fromVersion: 16, toVersion: 17 });
+    expect(tab(google, 'Sales')?.rows).toEqual([[...header, 'fakturownia_id', 'fakturownia_url'], sale]);
+    expect(tab(google, META_TAB)?.rows[2]).toEqual(['schema_version', '17']);
   });
 });
 
