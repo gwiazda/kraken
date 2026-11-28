@@ -206,13 +206,14 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     const listIdle = () => onList && root.isConnected && busyCount === 0 && root.querySelector('.sales-table tr.confirm-row:not([hidden])') === null;
     try {
       // One batch after another (the middleman asks Fakturownia four at a time), gentle on Fakturownia.
+      // Each batch is kept as it arrives, so a later one failing never hides what the earlier ones said.
       const states: InvoiceState[] = [];
       for (const ids of chunks) {
         const answer = await deps.fakturownia.readInvoices(ids);
         states.push(...answer.states);
+        for (const st of answer.states) invoiceStates.set(st.id, st);
         for (const id of answer.missing) missingInvoices.add(id);
       }
-      for (const s of states) invoiceStates.set(s.id, s);
       const updates = paidUpdates(sales, states);
       if (updates.length === 0) {
         // Only the KSeF states are new: shown at once (with the same note) if the list is idle on screen.
@@ -296,7 +297,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   };
   /** A small mark after the invoice date in the list: "w KSeF", or "nie wysłana do KSeF" (and errors) in yellow. */
   const ksefBadge = (sale: Sale): (Node | string)[] => {
-    if (sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)) return [' ', el('span', { class: 'badge badge-warn' }, 'usunięta w Fakturowni')];
+    if (sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)) return [' ', el('span', { class: 'badge badge-warn' }, 'nie ma jej w Fakturowni')];
     const k = ksefOf(sale);
     if (!k) return [];
     return [' ', el('span', { class: `badge ${k.warn ? 'badge-warn' : 'badge-muted'}` }, k.kind === 'sent' ? 'KSeF ✓' : k.text)];
@@ -465,7 +466,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
               el(
                 'p',
                 { class: 'message message-error', role: 'status' },
-                `${count(gone.length, 'faktura wystawiona w Krakenie została usunięta', 'faktury wystawione w Krakenie zostały usunięte', 'faktur wystawionych w Krakenie zostało usuniętych')} w Fakturowni: aby wystawić ${gone.length === 1 ? 'ją' : 'je'} ponownie, ustaw sprzedaż z powrotem na „Faktura do wystawienia”; jeśli sprzedaży nie było, usuń ją. `,
+                gone.length === 1
+                  ? 'Faktury wystawionej w Krakenie nie ma w Fakturowni (usunięta?). Sprawdź w Fakturowni; jeśli ją usunąłeś, a chcesz wystawić ją ponownie, ustaw tę sprzedaż z powrotem na „Faktura do wystawienia”; jeśli sprzedaży nie było, usuń ją. '
+                  : `${gone.length} faktur wystawionych w Krakenie nie ma w Fakturowni (usunięte?). Sprawdź w Fakturowni; jeśli je usunąłeś, a chcesz wystawić je ponownie, ustaw te sprzedaże z powrotem na „Faktura do wystawienia”; jeśli sprzedaży nie było, usuń je. `,
                 ...(filter === 'all' ? [] : [button('Pokaż', () => ((filter = 'all'), showList()), 'link')]),
               ),
             ];
@@ -909,7 +912,21 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       el('p', { class: 'small back-link' }, button('← Cała sprzedaż', () => showList(), 'link')),
       el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
       factsBox,
-      ...(sale?.fakturowniaUrl
+      ...(sale?.fakturowniaUrl && sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)
+        ? [
+            // Not in Fakturownia any more: no link to it (it would lead nowhere).
+            el(
+              'p',
+              {},
+              'Faktura ',
+              el('strong', {}, sale.source['invoice_number'] ?? ''),
+              ': ',
+              el('span', { class: 'badge badge-warn' }, 'nie ma jej w Fakturowni'),
+              ' ',
+              infoTip('Fakturownia nie zna już tej faktury (usunięta?). Sprawdź w Fakturowni. Aby wystawić ją ponownie, ustaw sprzedaż z powrotem na „Faktura do wystawienia” (lista Sprzedaż, kolumna Faktura); jeśli ta faktura jednak istnieje, Fakturownia nie zrobi drugiej, a Kraken połączy się z istniejącą.'),
+            ),
+          ]
+        : sale?.fakturowniaUrl
         ? [
             el(
               'p',
@@ -921,9 +938,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
               ' ',
               infoTip('Strona faktury w Fakturowni. PDF jest dostępny, gdy faktura ma już numer KSeF (wyślij ją do KSeF w Fakturowni).'),
               ...(() => {
-                if (sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)) {
-                  return [' · ', el('span', { class: 'badge badge-warn' }, 'usunięta w Fakturowni'), ' ', infoTip('Tej faktury nie ma już w Fakturowni. Aby wystawić ją ponownie, ustaw sprzedaż z powrotem na „Faktura do wystawienia” (lista Sprzedaż, kolumna Faktura).')];
-                }
                 const k = ksefOf(sale);
                 const number = sale.fakturowniaId === null ? null : invoiceStates.get(sale.fakturowniaId)?.ksefNumber;
                 return k ? [' · KSeF: ', el('span', { class: k.warn ? 'badge badge-warn' : '' }, k.text), ...(k.kind === 'sent' && number ? [el('span', { class: 'muted small' }, ` (nr ${number})`)] : [])] : [];
