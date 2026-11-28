@@ -141,7 +141,7 @@ describe('the actions', () => {
 
   it('creates a VAT invoice from only the allowed fields, never sending it to KSeF', async () => {
     const r = await call({ ...invoice, gov_save_and_send: true, send_to_ksef: 'yes', kind: 'proforma' }, {}, { 'POST /invoices.json': [201, { id: 345, number: '12/11/2026', token: 'abc', price_net: '1376' }] });
-    expect(r).toMatchObject({ status: 200, body: { id: 345, number: '12/11/2026', token: 'abc' } });
+    expect(r).toMatchObject({ status: 200, body: { id: 345, number: '12/11/2026', url: 'https://example-roastery.fakturownia.pl/invoice/abc' } });
     const toFakturownia = r.calls.find((c) => c.url.includes('/invoices.json'));
     expect(toFakturownia?.url).toBe('https://example-roastery.fakturownia.pl/invoices.json'); // no ?gov_save_and_send
     expect(JSON.parse(String(toFakturownia?.init?.body))).toEqual({
@@ -193,7 +193,7 @@ describe('the actions', () => {
         ],
       ],
     });
-    expect(r.body).toEqual({ invoices: [{ id: 345, number: '12/11/2026', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: 'X-1', token: 'abc' }] });
+    expect(r.body).toEqual({ invoices: [{ id: 345, number: '12/11/2026', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: 'X-1' }] });
     expect((await call({ action: 'readInvoices', ids: [] })).status).toBe(400);
     expect((await call({ action: 'readInvoices', ids: ['1;DROP'] })).status).toBe(400);
   });
@@ -208,8 +208,16 @@ describe('the actions', () => {
       ],
     ];
     const found = await call({ action: 'findInvoice', orderId: 'S-1a2b3c' }, {}, { 'GET /invoices.json?period=last_30_days&per_page=100&order=updated_at.desc': recent });
-    expect(found.body).toEqual({ invoice: { id: 402, number: '14/11/2026', token: 't2' } });
+    expect(found.body).toEqual({ invoice: { id: 402, number: '14/11/2026', url: 'https://example-roastery.fakturownia.pl/invoice/t2' } });
     const none = await call({ action: 'findInvoice', orderId: 'S-zzz' }, {}, { 'GET /invoices.json?period=last_30_days&per_page=100&order=updated_at.desc': recent });
     expect(none.body).toEqual({ invoice: null });
+  });
+
+  it('tells Kraken who is asking, so only the owner sees "Wystaw fakturę"', async () => {
+    expect((await call({ action: 'whoAmI' })).body).toEqual({ role: 'owner' });
+    expect((await call({ action: 'whoAmI' }, { token: 'goog-partner-token' })).body).toEqual({ role: 'partner' });
+    const stranger = await call({ action: 'whoAmI' }, { token: 'goog-stranger-token' });
+    expect(stranger.status).toBe(403);
+    expect(stranger.calls.some((c) => c.url.includes('fakturownia'))).toBe(false);
   });
 });

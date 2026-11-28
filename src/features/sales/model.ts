@@ -19,7 +19,7 @@ import { BAG_SIZES_G, isBagSize } from '../../domain/bagSizes';
 export type Fields = Readonly<Record<string, string>>;
 
 export const SALES_TAB = 'Sales';
-export const SALE_COLUMNS = ['date', 'kind', 'client_id', 'place', 'reason', 'invoice_status', 'invoice_number', 'invoice_date', 'paid_date', 'notes', 'discount_percent'] as const;
+export const SALE_COLUMNS = ['date', 'kind', 'client_id', 'place', 'reason', 'invoice_status', 'invoice_number', 'invoice_date', 'paid_date', 'notes', 'discount_percent', 'fakturownia_id', 'fakturownia_url'] as const;
 export const SALE_LINES_TAB = 'Sale lines';
 export const LINE_COLUMNS = ['sale_id', 'position', 'product_id', 'bag_size_g', 'bags', 'unit_price_net_pln', 'free', 'price_kind'] as const;
 
@@ -60,6 +60,10 @@ export interface Sale {
   readonly notes: string;
   /** The discount the sale's weight got, saved with its prices (tenths); null for none or not saved yet. */
   readonly discountTenths: number | null;
+  /** The invoice Kraken issued for it in Fakturownia (migration 17): its id there, null when none. */
+  readonly fakturowniaId: number | null;
+  /** That invoice's own page in Fakturownia; '' when none. */
+  readonly fakturowniaUrl: string;
   readonly createdBy: string;
   readonly problems: readonly string[];
   readonly deletedAt: string;
@@ -112,6 +116,11 @@ export function saleFromFields(fields: Fields, row: number): Sale {
     invoiceDate: text(fields, 'invoice_date'),
     paidDate: text(fields, 'paid_date'),
     notes: fields['notes'] ?? '',
+    fakturowniaId: (() => {
+      const id = Number(text(fields, 'fakturownia_id'));
+      return text(fields, 'fakturownia_id') !== '' && Number.isSafeInteger(id) && id > 0 ? id : null;
+    })(),
+    fakturowniaUrl: text(fields, 'fakturownia_url').startsWith('https://') ? text(fields, 'fakturownia_url') : '',
     discountTenths: (() => {
       const tenths = percentFromCell(text(fields, 'discount_percent'));
       return typeof tenths === 'number' && tenths > 0 ? tenths : null;

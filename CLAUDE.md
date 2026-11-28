@@ -35,7 +35,7 @@ No public access. Sign-in is with Google. Access is enforced by Google: the spre
   the Fakturownia API token as a secret, accepts only Kraken's own Google sign-in of the two owners and only listed
   actions (issuing: the owner only; never KSeF). Reason: that token gives full access to the account and a browser
   can never keep a secret. Published by `.github/workflows/worker.yml` (main only) with Cloudflare's `wrangler`,
-  locked in `worker/package-lock.json` and used only by that workflow, so it is not an app dependency (owner informed 2026-11-28). Its address joins `connect-src` when Kraken uses it.
+  locked in `worker/package-lock.json` and used only by that workflow, so it is not an app dependency (owner informed 2026-11-28). Kraken talks to it through `core/fakturownia.ts` (`FAKTUROWNIA_PROXY_URL` in `config.ts`, in `connect-src`); Sales issues invoices (`features/sales/invoice.ts`, migration 17) and reads back which are paid.
 - The repo is **public**, because GitHub Pages on the Free plan requires it. The code is public; the data is not.
 - Front-end stack (decided 2026-11-06): **TypeScript + Vite, no UI framework** (no React).
   Reason: TypeScript is readable and catches bugs; Vite is mainstream and outputs static files. A framework can be added later if screens get complex.

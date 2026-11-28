@@ -139,6 +139,26 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
 6. When the Fakturownia work is finished, remove `http://localhost:5173` from `ALLOWED_ORIGINS` in the middleman
    (owner, 2026-11-28: only the published Kraken may call it).
 
+## In Kraken (built 2026-11-28)
+
+- `src/core/fakturownia.ts`: talks to the middleman (`FAKTUROWNIA_PROXY_URL` in `src/config.ts`, also in the CSP's
+  `connect-src`); a 401 is treated as an expired sign-in (sign in again), any other refusal shows the middleman's
+  Polish words.
+- `src/features/sales/invoice.ts` (pure, tested): `invoiceDraft` (the invoice from the sale as saved, or why it
+  cannot be issued: not a sale, already issued, no client or no NIP, no priced lines, only free bags),
+  `pricesUpToDate` (saved prices still what the sale is priced at now), `issuedFields`, `unpaidInvoiceIds`,
+  `paidUpdates`.
+- Sales: on a saved sale "to be issued", the owner (asked of the middleman once per visit: `whoAmI`) sees "Wystaw
+  fakturę w Fakturowni…". It is refused while the form has unsaved changes or the prices changed since saving
+  (save first). The check screen shows buyer, NIP, e-mail, dates, "przelew, 14 dni", the lines and the totals, and
+  says the invoice is issued at once with a number but not sent to KSeF. "Wystaw fakturę": the buyer by NIP (else
+  added), the invoice (if creating fails, `findInvoice` looks for one already made with this sale's mark), then the
+  sale becomes "Faktura wystawiona" today with the number, `fakturownia_id` and `fakturownia_url` (migration 17).
+  The sale's page then links to the invoice in Fakturownia.
+- Paid: once per visit to Sales, in the background, Kraken asks about its issued, unpaid invoices and sets those
+  Fakturownia shows as `paid` to "Opłacona" (keeping the issue date). If Fakturownia cannot be reached, nothing
+  changes and nothing is shown.
+
 ## Cutting off access
 
 Create a new token in Fakturownia and paste it into Cloudflare. **Not checked yet** whether the old token then stops

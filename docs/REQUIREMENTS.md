@@ -281,7 +281,9 @@ would need a large extra library, so Kraken reads the JSON files instead (same d
   cannot be saved (no wrong price is shown or saved). Free bags,
   samples and own use have no price. A line that cannot be priced (no retail price for that size, discounts not set
   up) is saved without one and says why. A sale saved before prices existed shows no "Netto" until it is saved again.
-  **Issuing the invoice in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`).
+  **Issuing the invoice in Fakturownia is for the owner only** (`docs/FAKTUROWNIA.md`; built 2026-11-28, data
+  version 17: "Wystaw fakturę w Fakturowni…" on a saved sale, a check screen, then the VAT invoice; Kraken saves its
+  number and link and reads back which invoices are paid; KSeF stays manual in Fakturownia).
 
 ---
 
@@ -613,7 +615,7 @@ Drive until the owner deletes them. A brand-new sheet is created in one all-or-n
 migrations describe (a test checks it equals an updated old sheet).
 
 **[R] Tabs:** one tab per kind of record, with row 1 as column headers, each added by a migration when its feature
-is built. Today (data version 16): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
+is built. Today (data version 17): `_meta`, Lots, Roasts, Cost settings, Bag costs, Lot costs, Price list (no longer
 read), Products, Discounts, Product beans, Clients, Sales, Sale lines, Special prices (section 5, version 12), Sale
-notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column, version 15 the discounts' `from_kg`, version 16 a sale's `discount_percent` and its lines' `price_kind`.
+notes (follow-up notes on samples, section 4, version 13); version 14 adds the products' `status` column, version 15 the discounts' `from_kg`, version 16 a sale's `discount_percent` and its lines' `price_kind`, version 17 a sale's `fakturownia_id` and `fakturownia_url`.
 - **[P]** You can still open and read the sheet directly. Editing it by hand is possible, but the app is the preferred way.
