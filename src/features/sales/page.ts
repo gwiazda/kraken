@@ -47,7 +47,7 @@ import {
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
-import { cardDiffers, chooseClient, deletedInFakturownia, invoiceDraft, invoiceIdsToAsk, issuedFields, ksefState, ksefWaiting, paidUpdates, pricesUpToDate, type InvoiceDraft } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, invoiceIdsToAsk, issuedFields, ksefState, ksefWaiting, paidUpdates, pricesUpToDate, type InvoiceDraft } from './invoice';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -457,22 +457,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
-      ...(() => {
-        // Invoices Kraken issued that were deleted in Fakturownia (owner, 2026-11-28): the owner decides what to do.
-        const gone = deletedInFakturownia(sales, missingInvoices);
-        return gone.length === 0
-          ? []
-          : [
-              el(
-                'p',
-                { class: 'message message-error', role: 'status' },
-                gone.length === 1
-                  ? 'Faktury wystawionej w Krakenie nie ma w Fakturowni (usunięta?). Sprawdź w Fakturowni; jeśli ją usunąłeś, a chcesz wystawić ją ponownie, ustaw tę sprzedaż z powrotem na „Faktura do wystawienia”; jeśli sprzedaży nie było, usuń ją. '
-                  : `${gone.length} faktur wystawionych w Krakenie nie ma w Fakturowni (usunięte?). Sprawdź w Fakturowni; jeśli je usunąłeś, a chcesz wystawić je ponownie, ustaw te sprzedaże z powrotem na „Faktura do wystawienia”; jeśli sprzedaży nie było, usuń je. `,
-                ...(filter === 'all' ? [] : [button('Pokaż', () => ((filter = 'all'), showList()), 'link')]),
-              ),
-            ];
-      })(),
       ...(() => {
         // At a glance (owner, 2026-11-28): invoices Kraken issued that are not in KSeF yet (the owner sends them in Fakturownia).
         const waiting = ksefWaiting(sales, invoiceStates);

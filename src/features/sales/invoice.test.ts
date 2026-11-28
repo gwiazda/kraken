@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../clients';
-import { cardDiffers, chooseClient, deletedInFakturownia, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, ksefWaiting, paidUpdates, pricesUpToDate } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, ksefWaiting, paidUpdates, pricesUpToDate } from './invoice';
 import { lineFromFields, saleFromFields } from './model';
 import { priceSale, type PricingData } from './pricing';
 
@@ -184,13 +184,5 @@ describe('ksefWaiting', () => {
       [5, { ksefStatus: null }],
     ]);
     expect(ksefWaiting(sales, states).map((s) => s.id)).toEqual(['S2', 'S4', 'S5']); // 6: not asked yet; 5: deleted
-  });
-});
-
-describe('deletedInFakturownia (owner, 2026-11-28)', () => {
-  it('lists the sales whose invoice no longer exists in Fakturownia', () => {
-    const s = (row: number, id: string, o: Record<string, string> = {}) => sale(row, { invoice_status: 'issued', invoice_date: '2026-11-28', fakturownia_id: id, ...o });
-    const sales = [s(2, '1'), s(3, '2'), s(4, '3', { deleted_at: 'x' }), sale(5)];
-    expect(deletedInFakturownia(sales, new Set([1, 3])).map((x) => x.id)).toEqual(['S2']);
   });
 });
