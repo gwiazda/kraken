@@ -171,9 +171,14 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
   The sale's page then links to the invoice in Fakturownia. Setting the sale back to "Faktura do wystawienia" (or
   changing its kind) forgets the link, so it can be issued again after the owner deleted the invoice in Fakturownia;
   if the invoice still exists, Fakturownia refuses a second one with the sale's mark and Kraken links the old one.
-- Paid: once per visit to Sales, in the background, Kraken asks about its issued, unpaid invoices and sets those
-  Fakturownia shows as `paid` to "Opłacona" (keeping the issue date). If Fakturownia cannot be reached, nothing
-  changes and nothing is shown.
+- Paid and KSeF: once per visit to Sales, in the background, Kraken asks about the invoices it issued that are not
+  paid, and the paid ones from the last 60 days (`invoiceIdsToAsk`). The middleman reads them one by one (KSeF.md
+  documents the KSeF fields, `gov_status` / `gov_id`, only for a single invoice; at most 40 per request, under
+  Cloudflare's free 50 calls). Those Fakturownia shows as `paid` become "Opłacona" (keeping the issue date). The KSeF
+  state (owner, 2026-11-28; `ksefState`) is shown, not stored: a note at the top of Sales ("N faktury nie są jeszcze w
+  KSeF … Pokaż"), a badge after each invoice date ("KSeF ✓", "nie wysłana do KSeF", "błąd KSeF: sprawdź w
+  Fakturowni"), and on the sale's page with its KSeF number. Kraken still never sends to KSeF. If Fakturownia cannot
+  be reached, nothing changes and nothing is shown.
 
 ## Cutting off access
 

@@ -5,7 +5,7 @@
 // Everything from outside comes through SalesPageDeps (main.ts provides it).
 
 import { formatDate, localDate } from '../../core/dates';
-import type { Fakturownia, FakturowniaRole, IssuedInvoice } from '../../core/fakturownia';
+import type { Fakturownia, FakturowniaRole, InvoiceState, IssuedInvoice } from '../../core/fakturownia';
 import { formatPln, formatWholePln, parseMoney } from '../../core/numbers';
 import { count } from '../../core/polish';
 import { formatPercent } from '../../domain/percent';
@@ -47,7 +47,7 @@ import {
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
-import { cardDiffers, chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds, type InvoiceDraft } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, invoiceIdsToAsk, issuedFields, ksefState, paidUpdates, pricesUpToDate, type InvoiceDraft } from './invoice';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -105,6 +105,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
    * save in progress on the list): read again, with this note, the next time the list is shown. '' when not needed.
    */
   let reloadNote: string | null = null;
+  /** What Fakturownia said about Kraken's invoices this visit (by Fakturownia id): paid, and where each is with KSeF. */
+  const invoiceStates = new Map<number, InvoiceState>();
   /** The open sale's page adds "Wystaw fakturę" when it learns the owner is signed in (set by showForm). */
   let roleKnown: (() => void) | null = null;
 
@@ -193,13 +195,18 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
    */
   async function askFakturownia(): Promise<void> {
     if (!(await learnRole())) return;
-    const chunks = unpaidInvoiceIds(sales);
+    const chunks = invoiceIdsToAsk(sales, today());
     if (chunks.length === 0) return;
     let written = 0;
     try {
       const states = (await Promise.all(chunks.map((ids) => deps.fakturownia.readInvoices(ids)))).flat();
+      for (const s of states) invoiceStates.set(s.id, s);
       const updates = paidUpdates(sales, states);
-      if (updates.length === 0) return;
+      if (updates.length === 0) {
+        // Only the KSeF states are new: shown at once if the list is on screen and nothing is going on there.
+        if (onList && root.isConnected && busyCount === 0 && root.querySelector('.sales-table tr.confirm-row:not([hidden])') === null) showList();
+        return;
+      }
       appBusy(true);
       try {
         for (const u of updates) {
@@ -265,6 +272,18 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       });
   }
 
+  /** Where a sale's invoice is with KSeF, when Fakturownia said so this visit. */
+  const ksefOf = (sale: Sale) => {
+    const state = sale.fakturowniaId === null ? undefined : invoiceStates.get(sale.fakturowniaId);
+    return state ? ksefState(state.ksefStatus) : null;
+  };
+  /** A small mark after the invoice date in the list: "w KSeF", or "nie wysłana do KSeF" (and errors) in yellow. */
+  const ksefBadge = (sale: Sale): (Node | string)[] => {
+    const k = ksefOf(sale);
+    if (!k) return [];
+    const warn = k.kind === 'not_sent' || k.kind === 'error';
+    return [' ', el('span', { class: `badge ${warn ? 'badge-warn' : 'badge-muted'}` }, k.kind === 'sent' ? 'KSeF ✓' : k.text)];
+  };
   const findClient = (id: string) => clients.find((c) => c.id === id);
   const clientName = (id: string) => findClient(id)?.name;
   const productName = (id: string) => products.find((p) => p.id === id)?.name;
@@ -385,7 +404,12 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           el('td', { class: 'num nowrap c-bags' }, r.bags || el('span', { class: 'muted' }, '—')),
           el('td', { class: `num nowrap c-net${r.net ? '' : ' c-empty'}` }, r.net || el('span', { class: 'muted' }, '—')),
           statusCell,
-          el('td', { class: `nowrap c-issued${r.invoiceDate ? '' : ' c-empty'}`, 'data-label': 'Wystawiona' }, r.invoiceDate || el('span', { class: 'muted' }, '—')),
+          el(
+            'td',
+            { class: `nowrap c-issued${r.invoiceDate ? '' : ' c-empty'}`, 'data-label': 'Wystawiona' },
+            r.invoiceDate || el('span', { class: 'muted' }, '—'),
+            ...ksefBadge(sale),
+          ),
           actions,
         ),
           () => showForm(sale),
@@ -414,6 +438,20 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       ...(note ? [message(note)] : []),
       ...(error ?? []),
       ...problems.map((text) => message(text, 'error')),
+      ...(() => {
+        // At a glance (owner, 2026-11-28): invoices Kraken issued that are not in KSeF yet (the owner sends them in Fakturownia).
+        const waiting = sales.filter((s) => !isDeleted(s) && s.fakturowniaId !== null && ['not_sent', 'error'].includes(ksefOf(s)?.kind ?? ''));
+        return waiting.length === 0
+          ? []
+          : [
+              el(
+                'p',
+                { class: 'message message-error', role: 'status' },
+                `${count(waiting.length, 'faktura nie jest', 'faktury nie są', 'faktur nie jest')} jeszcze w KSeF: wyślij ${waiting.length === 1 ? 'ją' : 'je'} w Fakturowni („Wyślij do KSeF”). `,
+                ...(filter === 'all' ? [] : [button('Pokaż', () => ((filter = 'all'), showList()), 'link')]),
+              ),
+            ];
+      })(),
       el('p', { class: 'compare-sizes sales-filters small' }, ...FILTERS.flatMap(({ filter: f, label }) => [chip(f, label), ' '])),
       rows.length === 0
         ? el('p', { class: 'muted' }, filter === 'to_issue' ? 'Brak faktur do wystawienia.' : 'Na razie nic tu nie ma.')
@@ -838,7 +876,23 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       el('h2', {}, sale ? `${sale.kind ? HEADING_LABELS[sale.kind] : 'Wpis'} z ${formatDate(sale.date)}` : 'Dodaj sprzedaż, próbkę albo wydanie na własny użytek'),
       factsBox,
       ...(sale?.fakturowniaUrl
-        ? [el('p', {}, 'Faktura ', el('strong', {}, sale.source['invoice_number'] ?? ''), ' w Fakturowni: ', el('a', { href: sale.fakturowniaUrl, target: '_blank', rel: 'noopener noreferrer' }, 'otwórz'), ' ', infoTip('Strona faktury w Fakturowni. PDF jest dostępny, gdy faktura ma już numer KSeF (wyślij ją do KSeF w Fakturowni).'))]
+        ? [
+            el(
+              'p',
+              {},
+              'Faktura ',
+              el('strong', {}, sale.source['invoice_number'] ?? ''),
+              ' w Fakturowni: ',
+              el('a', { href: sale.fakturowniaUrl, target: '_blank', rel: 'noopener noreferrer' }, 'otwórz'),
+              ' ',
+              infoTip('Strona faktury w Fakturowni. PDF jest dostępny, gdy faktura ma już numer KSeF (wyślij ją do KSeF w Fakturowni).'),
+              ...(() => {
+                const k = ksefOf(sale);
+                const number = sale.fakturowniaId === null ? null : invoiceStates.get(sale.fakturowniaId)?.ksefNumber;
+                return k ? [' · KSeF: ', el('span', { class: k.kind === 'not_sent' || k.kind === 'error' ? 'badge badge-warn' : '' }, k.text), ...(k.kind === 'sent' && number ? [el('span', { class: 'muted small' }, ` (nr ${number})`)] : [])] : [];
+              })(),
+            ),
+          ]
         : []),
       invoiceSlot,
       ...(sale?.kind === 'sale' && sale.status !== 'to_issue' ? [message('Faktura za tę sprzedaż jest już wystawiona: jeśli zmienisz produkty, popraw też fakturę w Fakturowni.', 'error')] : []),

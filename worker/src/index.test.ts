@@ -81,7 +81,7 @@ describe('the gatekeeper', () => {
       expect(partner).toMatchObject({ status: 403, body: { error: 'To może zrobić tylko właściciel.' } });
       expect(partner.calls.some((c) => c.url.includes('fakturownia'))).toBe(false);
     }
-    const reading = await call({ action: 'readInvoices', ids: [5] }, { token: 'goog-partner-token' }, { 'GET /invoices.json?period=all&per_page=100&invoice_ids=5': [200, []] });
+    const reading = await call({ action: 'readInvoices', ids: [5] }, { token: 'goog-partner-token' }, { 'GET /invoices/5.json?fields[invoice]=id,number,status,paid_date,gov_status,gov_id,gov_error_messages': [200, { id: 5, number: '1', status: 'issued' }] });
     expect(reading.status).toBe(200);
   });
 
@@ -101,7 +101,7 @@ describe('the gatekeeper', () => {
       const wrong = await handle(request({ action: 'readInvoices', ids: [1] }), { ...env, FAKTUROWNIA_DOMAIN: domain }, fakeNet().fetchFn);
       expect(wrong.status).toBe(500);
     }
-    const refused = await call({ action: 'readInvoices', ids: [1] }, {}, { 'GET /invoices.json?period=all&per_page=100&invoice_ids=1': [401, {}] });
+    const refused = await call({ action: 'readInvoices', ids: [1] }, {}, { 'GET /invoices/1.json?fields[invoice]=id,number,status,paid_date,gov_status,gov_id,gov_error_messages': [401, {}] });
     expect(refused.status).toBe(502);
     expect(JSON.stringify(refused.body)).not.toContain('secret-token-123');
   });
@@ -195,19 +195,31 @@ describe('the actions', () => {
     expect(String(refused.body?.['error'])).toContain('buyer_tax_no');
   });
 
-  it('reads only the given invoices and passes back only what Kraken needs, even if Fakturownia sends more', async () => {
-    const r = await call({ action: 'readInvoices', ids: [345, 346] }, {}, {
-      'GET /invoices.json?period=all&per_page=100&invoice_ids=345,346': [
-        200,
-        [
-          { id: 345, number: '12/11/2026', status: 'paid', paid_date: '2026-12-05', gov_status: 'ok', gov_id: 'X-1', token: 'abc', buyer_tax_no: '9876543210', price_gross: '1692.48' },
-          { id: 999, number: '7/11/2026', status: 'issued', token: 'handmade' }, // made by hand in Fakturownia: never passed back
-        ],
+  const one = (id: number) => `GET /invoices/${id}.json?fields[invoice]=id,number,status,paid_date,gov_status,gov_id,gov_error_messages`;
+
+  it('reads only the given invoices, one by one with their KSeF state, and passes back only what Kraken needs', async () => {
+    const r = await call({ action: 'readInvoices', ids: [345, 346, 345] }, {}, {
+      [one(345)]: [200, { id: 345, number: '12/11/2026', status: 'paid', paid_date: '2026-12-05', gov_status: 'ok', gov_id: 'X-1', buyer_tax_no: '9876543210', price_gross: '1692.48' }],
+      [one(346)]: [200, { id: 346, number: '13/11/2026', status: 'issued', gov_status: null }],
+    });
+    expect(r.body).toEqual({
+      invoices: [
+        { id: 345, number: '12/11/2026', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: 'X-1' },
+        { id: 346, number: '13/11/2026', status: 'issued', paidDate: null, ksefStatus: null, ksefNumber: null },
       ],
     });
-    expect(r.body).toEqual({ invoices: [{ id: 345, number: '12/11/2026', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: 'X-1' }] });
+    expect(r.calls.filter((c) => c.url.includes('/invoices/')).length).toBe(2); // 345 asked once
     expect((await call({ action: 'readInvoices', ids: [] })).status).toBe(400);
+    expect((await call({ action: 'readInvoices', ids: Array.from({ length: 41 }, (_, i) => i + 1) })).status).toBe(400); // over 40
     expect((await call({ action: 'readInvoices', ids: ['1;DROP'] })).status).toBe(400);
+  });
+
+  it('leaves out an invoice deleted in Fakturownia, and never one it was not asked about', async () => {
+    const r = await call({ action: 'readInvoices', ids: [345, 347] }, {}, {
+      [one(345)]: [200, { id: 999, number: 'odd', status: 'issued' }], // an answer about another invoice: dropped
+      [one(347)]: [404, { error: 'not found' }],
+    });
+    expect(r).toMatchObject({ status: 200, body: { invoices: [] } });
   });
 
   it('finds the invoice Kraken made for a sale (after a lost answer), only by its exact mark', async () => {
@@ -254,7 +266,7 @@ describe('the actions', () => {
 
   it('a mistyped bank account stops only invoices (before Fakturownia), never reading', async () => {
     const wrong = { ...env, FAKTUROWNIA_BANK_ACCOUNT: '03 1111 2222 0000 3333 4444 5556' }; // one digit off
-    const net = fakeNet({ 'GET /invoices.json?period=all&per_page=100&invoice_ids=5': [200, []] });
+    const net = fakeNet({ 'GET /invoices/5.json?fields[invoice]=id,number,status,paid_date,gov_status,gov_id,gov_error_messages': [200, { id: 5, number: '1', status: 'issued' }] });
     const issuing = await handle(request(invoice), wrong, net.fetchFn);
     expect(issuing.status).toBe(500);
     expect(net.calls.some((c) => c.url.includes('/invoices.json') && c.init?.method === 'POST')).toBe(false);
