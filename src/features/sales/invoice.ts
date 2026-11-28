@@ -19,7 +19,7 @@ export const PAYMENT_DAYS = 14;
 export interface InvoiceDraft {
   readonly buyer: { readonly name: string; readonly nip: string; readonly email: string };
   readonly request: Omit<NewInvoice, 'clientId'>;
-  /** The net total (grosze) and the same with VAT (rounded once, as on Sales). */
+  /** The net total (grosze), and the gross total: the lines' gross totals added up (what the invoice shows). */
   readonly totalNet: number;
   readonly totalGross: number;
   readonly vatPercent: number;
@@ -52,10 +52,13 @@ export function invoiceDraft(
   if (unpriced.length > 0) problems.push(`Nie wszystkie produkty mają zapisaną cenę (${unpriced.map((l) => productName(l.productId) ?? '?').join(', ')}): kliknij Zapisz, a jeśli to nie pomoże, sprawdź ceny w zakładce Produkty.`);
   if (vatTenths % 10 !== 0) problems.push('Stawka VAT w Opakowania i rabaty nie jest pełnym procentem.');
   if (problems.length > 0 || !client) return { ok: false, problems };
+  // Each line's gross total, to the grosz: quantity × net price + VAT (Fakturownia requires it on every line).
+  const lineGross = (l: SaleLine) => roundGrosze(grossOf((l.unitNetGrosze ?? 0) * (l.bags ?? 0), vatTenths));
   const positions = paid.map((l) => ({
     name: `${productName(l.productId) ?? '?'} ${formatBagSize(l.grams ?? 0)}`,
     quantity: l.bags ?? 0,
     priceNet: moneyText(l.unitNetGrosze ?? 0),
+    totalGross: moneyText(lineGross(l)),
     tax: vatTenths / 10,
   }));
   const totalNet = paid.reduce((sum, l) => sum + (l.unitNetGrosze ?? 0) * (l.bags ?? 0), 0);
@@ -65,7 +68,7 @@ export function invoiceDraft(
       buyer: { name: client.registeredName || client.name, nip, email: client.email },
       request: { orderId: sale.id, sellDate: sale.date, issueDate: today, paymentDays: PAYMENT_DAYS, positions },
       totalNet,
-      totalGross: roundGrosze(grossOf(totalNet, vatTenths)),
+      totalGross: paid.reduce((sum, l) => sum + lineGross(l), 0),
       vatPercent: vatTenths / 10,
     },
   };

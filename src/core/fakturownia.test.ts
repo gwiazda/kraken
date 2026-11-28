@@ -18,7 +18,7 @@ function fake(status: number, body: unknown) {
 describe('fakturowniaClient', () => {
   it('sends the action with the Google sign-in to the middleman, never anything about Fakturownia', async () => {
     const { sent, api } = fake(200, { id: 345, number: '12/11/2026', url: 'https://x.example/invoice/t' });
-    const invoice = { orderId: 'S1', clientId: 12, sellDate: '2026-11-27', issueDate: '2026-11-28', paymentDays: 14, positions: [{ name: 'KENIA 1 kg', quantity: 8, priceNet: '112', tax: 23 }] };
+    const invoice = { orderId: 'S1', clientId: 12, sellDate: '2026-11-27', issueDate: '2026-11-28', paymentDays: 14, positions: [{ name: 'KENIA 1 kg', quantity: 8, priceNet: '112', totalGross: '1102.08', tax: 23 }] };
     expect(await api.createInvoice(invoice)).toEqual({ id: 345, number: '12/11/2026', url: 'https://x.example/invoice/t' });
     expect(sent[0]?.url).toBe('https://middleman.example');
     expect(sent[0]?.init.method).toBe('POST');

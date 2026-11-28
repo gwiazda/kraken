@@ -136,14 +136,14 @@ describe('the actions', () => {
 
   const invoice = {
     action: 'createInvoice',
-    orderId: 'S-1a2b3c',
+    orderId: '21d8b8fd-8b73-4b07-8ccf-38c69e53ed94',
     clientId: 12,
     sellDate: '2026-11-27',
     issueDate: '2026-11-28',
     paymentDays: 14,
     positions: [
-      { name: 'KENIA 1 kg', quantity: 8, priceNet: '112', tax: 23 },
-      { name: 'GWATEMALA 250 g', quantity: 16, priceNet: '30', tax: 23 },
+      { name: 'KENIA 1 kg', quantity: 8, priceNet: '112', totalGross: '1102.08', tax: 23 },
+      { name: 'GWATEMALA 250 g', quantity: 16, priceNet: '30', totalGross: '590.4', tax: 23 },
     ],
   };
 
@@ -155,7 +155,7 @@ describe('the actions', () => {
     expect(JSON.parse(String(toFakturownia?.init?.body))).toEqual({
       invoice: {
         kind: 'vat',
-        oid: 'KRAKEN-S-1a2b3c',
+        oid: 'KR-21d8b8fd-8b73-4b07-8ccf-38c69e53ed94', // 39 characters: Fakturownia allows 40
         oid_unique: 'yes',
         client_id: 12,
         sell_date: '2026-11-27',
@@ -164,8 +164,8 @@ describe('the actions', () => {
         payment_type: 'transfer',
         buyer_company: true,
         positions: [
-          { name: 'KENIA 1 kg', quantity: 8, quantity_unit: 'szt.', price_net: '112', tax: 23 },
-          { name: 'GWATEMALA 250 g', quantity: 16, quantity_unit: 'szt.', price_net: '30', tax: 23 },
+          { name: 'KENIA 1 kg', quantity: 8, quantity_unit: 'szt.', price_net: '112', total_price_gross: '1102.08', tax: 23 },
+          { name: 'GWATEMALA 250 g', quantity: 16, quantity_unit: 'szt.', price_net: '30', total_price_gross: '590.4', tax: 23 },
         ],
       },
     });
@@ -174,9 +174,11 @@ describe('the actions', () => {
   it('refuses an invoice with odd data, and passes on what Fakturownia says is wrong', async () => {
     const bad = [
       { ...invoice, positions: [] },
-      { ...invoice, positions: [{ name: 'X', quantity: 0, priceNet: '1', tax: 23 }] },
-      { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '-5', tax: 23 }] },
-      { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '1.234', tax: 23 }] },
+      { ...invoice, positions: [{ name: 'X', quantity: 0, priceNet: '1', totalGross: '1.23', tax: 23 }] },
+      { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '-5', totalGross: '1.23', tax: 23 }] },
+      { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '1.234', totalGross: '1.23', tax: 23 }] },
+      { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '1', tax: 23 }] }, // no gross total
+      { ...invoice, orderId: 'x'.repeat(38) }, // the mark would be over 40 characters
       { ...invoice, sellDate: '27.11.2026' },
       { ...invoice, clientId: '12' },
       { ...invoice, paymentDays: 400 },
@@ -210,8 +212,8 @@ describe('the actions', () => {
     const recent: [number, unknown] = [
       200,
       [
-        { id: 401, number: '13/11/2026', oid: 'KRAKEN-S-1a2b3c-old', token: 't1' },
-        { id: 402, number: '14/11/2026', oid: 'KRAKEN-S-1a2b3c', token: 't2' },
+        { id: 401, number: '13/11/2026', oid: 'KR-S-1a2b3c-old', token: 't1' },
+        { id: 402, number: '14/11/2026', oid: 'KR-S-1a2b3c', token: 't2' },
         { id: 403, number: '15/11/2026', oid: '', token: 't3' },
       ],
     ];

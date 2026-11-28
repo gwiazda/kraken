@@ -6,7 +6,7 @@
 // 4. checks the data has the expected shape and builds Fakturownia's request only from the allowed fields;
 // 5. adds the token (Authorization: Bearer) and passes back only what Kraken needs.
 // Never: deleting, sending to KSeF (gov_save_and_send / send_to_ksef), listing all clients or invoices. Every invoice
-// it creates carries the sale's mark (oid "KRAKEN-<sale id>", unique), so a retry never makes a second invoice and an
+// it creates carries the sale's mark (oid "KR-<sale id>", unique), so a retry never makes a second invoice and an
 // invoice made by hand in Fakturownia is never passed back. Messages are in Polish: Kraken shows them as they are.
 // Runs on Cloudflare's servers; the secrets come in `env` (Cloudflare: Settings → Variables and Secrets).
 
@@ -39,8 +39,8 @@ const ACTIONS: Readonly<Record<string, readonly Role[]>> = {
   whoAmI: ['owner', 'partner'],
 };
 
-/** The mark of the invoices Kraken makes: "KRAKEN-" + the sale's id (Fakturownia's oid, unique). */
-const ORDER_PREFIX = 'KRAKEN-';
+/** The mark of the invoices Kraken makes: "KR-" + the sale's id (Fakturownia's oid, unique; at most 40 characters). */
+const ORDER_PREFIX = 'KR-';
 
 class Refused extends Error {
   constructor(
@@ -137,7 +137,9 @@ const date = (v: unknown, what: string): string => {
   return real.getUTCFullYear() === y && real.getUTCMonth() === m - 1 && real.getUTCDate() === d ? v : fail(what);
 };
 /** A sale's id, as Kraken's records have them (letters, digits, "-", "_"). */
-const orderId = (v: unknown): string => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : fail('sprzedaż'));
+const orderId = (v: unknown): string => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,37}$/.test(v) ? v : fail('sprzedaż'));
+/** A line's gross total in złoty as text, e.g. "1102.08": above 0, at most 10 000 000 zł, at most 2 decimals. */
+const total = (v: unknown, what: string): string => (typeof v === 'string' && /^\d{1,8}(\.\d{1,2})?$/.test(v) && Number(v) > 0 && Number(v) <= 10_000_000 ? v : fail(what));
 const nip = (v: unknown): string => (typeof v === 'string' && /^\d{10}$/.test(v) ? v : fail('NIP'));
 /** A net price in złoty as text, e.g. "112" or "30.50": above 0, at most 100 000 zł, at most 2 decimals. */
 const money = (v: unknown, what: string): string => (typeof v === 'string' && /^\d{1,6}(\.\d{1,2})?$/.test(v) && Number(v) > 0 && Number(v) <= 100_000 ? v : fail(what));
@@ -193,6 +195,8 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
             quantity: int(line['quantity'], 'ilość', 1, 999),
             quantity_unit: 'szt.',
             price_net: money(line['priceNet'], 'cena netto'),
+            // Fakturownia requires it (seen 2026-11-28: "positions.total_price_gross: pole nie może być puste").
+            total_price_gross: total(line['totalGross'], 'wartość brutto'),
             tax: int(line['tax'], 'VAT', 0, 30),
           };
         }),
