@@ -28,6 +28,8 @@ export interface InvoiceLine {
   readonly quantity: number;
   /** Net price of one, in złoty as text: "112", "30.5". */
   readonly priceNet: string;
+  /** The line's gross total (quantity × net price + VAT, to the grosz), in złoty as text: "1102.08". */
+  readonly totalGross: string;
   readonly tax: number;
 }
 

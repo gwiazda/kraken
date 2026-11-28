@@ -208,6 +208,7 @@ export function priceView(
     rows,
     summary: `${formatKg(pricing.weightGrams)} kawy na fakturze (bez gratisów) · ${discount}`,
     total: formatWholePln(pricing.totalNet),
-    totalGross: gross(pricing.totalNet),
+    // Line by line, each line's gross to the grosz, as the invoice adds them up (src/features/sales/invoice.ts).
+    totalGross: formatPln(pricing.lines.reduce((sum, p) => sum + ('totalNet' in p ? roundGrosze(grossOf(p.totalNet, vatTenths)) : 0), 0)),
   };
 }

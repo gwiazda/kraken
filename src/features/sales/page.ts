@@ -966,11 +966,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
             el(
               'table',
               { class: 'data-table' },
-              el('thead', {}, el('tr', {}, ...['Pozycja', 'Ilość', 'Cena netto', 'VAT', 'Wartość netto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
+              el('thead', {}, el('tr', {}, ...['Pozycja', 'Ilość', 'Cena netto', 'VAT', 'Wartość netto', 'Wartość brutto'].map((h, i) => el('th', { scope: 'col', ...(i > 0 ? { class: 'num' } : {}) }, h)))),
               el(
                 'tbody',
                 {},
-                ...draft.request.positions.map((p) => {
+                ...draft.request.positions.map((p, i) => {
                   const unit = parseMoney(p.priceNet);
                   const net = typeof unit === 'number' ? unit : 0;
                   return el(
@@ -981,6 +981,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                     el('td', { class: 'num nowrap' }, formatWholePln(net)),
                     el('td', { class: 'num' }, `${p.tax} %`),
                     el('td', { class: 'num nowrap' }, formatWholePln(net * p.quantity)),
+                    el('td', { class: 'num nowrap' }, formatPln(draft.lineGross[i] ?? 0)),
                   );
                 }),
               ),
@@ -992,10 +993,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           { class: 'sale-total' },
           'Razem netto: ',
           el('strong', {}, formatWholePln(draft.totalNet)),
-          ' · brutto ok. ',
+          ' · brutto: ',
           el('strong', {}, formatPln(draft.totalGross)),
-          ` (VAT ${draft.vatPercent} %) `,
-          infoTip('Brutto liczy Fakturownia; przy cenach z groszami może się różnić o grosz lub dwa od tej kwoty.'),
+          ` (VAT ${draft.vatPercent} %)`,
         ),
         el(
           'p',

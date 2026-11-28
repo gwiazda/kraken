@@ -27,15 +27,25 @@ describe('invoiceDraft (owner, 2026-11-28)', () => {
           issueDate: '2026-11-28',
           paymentDays: 14,
           positions: [
-            { name: 'KENIA 1 kg', quantity: 8, priceNet: '112', tax: 23 },
-            { name: 'GWATEMALA 250 g', quantity: 16, priceNet: '30', tax: 23 }, // the free bags are left off
+            { name: 'KENIA 1 kg', quantity: 8, priceNet: '112', totalGross: '1102.08', tax: 23 }, // 896 zł + 23 %
+            { name: 'GWATEMALA 250 g', quantity: 16, priceNet: '30', totalGross: '590.4', tax: 23 }, // the free bags are left off
           ],
         },
         totalNet: 137600,
-        totalGross: 169248, // 1376 zł + 23 %
+        totalGross: 169248, // 1102,08 + 590,40 zł
+        lineGross: [110208, 59040],
         vatPercent: 23,
       },
     });
+  });
+
+  it('adds up the gross totals line by line (prices with grosze; per line, not per unit: to confirm on a real invoice)', () => {
+    // 3 × 30,55 = 91,65 → 112,7295 → 112,73 zł; 7 × 12,35 = 86,45 → 106,3335 → 106,33 zł; together 219,06 zł
+    // (VAT on the summed 178,10 zł would give 219,063 → 219,06 zł here, but can differ by a grosz in other cases).
+    const lines = [line(2, { bags: '3', unit_price_net_pln: '30.55' }), line(3, { bags: '7', unit_price_net_pln: '12.35' })];
+    const result = invoiceDraft(sale(2), lines, client(), productName, 230, '2026-11-28');
+    expect(result.ok && result.draft.request.positions.map((p) => p.totalGross)).toEqual(['112.73', '106.33']);
+    expect(result.ok && result.draft.totalGross).toBe(21906);
   });
 
   it("uses the client's short name when it has no CEIDG name", () => {
