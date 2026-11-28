@@ -246,21 +246,37 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       return { invoice: match ? { id: match['id'], number: match['number'], url: viewUrl(env, match['token']) } : null };
     }
     case 'readInvoices': {
+      // One by one (KSeF.md documents the KSeF fields only when one invoice is read): only the invoices asked for,
+      // Kraken's own. At most 40 (2 calls to Google + 40 stay under Cloudflare's free 50 per request). An invoice
+      // deleted in Fakturownia is simply left out.
       const ids = Array.isArray(body['ids']) ? (body['ids'] as unknown[]) : fail('faktury');
-      if (ids.length < 1 || ids.length > 100) fail('faktury');
-      const wanted = ids.map((id) => int(id, 'id', 1, Number.MAX_SAFE_INTEGER));
-      const found = (await api(`/invoices.json?period=all&per_page=100&invoice_ids=${wanted.join(',')}`)) as unknown;
-      // Only the invoices asked for (Kraken's own), even if Fakturownia answered with more.
+      if (ids.length < 1 || ids.length > 40) fail('faktury');
+      const wanted = [...new Set(ids.map((id) => int(id, 'id', 1, Number.MAX_SAFE_INTEGER)))];
+      const fields = 'id,number,status,paid_date,gov_status,gov_id,gov_error_messages';
+      // Four at a time (gentle on Fakturownia, whose limits are not documented); an invoice whose answer fails is
+      // left out (asked again next time) instead of failing the others. A wrong token still fails it all.
+      const found: unknown[] = [];
+      for (let i = 0; i < wanted.length; i += 4) {
+        const batch = await Promise.all(
+          wanted.slice(i, i + 4).map((id) =>
+            fakturownia(env, fetchFn, `/invoices/${id}.json?fields[invoice]=${fields}`, {}, true).catch((error: unknown) => {
+              if (error instanceof Refused && error.message.startsWith('Fakturownia nie przyjęła klucza API')) throw error;
+              return null;
+            }),
+          ),
+        );
+        found.push(...batch);
+      }
       return {
-        invoices: (Array.isArray(found) ? (found as Record<string, unknown>[]) : [])
-          .filter((i) => typeof i['id'] === 'number' && wanted.includes(i['id']))
+        invoices: found
+          .filter((i): i is Record<string, unknown> => i !== null && typeof i === 'object' && typeof (i as Record<string, unknown>)['id'] === 'number' && wanted.includes((i as Record<string, unknown>)['id'] as number))
           .map((i) => ({
-          id: i['id'],
-          number: i['number'],
-          status: i['status'],
-          paidDate: i['paid_date'],
-          ksefStatus: i['gov_status'] ?? null,
-          ksefNumber: i['gov_id'] ?? null,
+            id: i['id'],
+            number: i['number'],
+            status: i['status'],
+            paidDate: i['paid_date'] ?? null,
+            ksefStatus: i['gov_status'] ?? null,
+            ksefNumber: i['gov_id'] ?? null,
           })),
       };
     }
@@ -276,14 +292,15 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
 const viewUrl = (env: Env, token: unknown): string =>
   typeof token === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(token) ? `https://${env.FAKTUROWNIA_DOMAIN}.fakturownia.pl/invoice/${token}` : '';
 
-/** One call to Fakturownia with the secret token in the header (never in the address). */
-async function fakturownia(env: Env, fetchFn: Fetch, path: string, init: RequestInit): Promise<unknown> {
+/** One call to Fakturownia with the secret token in the header (never in the address). `missing`: a 404 gives null. */
+async function fakturownia(env: Env, fetchFn: Fetch, path: string, init: RequestInit, missing = false): Promise<unknown> {
   // FAKTUROWNIA_DOMAIN was checked in handle (letters, digits and "-" only).
   const response = await fetchFn(`https://${env.FAKTUROWNIA_DOMAIN}.fakturownia.pl${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${env.FAKTUROWNIA_TOKEN}`, 'Content-Type': 'application/json', Accept: 'application/json' },
   });
   if (response.status === 401) throw new Refused(502, 'Fakturownia nie przyjęła klucza API (zmieniony albo źle wpisany w Cloudflare?).');
+  if (missing && response.status === 404) return null;
   if (response.status === 422) {
     // Fakturownia says what is wrong with the data (e.g. a missing field); passed on so the owner can see it.
     const detail = await response.text();

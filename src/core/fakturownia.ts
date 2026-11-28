@@ -20,7 +20,9 @@ export interface InvoiceState {
   /** Fakturownia's invoice status: "issued", "sent", "paid", "partial", "rejected". */
   readonly status: string;
   readonly paidDate: string | null;
+  /** Where it is with KSeF (Fakturownia's gov_status; null: not sent), and its KSeF number once there. */
   readonly ksefStatus: string | null;
+  readonly ksefNumber: string | null;
 }
 
 export interface InvoiceLine {

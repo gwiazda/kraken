@@ -4,6 +4,7 @@
 // off. Only the owner issues; Kraken never sends anything to KSeF (the owner does, in Fakturownia).
 // No Google, no screen: the page sends what this builds through core/fakturownia.ts.
 
+import { addDays } from '../../core/dates';
 import type { InvoiceState, IssuedInvoice, NewInvoice } from '../../core/fakturownia';
 import { moneyText } from '../../core/numbers';
 import { formatBagSize } from '../../domain/bagSizes';
@@ -125,12 +126,56 @@ export const issuedFields = (invoice: IssuedInvoice, today: string): Record<stri
   fakturownia_url: invoice.url,
 });
 
-/** The Fakturownia ids of the invoices Kraken issued that are not paid yet (to ask about), at most 100 at a time. */
-export function unpaidInvoiceIds(sales: readonly Sale[]): number[][] {
-  const ids = sales.filter((s) => s.deletedAt === '' && s.kind === 'sale' && s.status === 'issued' && s.fakturowniaId !== null).map((s) => s.fakturowniaId as number);
+/** How far back paid invoices are still asked about (KSeF): one may be paid before it was sent. */
+const PAID_KSEF_DAYS = 60;
+
+/**
+ * The Fakturownia ids of the invoices Kraken issued to ask about (paid? in KSeF?), at most 40 at a time (the middleman's
+ * limit): those not paid yet, and those paid whose invoice date is within the last 60 days (owner, 2026-11-28: see at a
+ * glance which still need sending to KSeF).
+ */
+export function invoiceIdsToAsk(sales: readonly Sale[], today: string): number[][] {
+  const since = addDays(today, -PAID_KSEF_DAYS);
+  const ids = sales
+    .filter((s) => s.deletedAt === '' && s.kind === 'sale' && s.fakturowniaId !== null && (s.status === 'issued' || (s.status === 'paid' && (s.invoiceDate === '' || s.invoiceDate >= since))))
+    .map((s) => s.fakturowniaId as number);
   const chunks: number[][] = [];
-  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+  for (let i = 0; i < ids.length; i += 40) chunks.push(ids.slice(i, i + 40));
   return chunks;
+}
+
+export type KsefKind = 'sent' | 'test' | 'not_sent' | 'pending' | 'error' | 'other';
+
+/**
+ * What Fakturownia's KSeF state (`gov_status`, KSeF.md) means, in Polish for the screen. Kraken never sends to KSeF: the
+ * owner does, in Fakturownia; this only shows which invoices still need it. Demo states ("demo_ok") are the test mode.
+ */
+export function ksefState(status: string | null): { kind: KsefKind; text: string; warn: boolean } {
+  const demo = status?.startsWith('demo_') ?? false;
+  const s = demo ? (status ?? '').slice(5) : (status ?? '');
+  const test = demo ? ' (tryb testowy)' : '';
+  const state = (kind: KsefKind, text: string) => ({ kind, text, warn: kind === 'not_sent' || kind === 'error' || kind === 'test' });
+  if (s === '') return state('not_sent', 'nie wysłana do KSeF');
+  // Only KSeF's test mode: not really in KSeF, so it still needs sending (owner, 2026-11-28: see what is left to send).
+  if (demo && s === 'ok') return state('test', 'w KSeF (tryb testowy)');
+  if (s === 'ok') return state('sent', 'w KSeF');
+  if (s === 'processing') return state('pending', `wysyłana do KSeF${test}`);
+  if (s === 'offline') return state('pending', `czeka na KSeF (offline)${test}`);
+  if (s === 'not_applicable') return state('other', 'nie dotyczy KSeF');
+  if (s === 'not_connected') return state('error', 'KSeF nie jest połączony w Fakturowni');
+  return state('error', `błąd KSeF${test}: sprawdź w Fakturowni`);
+}
+
+/**
+ * The sales whose invoice Kraken issued is not in KSeF yet (not sent, an error, or only KSeF's test mode), as far as
+ * Fakturownia said this visit (`states` by Fakturownia id), for the note at the top of Sales.
+ */
+export function ksefWaiting(sales: readonly Sale[], states: ReadonlyMap<number, Pick<InvoiceState, 'ksefStatus'>>): Sale[] {
+  return sales.filter((s) => {
+    if (s.deletedAt !== '' || s.fakturowniaId === null) return false;
+    const state = states.get(s.fakturowniaId);
+    return state !== undefined && ksefState(state.ksefStatus).warn;
+  });
 }
 
 /**

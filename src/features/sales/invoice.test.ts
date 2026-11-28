@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../clients';
-import { cardDiffers, chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, ksefWaiting, paidUpdates, pricesUpToDate } from './invoice';
 import { lineFromFields, saleFromFields } from './model';
 import { priceSale, type PricingData } from './pricing';
 
@@ -101,18 +101,28 @@ describe('after issuing, and paid', () => {
 
   const issued = (row: number, id: string, o: Record<string, string> = {}) => sale(row, { invoice_status: 'issued', invoice_date: '2026-11-28', fakturownia_id: id, ...o });
 
-  it('asks only about the invoices Kraken issued that are not paid yet', () => {
-    const sales = [issued(2, '345'), issued(3, ''), sale(4), issued(5, '346', { invoice_status: 'paid' }), issued(6, '347', { deleted_at: 'x' }), issued(7, '348')];
-    expect(unpaidInvoiceIds(sales)).toEqual([[345, 348]]);
-    expect(unpaidInvoiceIds(Array.from({ length: 150 }, (_, i) => issued(i + 2, String(1000 + i)))).map((c) => c.length)).toEqual([100, 50]);
+  it('asks about the invoices Kraken issued that are not paid, and paid ones from the last 60 days (KSeF), 40 at a time', () => {
+    const sales = [
+      issued(2, '345'),
+      issued(3, ''),
+      sale(4),
+      issued(5, '346', { invoice_status: 'paid', invoice_date: '2026-11-01' }),
+      issued(6, '347', { deleted_at: 'x' }),
+      issued(7, '348'),
+      issued(8, '349', { invoice_status: 'paid', invoice_date: '2026-09-28' }), // 61 days before: not asked
+      issued(9, '350', { invoice_status: 'paid', invoice_date: '2026-09-29' }), // 60 days: asked
+      issued(10, '351', { invoice_status: 'paid', invoice_date: '' }), // no date known: asked
+    ];
+    expect(invoiceIdsToAsk(sales, '2026-11-28')).toEqual([[345, 346, 348, 350, 351]]);
+    expect(invoiceIdsToAsk(Array.from({ length: 90 }, (_, i) => issued(i + 2, String(1000 + i))), '2026-11-28').map((c) => c.length)).toEqual([40, 40, 10]);
   });
 
   it('marks paid only those Fakturownia shows as paid, keeping the issue date', () => {
     const sales = [issued(2, '345'), issued(3, '346'), issued(4, '347')];
     const states = [
-      { id: 345, number: '1', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok' },
-      { id: 346, number: '2', status: 'partial', paidDate: null, ksefStatus: 'ok' },
-      { id: 999, number: '9', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok' },
+      { id: 345, number: '1', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: null },
+      { id: 346, number: '2', status: 'partial', paidDate: null, ksefStatus: 'ok', ksefNumber: null },
+      { id: 999, number: '9', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: null },
     ];
     expect(paidUpdates(sales, states)).toEqual([{ sale: sales[0], fields: { invoice_status: 'paid', invoice_date: '2026-11-28' } }]);
   });
@@ -135,5 +145,44 @@ describe('cardDiffers', () => {
     expect(cardDiffers({ name: 'nowa kawa  sp. z o.o.', email: 'KAWA@example.com' }, buyer)).toBe('');
     expect(cardDiffers({ name: 'Stara Nazwa', email: 'kawa@example.com' }, buyer)).toBe('Karta klienta w Fakturowni ma inną nazwę niż zakładka Klienci; faktura użyje danych z Fakturowni. Jeśli są nieaktualne, popraw je najpierw na karcie w Fakturowni.');
     expect(cardDiffers({ name: 'Stara Nazwa', email: 'old@example.com' }, buyer)).toContain('inną nazwę i e-mail');
+  });
+});
+
+describe('ksefState (owner, 2026-11-28)', () => {
+  it("says in Polish where an invoice is with KSeF (Kraken never sends it: the owner does in Fakturownia)", () => {
+    const k = (status: string | null) => {
+      const r = ksefState(status);
+      return [r.kind, r.text, r.warn];
+    };
+    expect(k(null)).toEqual(['not_sent', 'nie wysłana do KSeF', true]);
+    expect(k('')).toEqual(['not_sent', 'nie wysłana do KSeF', true]);
+    expect(k('ok')).toEqual(['sent', 'w KSeF', false]);
+    expect(k('processing')).toEqual(['pending', 'wysyłana do KSeF', false]);
+    expect(k('offline')).toEqual(['pending', 'czeka na KSeF (offline)', false]);
+    expect(k('not_applicable')).toEqual(['other', 'nie dotyczy KSeF', false]);
+    expect(k('not_connected')).toEqual(['error', 'KSeF nie jest połączony w Fakturowni', true]);
+    for (const e of ['send_error', 'server_error', 'status_check_error', 'offline_error', 'duplicate_error', 'blocked_403_error', 'something_new']) {
+      expect(k(e)).toEqual(['error', 'błąd KSeF: sprawdź w Fakturowni', true]);
+    }
+  });
+
+  it('only in KSeF test mode is not really in KSeF: shown as such and still to send', () => {
+    expect(ksefState('demo_ok')).toEqual({ kind: 'test', text: 'w KSeF (tryb testowy)', warn: true });
+    expect(ksefState('demo_processing')).toMatchObject({ kind: 'pending', text: 'wysyłana do KSeF (tryb testowy)' });
+  });
+});
+
+describe('ksefWaiting', () => {
+  it('lists the sales whose invoice is not in KSeF yet, as far as Fakturownia said', () => {
+    const issued2 = (row: number, id: string, o: Record<string, string> = {}) => sale(row, { invoice_status: 'issued', invoice_date: '2026-11-28', fakturownia_id: id, ...o });
+    const sales = [issued2(2, '1'), issued2(3, '2'), issued2(4, '3'), issued2(5, '4'), issued2(6, '5', { deleted_at: 'x' }), issued2(7, '6'), sale(8)];
+    const states = new Map([
+      [1, { ksefStatus: null }],
+      [2, { ksefStatus: 'ok' }],
+      [3, { ksefStatus: 'send_error' }],
+      [4, { ksefStatus: 'demo_ok' }],
+      [5, { ksefStatus: null }],
+    ]);
+    expect(ksefWaiting(sales, states).map((s) => s.id)).toEqual(['S2', 'S4', 'S5']); // 6: not asked yet; 5: deleted
   });
 });
