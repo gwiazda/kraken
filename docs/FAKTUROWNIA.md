@@ -174,10 +174,13 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
 - Paid and KSeF: once per visit to Sales, in the background, Kraken asks about the invoices it issued that are not
   paid, and the paid ones from the last 60 days (`invoiceIdsToAsk`). The middleman reads them one by one (KSeF.md
   documents the KSeF fields, `gov_status` / `gov_id`, only for a single invoice; at most 40 per request, under
-  Cloudflare's free 50 calls). Those Fakturownia shows as `paid` become "Opłacona" (keeping the issue date). The KSeF
+  Cloudflare's free 50 calls; four at a time, one batch after another, and an invoice whose answer fails is left
+  out until next time). Paid invoices with no invoice date are asked too; one paid more than 60 days ago that never
+  reached KSeF drops out of the reminder (kept small on purpose). Those Fakturownia shows as `paid` become "Opłacona" (keeping the issue date). The KSeF
   state (owner, 2026-11-28; `ksefState`) is shown, not stored: a note at the top of Sales ("N faktury nie są jeszcze w
   KSeF … Pokaż"), a badge after each invoice date ("KSeF ✓", "nie wysłana do KSeF", "błąd KSeF: sprawdź w
-  Fakturowni"), and on the sale's page with its KSeF number. Kraken still never sends to KSeF. If Fakturownia cannot
+  Fakturowni"; only KSeF's test mode, "w KSeF (tryb testowy)", counts as still to send), and on the sale's page
+  with its KSeF number. Redrawing for it keeps the note shown and an open "Usunięte wpisy". Kraken still never sends to KSeF. If Fakturownia cannot
   be reached, nothing changes and nothing is shown.
 
 ## Cutting off access

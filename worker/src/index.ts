@@ -253,7 +253,20 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       if (ids.length < 1 || ids.length > 40) fail('faktury');
       const wanted = [...new Set(ids.map((id) => int(id, 'id', 1, Number.MAX_SAFE_INTEGER)))];
       const fields = 'id,number,status,paid_date,gov_status,gov_id,gov_error_messages';
-      const found = await Promise.all(wanted.map((id) => fakturownia(env, fetchFn, `/invoices/${id}.json?fields[invoice]=${fields}`, {}, true)));
+      // Four at a time (gentle on Fakturownia, whose limits are not documented); an invoice whose answer fails is
+      // left out (asked again next time) instead of failing the others. A wrong token still fails it all.
+      const found: unknown[] = [];
+      for (let i = 0; i < wanted.length; i += 4) {
+        const batch = await Promise.all(
+          wanted.slice(i, i + 4).map((id) =>
+            fakturownia(env, fetchFn, `/invoices/${id}.json?fields[invoice]=${fields}`, {}, true).catch((error: unknown) => {
+              if (error instanceof Refused && error.message.startsWith('Fakturownia nie przyjęła klucza API')) throw error;
+              return null;
+            }),
+          ),
+        );
+        found.push(...batch);
+      }
       return {
         invoices: found
           .filter((i): i is Record<string, unknown> => i !== null && typeof i === 'object' && typeof (i as Record<string, unknown>)['id'] === 'number' && wanted.includes((i as Record<string, unknown>)['id'] as number))

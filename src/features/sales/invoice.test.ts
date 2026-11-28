@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../clients';
-import { cardDiffers, chooseClient, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, paidUpdates, pricesUpToDate } from './invoice';
+import { cardDiffers, chooseClient, invoiceDraft, issuedFields, invoiceIdsToAsk, ksefState, ksefWaiting, paidUpdates, pricesUpToDate } from './invoice';
 import { lineFromFields, saleFromFields } from './model';
 import { priceSale, type PricingData } from './pricing';
 
@@ -111,8 +111,9 @@ describe('after issuing, and paid', () => {
       issued(7, '348'),
       issued(8, '349', { invoice_status: 'paid', invoice_date: '2026-09-28' }), // 61 days before: not asked
       issued(9, '350', { invoice_status: 'paid', invoice_date: '2026-09-29' }), // 60 days: asked
+      issued(10, '351', { invoice_status: 'paid', invoice_date: '' }), // no date known: asked
     ];
-    expect(invoiceIdsToAsk(sales, '2026-11-28')).toEqual([[345, 346, 348, 350]]);
+    expect(invoiceIdsToAsk(sales, '2026-11-28')).toEqual([[345, 346, 348, 350, 351]]);
     expect(invoiceIdsToAsk(Array.from({ length: 90 }, (_, i) => issued(i + 2, String(1000 + i))), '2026-11-28').map((c) => c.length)).toEqual([40, 40, 10]);
   });
 
@@ -149,16 +150,39 @@ describe('cardDiffers', () => {
 
 describe('ksefState (owner, 2026-11-28)', () => {
   it("says in Polish where an invoice is with KSeF (Kraken never sends it: the owner does in Fakturownia)", () => {
-    expect(ksefState(null)).toEqual({ kind: 'not_sent', text: 'nie wysłana do KSeF' });
-    expect(ksefState('')).toEqual({ kind: 'not_sent', text: 'nie wysłana do KSeF' });
-    expect(ksefState('ok')).toEqual({ kind: 'sent', text: 'w KSeF' });
-    expect(ksefState('processing')).toEqual({ kind: 'pending', text: 'wysyłana do KSeF' });
-    expect(ksefState('offline')).toEqual({ kind: 'pending', text: 'czeka na KSeF (offline)' });
-    expect(ksefState('not_applicable')).toEqual({ kind: 'other', text: 'nie dotyczy KSeF' });
-    expect(ksefState('not_connected')).toEqual({ kind: 'error', text: 'KSeF nie jest połączony w Fakturowni' });
+    const k = (status: string | null) => {
+      const r = ksefState(status);
+      return [r.kind, r.text, r.warn];
+    };
+    expect(k(null)).toEqual(['not_sent', 'nie wysłana do KSeF', true]);
+    expect(k('')).toEqual(['not_sent', 'nie wysłana do KSeF', true]);
+    expect(k('ok')).toEqual(['sent', 'w KSeF', false]);
+    expect(k('processing')).toEqual(['pending', 'wysyłana do KSeF', false]);
+    expect(k('offline')).toEqual(['pending', 'czeka na KSeF (offline)', false]);
+    expect(k('not_applicable')).toEqual(['other', 'nie dotyczy KSeF', false]);
+    expect(k('not_connected')).toEqual(['error', 'KSeF nie jest połączony w Fakturowni', true]);
     for (const e of ['send_error', 'server_error', 'status_check_error', 'offline_error', 'duplicate_error', 'blocked_403_error', 'something_new']) {
-      expect(ksefState(e)).toEqual({ kind: 'error', text: 'błąd KSeF: sprawdź w Fakturowni' });
+      expect(k(e)).toEqual(['error', 'błąd KSeF: sprawdź w Fakturowni', true]);
     }
-    expect(ksefState('demo_ok')).toEqual({ kind: 'sent', text: 'w KSeF (tryb testowy)' });
+  });
+
+  it('only in KSeF test mode is not really in KSeF: shown as such and still to send', () => {
+    expect(ksefState('demo_ok')).toEqual({ kind: 'test', text: 'w KSeF (tryb testowy)', warn: true });
+    expect(ksefState('demo_processing')).toMatchObject({ kind: 'pending', text: 'wysyłana do KSeF (tryb testowy)' });
+  });
+});
+
+describe('ksefWaiting', () => {
+  it('lists the sales whose invoice is not in KSeF yet, as far as Fakturownia said', () => {
+    const issued2 = (row: number, id: string, o: Record<string, string> = {}) => sale(row, { invoice_status: 'issued', invoice_date: '2026-11-28', fakturownia_id: id, ...o });
+    const sales = [issued2(2, '1'), issued2(3, '2'), issued2(4, '3'), issued2(5, '4'), issued2(6, '5', { deleted_at: 'x' }), issued2(7, '6'), sale(8)];
+    const states = new Map([
+      [1, { ksefStatus: null }],
+      [2, { ksefStatus: 'ok' }],
+      [3, { ksefStatus: 'send_error' }],
+      [4, { ksefStatus: 'demo_ok' }],
+      [5, { ksefStatus: null }],
+    ]);
+    expect(ksefWaiting(sales, states).map((s) => s.id)).toEqual(['S2', 'S4', 'S5']); // 6: not asked yet; 5: deleted
   });
 });

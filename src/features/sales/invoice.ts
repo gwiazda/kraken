@@ -137,30 +137,45 @@ const PAID_KSEF_DAYS = 60;
 export function invoiceIdsToAsk(sales: readonly Sale[], today: string): number[][] {
   const since = addDays(today, -PAID_KSEF_DAYS);
   const ids = sales
-    .filter((s) => s.deletedAt === '' && s.kind === 'sale' && s.fakturowniaId !== null && (s.status === 'issued' || (s.status === 'paid' && s.invoiceDate >= since)))
+    .filter((s) => s.deletedAt === '' && s.kind === 'sale' && s.fakturowniaId !== null && (s.status === 'issued' || (s.status === 'paid' && (s.invoiceDate === '' || s.invoiceDate >= since))))
     .map((s) => s.fakturowniaId as number);
   const chunks: number[][] = [];
   for (let i = 0; i < ids.length; i += 40) chunks.push(ids.slice(i, i + 40));
   return chunks;
 }
 
-export type KsefKind = 'sent' | 'not_sent' | 'pending' | 'error' | 'other';
+export type KsefKind = 'sent' | 'test' | 'not_sent' | 'pending' | 'error' | 'other';
 
 /**
  * What Fakturownia's KSeF state (`gov_status`, KSeF.md) means, in Polish for the screen. Kraken never sends to KSeF: the
  * owner does, in Fakturownia; this only shows which invoices still need it. Demo states ("demo_ok") are the test mode.
  */
-export function ksefState(status: string | null): { kind: KsefKind; text: string } {
+export function ksefState(status: string | null): { kind: KsefKind; text: string; warn: boolean } {
   const demo = status?.startsWith('demo_') ?? false;
   const s = demo ? (status ?? '').slice(5) : (status ?? '');
   const test = demo ? ' (tryb testowy)' : '';
-  if (s === '') return { kind: 'not_sent', text: 'nie wysłana do KSeF' };
-  if (s === 'ok') return { kind: 'sent', text: `w KSeF${test}` };
-  if (s === 'processing') return { kind: 'pending', text: `wysyłana do KSeF${test}` };
-  if (s === 'offline') return { kind: 'pending', text: `czeka na KSeF (offline)${test}` };
-  if (s === 'not_applicable') return { kind: 'other', text: 'nie dotyczy KSeF' };
-  if (s === 'not_connected') return { kind: 'error', text: 'KSeF nie jest połączony w Fakturowni' };
-  return { kind: 'error', text: `błąd KSeF${test}: sprawdź w Fakturowni` };
+  const state = (kind: KsefKind, text: string) => ({ kind, text, warn: kind === 'not_sent' || kind === 'error' || kind === 'test' });
+  if (s === '') return state('not_sent', 'nie wysłana do KSeF');
+  // Only KSeF's test mode: not really in KSeF, so it still needs sending (owner, 2026-11-28: see what is left to send).
+  if (demo && s === 'ok') return state('test', 'w KSeF (tryb testowy)');
+  if (s === 'ok') return state('sent', 'w KSeF');
+  if (s === 'processing') return state('pending', `wysyłana do KSeF${test}`);
+  if (s === 'offline') return state('pending', `czeka na KSeF (offline)${test}`);
+  if (s === 'not_applicable') return state('other', 'nie dotyczy KSeF');
+  if (s === 'not_connected') return state('error', 'KSeF nie jest połączony w Fakturowni');
+  return state('error', `błąd KSeF${test}: sprawdź w Fakturowni`);
+}
+
+/**
+ * The sales whose invoice Kraken issued is not in KSeF yet (not sent, an error, or only KSeF's test mode), as far as
+ * Fakturownia said this visit (`states` by Fakturownia id), for the note at the top of Sales.
+ */
+export function ksefWaiting(sales: readonly Sale[], states: ReadonlyMap<number, Pick<InvoiceState, 'ksefStatus'>>): Sale[] {
+  return sales.filter((s) => {
+    if (s.deletedAt !== '' || s.fakturowniaId === null) return false;
+    const state = states.get(s.fakturowniaId);
+    return state !== undefined && ksefState(state.ksefStatus).warn;
+  });
 }
 
 /**

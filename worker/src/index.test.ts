@@ -214,6 +214,33 @@ describe('the actions', () => {
     expect((await call({ action: 'readInvoices', ids: ['1;DROP'] })).status).toBe(400);
   });
 
+  it('one invoice that fails is left out, the others still come back; a refused token still fails it all', async () => {
+    const r = await call({ action: 'readInvoices', ids: [345, 346] }, {}, {
+      [one(345)]: [429, { error: 'too many' }],
+      [one(346)]: [200, { id: 346, number: '13/11/2026', status: 'paid', gov_status: 'ok' }],
+    });
+    expect(r).toMatchObject({ status: 200, body: { invoices: [{ id: 346, status: 'paid' }] } });
+    expect((await call({ action: 'readInvoices', ids: [345] }, {}, { [one(345)]: [401, {}] })).status).toBe(502);
+  });
+
+  it('asks at most 4 at a time', async () => {
+    let open = 0;
+    let most = 0;
+    const answers = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [one(i + 1), [200, { id: i + 1, number: String(i + 1), status: 'issued' }] as [number, unknown]]));
+    const net = fakeNet(answers);
+    const slow = async (url: string, init?: RequestInit) => {
+      const counted = url.includes('/invoices/');
+      if (counted) most = Math.max(most, ++open);
+      await new Promise((r) => setTimeout(r, 5));
+      const response = await net.fetchFn(url, init);
+      if (counted) open -= 1;
+      return response;
+    };
+    const response = await handle(request({ action: 'readInvoices', ids: Array.from({ length: 10 }, (_, i) => i + 1) }), env, slow);
+    expect(((await response.json()) as { invoices: unknown[] }).invoices).toHaveLength(10);
+    expect(most).toBe(4);
+  });
+
   it('leaves out an invoice deleted in Fakturownia, and never one it was not asked about', async () => {
     const r = await call({ action: 'readInvoices', ids: [345, 347] }, {}, {
       [one(345)]: [200, { id: 999, number: 'odd', status: 'issued' }], // an answer about another invoice: dropped
