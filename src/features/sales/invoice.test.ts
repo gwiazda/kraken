@@ -33,12 +33,13 @@ describe('invoiceDraft (owner, 2026-11-28)', () => {
         },
         totalNet: 137600,
         totalGross: 169248, // 1102,08 + 590,40 zł
+        lineGross: [110208, 59040],
         vatPercent: 23,
       },
     });
   });
 
-  it('adds up the gross totals line by line, as on the invoice (prices with grosze)', () => {
+  it('adds up the gross totals line by line (prices with grosze; per line, not per unit: to confirm on a real invoice)', () => {
     // 3 × 30,55 = 91,65 → 112,7295 → 112,73 zł; 7 × 12,35 = 86,45 → 106,3335 → 106,33 zł; together 219,06 zł
     // (VAT on the summed 178,10 zł would give 219,063 → 219,06 zł here, but can differ by a grosz in other cases).
     const lines = [line(2, { bags: '3', unit_price_net_pln: '30.55' }), line(3, { bags: '7', unit_price_net_pln: '12.35' })];

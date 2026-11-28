@@ -970,7 +970,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
               el(
                 'tbody',
                 {},
-                ...draft.request.positions.map((p) => {
+                ...draft.request.positions.map((p, i) => {
                   const unit = parseMoney(p.priceNet);
                   const net = typeof unit === 'number' ? unit : 0;
                   return el(
@@ -981,10 +981,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
                     el('td', { class: 'num nowrap' }, formatWholePln(net)),
                     el('td', { class: 'num' }, `${p.tax} %`),
                     el('td', { class: 'num nowrap' }, formatWholePln(net * p.quantity)),
-                    el('td', { class: 'num nowrap' }, formatPln((() => {
-                      const gross = parseMoney(p.totalGross);
-                      return typeof gross === 'number' ? gross : 0;
-                    })())),
+                    el('td', { class: 'num nowrap' }, formatPln(draft.lineGross[i] ?? 0)),
                   );
                 }),
               ),

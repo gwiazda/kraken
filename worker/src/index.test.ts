@@ -179,6 +179,8 @@ describe('the actions', () => {
       { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '1.234', totalGross: '1.23', tax: 23 }] },
       { ...invoice, positions: [{ name: 'X', quantity: 1, priceNet: '1', tax: 23 }] }, // no gross total
       { ...invoice, orderId: 'x'.repeat(38) }, // the mark would be over 40 characters
+      { ...invoice, positions: [{ name: 'KENIA 1 kg', quantity: 8, priceNet: '112', totalGross: '1000', tax: 23 }] }, // does not match 8 × 112 + 23 %
+      { ...invoice, positions: [{ name: 'KENIA 1 kg', quantity: 8, priceNet: '112', totalGross: '1102.09', tax: 23 }] }, // a grosz off
       { ...invoice, sellDate: '27.11.2026' },
       { ...invoice, clientId: '12' },
       { ...invoice, paymentDays: 400 },
@@ -229,5 +231,10 @@ describe('the actions', () => {
     const stranger = await call({ action: 'whoAmI' }, { token: 'goog-stranger-token' });
     expect(stranger.status).toBe(403);
     expect(stranger.calls.some((c) => c.url.includes('fakturownia'))).toBe(false);
+  });
+
+  it('accepts a big line within the limits (999 × 20 000 zł + 23 %)', async () => {
+    const big = { ...invoice, positions: [{ name: 'X', quantity: 999, priceNet: '20000', totalGross: '24575400', tax: 23 }] };
+    expect((await call(big, {}, { 'POST /invoices.json': [201, { id: 1, number: '1', token: 't' }] })).status).toBe(200);
   });
 });

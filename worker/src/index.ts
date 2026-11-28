@@ -138,8 +138,13 @@ const date = (v: unknown, what: string): string => {
 };
 /** A sale's id, as Kraken's records have them (letters, digits, "-", "_"). */
 const orderId = (v: unknown): string => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,37}$/.test(v) ? v : fail('sprzedaż'));
-/** A line's gross total in złoty as text, e.g. "1102.08": above 0, at most 10 000 000 zł, at most 2 decimals. */
-const total = (v: unknown, what: string): string => (typeof v === 'string' && /^\d{1,8}(\.\d{1,2})?$/.test(v) && Number(v) > 0 && Number(v) <= 10_000_000 ? v : fail(what));
+/** A line's gross total in złoty as text, e.g. "1102.08": above 0, at most 2 decimals (999 × 100 000 zł + 30 % fits). */
+const total = (v: unknown, what: string): string => (typeof v === 'string' && /^\d{1,9}(\.\d{1,2})?$/.test(v) && Number(v) > 0 ? v : fail(what));
+/** Złoty as text ("112.5") in grosze, exactly. */
+const grosze = (v: string): number => {
+  const [whole = '0', part = ''] = v.split('.');
+  return Number(whole) * 100 + Number(part.padEnd(2, '0'));
+};
 const nip = (v: unknown): string => (typeof v === 'string' && /^\d{10}$/.test(v) ? v : fail('NIP'));
 /** A net price in złoty as text, e.g. "112" or "30.50": above 0, at most 100 000 zł, at most 2 decimals. */
 const money = (v: unknown, what: string): string => (typeof v === 'string' && /^\d{1,6}(\.\d{1,2})?$/.test(v) && Number(v) > 0 && Number(v) <= 100_000 ? v : fail(what));
@@ -190,15 +195,14 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
         buyer_company: true,
         positions: lines.map((raw) => {
           const line = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : fail('pozycja');
-          return {
-            name: str(line['name'], 'nazwa pozycji', 200),
-            quantity: int(line['quantity'], 'ilość', 1, 999),
-            quantity_unit: 'szt.',
-            price_net: money(line['priceNet'], 'cena netto'),
-            // Fakturownia requires it (seen 2026-11-28: "positions.total_price_gross: pole nie może być puste").
-            total_price_gross: total(line['totalGross'], 'wartość brutto'),
-            tax: int(line['tax'], 'VAT', 0, 30),
-          };
+          const quantity = int(line['quantity'], 'ilość', 1, 999);
+          const priceNet = money(line['priceNet'], 'cena netto');
+          const tax = int(line['tax'], 'VAT', 0, 30);
+          // Fakturownia requires it (seen 2026-11-28: "positions.total_price_gross: pole nie może być puste"), and must
+          // be exactly quantity × net + VAT (to the grosz), so it can never change what the owner checked.
+          const totalGross = total(line['totalGross'], 'wartość brutto');
+          if (grosze(totalGross) !== Math.round((grosze(priceNet) * quantity * (100 + tax)) / 100)) fail('wartość brutto (nie zgadza się z ceną netto i VAT)');
+          return { name: str(line['name'], 'nazwa pozycji', 200), quantity, quantity_unit: 'szt.', price_net: priceNet, total_price_gross: totalGross, tax };
         }),
       };
       // Never sent to KSeF from here: the owner sends it in Fakturownia (docs/FAKTUROWNIA.md).

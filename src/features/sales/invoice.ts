@@ -22,6 +22,8 @@ export interface InvoiceDraft {
   /** The net total (grosze), and the gross total: the lines' gross totals added up (what the invoice shows). */
   readonly totalNet: number;
   readonly totalGross: number;
+  /** Each position's gross total in grosze (the same as its `totalGross` text), for the check screen. */
+  readonly lineGross: readonly number[];
   readonly vatPercent: number;
 }
 
@@ -52,7 +54,9 @@ export function invoiceDraft(
   if (unpriced.length > 0) problems.push(`Nie wszystkie produkty mają zapisaną cenę (${unpriced.map((l) => productName(l.productId) ?? '?').join(', ')}): kliknij Zapisz, a jeśli to nie pomoże, sprawdź ceny w zakładce Produkty.`);
   if (vatTenths % 10 !== 0) problems.push('Stawka VAT w Opakowania i rabaty nie jest pełnym procentem.');
   if (problems.length > 0 || !client) return { ok: false, problems };
-  // Each line's gross total, to the grosz: quantity × net price + VAT (Fakturownia requires it on every line).
+  // Each line's gross total, to the grosz: quantity × net price + VAT (Fakturownia requires it on every line). Not
+  // yet checked against a real invoice whether Fakturownia also rounds per line (not per unit): to see on the first
+  // invoice with prices in grosze; the middleman refuses any gross that does not match this rule.
   const lineGross = (l: SaleLine) => roundGrosze(grossOf((l.unitNetGrosze ?? 0) * (l.bags ?? 0), vatTenths));
   const positions = paid.map((l) => ({
     name: `${productName(l.productId) ?? '?'} ${formatBagSize(l.grams ?? 0)}`,
@@ -69,6 +73,7 @@ export function invoiceDraft(
       request: { orderId: sale.id, sellDate: sale.date, issueDate: today, paymentDays: PAYMENT_DAYS, positions },
       totalNet,
       totalGross: paid.reduce((sum, l) => sum + lineGross(l), 0),
+      lineGross: paid.map(lineGross),
       vatPercent: vatTenths / 10,
     },
   };

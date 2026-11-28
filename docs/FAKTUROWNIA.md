@@ -111,7 +111,9 @@ Google access token in `Authorization: Bearer`. Actions: `findClient` (`nip`), `
 `email`), `createInvoice` (`clientId`, `sellDate`, `issueDate`, `paymentDays`, `positions`: `name`, `quantity`,
 `priceNet` as "112.5", `totalGross` (the line's quantity × net + VAT, to the grosz, which Fakturownia requires:
 "positions.total_price_gross: pole nie może być puste", seen on the first real try 2026-11-28), `tax`, and
-`orderId`: the sale's id), `findInvoice` (`orderId`), `readInvoices` (`ids`, up to
+`orderId`: the sale's id; the middleman refuses a `totalGross` that is not exactly quantity × net + VAT. Not yet
+checked on a real invoice: whether Fakturownia also rounds per line rather than per unit, to see on the first
+invoice with prices in grosze), `findInvoice` (`orderId`), `readInvoices` (`ids`, up to
 100). Every invoice carries the sale's mark (`oid` "KR-<sale id>", at most 40 characters as Fakturownia allows, with `oid_unique: yes`, documented in the API
 README), so a retried "Wystaw" never makes a second invoice; `findInvoice` finds the invoice of a sale whose answer
 was lost (among the last 30 days, exact mark only). `readInvoices` passes back only the ids asked for, even if
