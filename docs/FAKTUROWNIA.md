@@ -180,7 +180,10 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
   state (owner, 2026-11-28; `ksefState`) is shown, not stored: a note at the top of Sales ("N faktury nie są jeszcze w
   KSeF … Pokaż"), a badge after each invoice date ("KSeF ✓", "nie wysłana do KSeF", "błąd KSeF: sprawdź w
   Fakturowni"; only KSeF's test mode, "w KSeF (tryb testowy)", counts as still to send), and on the sale's page
-  with its KSeF number. Redrawing for it keeps the note shown and an open "Usunięte wpisy". Kraken still never sends to KSeF. If Fakturownia cannot
+  with its KSeF number. Redrawing for it keeps the note shown and an open "Usunięte wpisy". An invoice Kraken issued that Fakturownia no longer has
+  (deleted there, a 404; the middleman lists it in `missing`) gets a yellow "usunięta w Fakturowni" badge and a note
+  saying to set the sale back to "Faktura do wystawienia" to invoice it again, or delete the sale (owner, 2026-11-28;
+  nothing is changed automatically). Kraken still never sends to KSeF. If Fakturownia cannot
   be reached, nothing changes and nothing is shown.
 
 ## Cutting off access
