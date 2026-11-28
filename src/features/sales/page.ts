@@ -105,7 +105,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
    * save in progress on the list): read again, with this note, the next time the list is shown. '' when not needed.
    */
   let reloadNote: string | null = null;
-  /** The note last shown on the list, and whether "Usunięte wpisy" is open: kept when the list is drawn again. */
+  /** Whether "Usunięte wpisy" is open: kept when the list is drawn again. */
   let deletedOpen = false;
   /** What Fakturownia said about Kraken's invoices this visit (by Fakturownia id): paid, and where each is with KSeF. */
   const invoiceStates = new Map<number, InvoiceState>();
@@ -199,8 +199,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
    * and which invoices Kraken issued are now paid in Fakturownia; those sales become "Opłacona". If Fakturownia cannot
    * be reached nothing is shown or changed: it is tried again the next time Sales opens.
    */
+  /** Kraken's invoices were asked about this visit (or are being asked): not asked twice. */
+  let invoicesAsked = false;
   async function askFakturownia(): Promise<void> {
-    if (!(await learnRole())) return;
+    if (invoicesAsked || !(await learnRole())) return;
+    invoicesAsked = true;
     const chunks = invoiceIdsToAsk(sales, today());
     if (chunks.length === 0) return;
     let written = 0;
@@ -213,8 +216,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
         states.push(...answer.states);
         for (const st of answer.states) invoiceStates.set(st.id, st);
         for (const id of answer.missing) missingInvoices.add(id);
+        statesKnown?.(); // an open sale's page shows its invoice's state as soon as its batch is known
       }
-      statesKnown?.(); // an open sale's page shows its invoice's state now
       const updates = paidUpdates(sales, states);
       if (updates.length === 0) return;
       appBusy(true);
@@ -248,6 +251,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       (r) => {
         role = r;
         roleKnown?.();
+        // Fakturownia could not be reached when Sales opened: now that it answers, its invoices are read too.
+        if (fakturowniaAsked && !invoicesAsked) void askFakturownia();
         return true;
       },
       () => {
@@ -859,7 +864,7 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
     roleKnown = showInvoiceBox;
     // The invoice issued in Fakturownia: its link and, once Fakturownia has answered, where it is with KSeF (owner,
     // 2026-11-28: only here, not in the list).
-    const invoiceLine = el('div', {});
+    const invoiceLine = el('div', { 'aria-live': 'polite' }); // the state is filled in later: announced then
     const showInvoiceLine = () => invoiceLine.replaceChildren(...invoiceLineNodes());
     const invoiceLineNodes = (): Node[] =>
       sale?.fakturowniaUrl && sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)
