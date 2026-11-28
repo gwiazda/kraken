@@ -69,16 +69,16 @@ describe('the gatekeeper', () => {
     expect((await call({ action: 'readInvoices', ids: [1] }, { token: '' })).status).toBe(401);
     expect((await call({ action: 'readInvoices', ids: [1] }, { token: 'goog-unknown-token' })).status).toBe(401);
     const otherApp = await call({ action: 'readInvoices', ids: [1] }, { token: 'goog-owner-token' }, {}, { 'goog-owner-token': 'someone-elses-app.apps.googleusercontent.com' });
-    expect(otherApp).toMatchObject({ status: 401, body: { error: 'This sign-in was not made for Kraken.' } });
+    expect(otherApp).toMatchObject({ status: 401, body: { error: 'To logowanie nie pochodzi z Krakena.' } });
     expect(otherApp.calls.some((c) => c.url.includes('fakturownia'))).toBe(false);
   });
 
   it('lets in only the owner and the partner (capitals ignored), and only the owner may issue', async () => {
     const stranger = await call({ action: 'readInvoices', ids: [1] }, { token: 'goog-stranger-token' });
-    expect(stranger).toMatchObject({ status: 403, body: { error: 'This Google account may not use Fakturownia.' } });
-    for (const action of ['findClient', 'createClient', 'createInvoice']) {
+    expect(stranger).toMatchObject({ status: 403, body: { error: 'To konto Google nie ma dostępu do Fakturowni.' } });
+    for (const action of ['findClient', 'createClient', 'createInvoice', 'findInvoice']) {
       const partner = await call({ action, nip: '9876543210' }, { token: 'goog-partner-token' });
-      expect(partner).toMatchObject({ status: 403, body: { error: 'Not allowed for this person.' } });
+      expect(partner).toMatchObject({ status: 403, body: { error: 'To może zrobić tylko właściciel.' } });
       expect(partner.calls.some((c) => c.url.includes('fakturownia'))).toBe(false);
     }
     const reading = await call({ action: 'readInvoices', ids: [5] }, { token: 'goog-partner-token' }, { 'GET /invoices.json?period=all&per_page=100&invoice_ids=5': [200, []] });
@@ -87,7 +87,7 @@ describe('the gatekeeper', () => {
 
   it('refuses anything not on the list: deleting, sending to KSeF, listing every client', async () => {
     for (const action of ['deleteInvoice', 'sendToKsef', 'listClients', '', 42]) {
-      expect(await call({ action })).toMatchObject({ status: 400, body: { error: 'Unknown action.' } });
+      expect(await call({ action })).toMatchObject({ status: 400, body: { error: 'Nieznane działanie.' } });
     }
     expect((await call({ action: 'readInvoices' }, { method: 'GET' })).status).toBe(405);
   });
@@ -96,6 +96,11 @@ describe('the gatekeeper', () => {
     const net = fakeNet();
     const response = await handle(request({ action: 'readInvoices', ids: [1] }), { ...env, FAKTUROWNIA_TOKEN: '' }, net.fetchFn);
     expect(response.status).toBe(500);
+    // A Fakturownia address typed with ".fakturownia.pl" (or capitals) is a setup problem, not bad data from Kraken.
+    for (const domain of ['example-roastery.fakturownia.pl', 'Example', 'https://x']) {
+      const wrong = await handle(request({ action: 'readInvoices', ids: [1] }), { ...env, FAKTUROWNIA_DOMAIN: domain }, fakeNet().fetchFn);
+      expect(wrong.status).toBe(500);
+    }
     const refused = await call({ action: 'readInvoices', ids: [1] }, {}, { 'GET /invoices.json?period=all&per_page=100&invoice_ids=1': [401, {}] });
     expect(refused.status).toBe(502);
     expect(JSON.stringify(refused.body)).not.toContain('secret-token-123');
@@ -123,6 +128,7 @@ describe('the actions', () => {
 
   const invoice = {
     action: 'createInvoice',
+    orderId: 'S-1a2b3c',
     clientId: 12,
     sellDate: '2026-11-27',
     issueDate: '2026-11-28',
@@ -141,6 +147,8 @@ describe('the actions', () => {
     expect(JSON.parse(String(toFakturownia?.init?.body))).toEqual({
       invoice: {
         kind: 'vat',
+        oid: 'KRAKEN-S-1a2b3c',
+        oid_unique: 'yes',
         client_id: 12,
         sell_date: '2026-11-27',
         issue_date: '2026-11-28',
@@ -164,6 +172,10 @@ describe('the actions', () => {
       { ...invoice, sellDate: '27.11.2026' },
       { ...invoice, clientId: '12' },
       { ...invoice, paymentDays: 400 },
+      { ...invoice, sellDate: '2026-02-30' }, // no such day: refused, not moved to March
+      { ...invoice, issueDate: '2026-13-01' },
+      { ...invoice, orderId: '' },
+      { ...invoice, orderId: 'S1; drop' },
     ];
     for (const body of bad) expect((await call(body)).status).toBe(400);
     const refused = await call(invoice, {}, { 'POST /invoices.json': [422, { message: { buyer_tax_no: ['nieprawidłowy'] } }] });
@@ -171,12 +183,33 @@ describe('the actions', () => {
     expect(String(refused.body?.['error'])).toContain('buyer_tax_no');
   });
 
-  it('reads only the given invoices and passes back only what Kraken needs', async () => {
+  it('reads only the given invoices and passes back only what Kraken needs, even if Fakturownia sends more', async () => {
     const r = await call({ action: 'readInvoices', ids: [345, 346] }, {}, {
-      'GET /invoices.json?period=all&per_page=100&invoice_ids=345,346': [200, [{ id: 345, number: '12/11/2026', status: 'paid', paid_date: '2026-12-05', gov_status: 'ok', gov_id: 'X-1', token: 'abc', buyer_tax_no: '9876543210', price_gross: '1692.48' }]],
+      'GET /invoices.json?period=all&per_page=100&invoice_ids=345,346': [
+        200,
+        [
+          { id: 345, number: '12/11/2026', status: 'paid', paid_date: '2026-12-05', gov_status: 'ok', gov_id: 'X-1', token: 'abc', buyer_tax_no: '9876543210', price_gross: '1692.48' },
+          { id: 999, number: '7/11/2026', status: 'issued', token: 'handmade' }, // made by hand in Fakturownia: never passed back
+        ],
+      ],
     });
     expect(r.body).toEqual({ invoices: [{ id: 345, number: '12/11/2026', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: 'X-1', token: 'abc' }] });
     expect((await call({ action: 'readInvoices', ids: [] })).status).toBe(400);
     expect((await call({ action: 'readInvoices', ids: ['1;DROP'] })).status).toBe(400);
+  });
+
+  it('finds the invoice Kraken made for a sale (after a lost answer), only by its exact mark', async () => {
+    const recent: [number, unknown] = [
+      200,
+      [
+        { id: 401, number: '13/11/2026', oid: 'KRAKEN-S-1a2b3c-old', token: 't1' },
+        { id: 402, number: '14/11/2026', oid: 'KRAKEN-S-1a2b3c', token: 't2' },
+        { id: 403, number: '15/11/2026', oid: '', token: 't3' },
+      ],
+    ];
+    const found = await call({ action: 'findInvoice', orderId: 'S-1a2b3c' }, {}, { 'GET /invoices.json?period=last_30_days&per_page=100&order=updated_at.desc': recent });
+    expect(found.body).toEqual({ invoice: { id: 402, number: '14/11/2026', token: 't2' } });
+    const none = await call({ action: 'findInvoice', orderId: 'S-zzz' }, {}, { 'GET /invoices.json?period=last_30_days&per_page=100&order=updated_at.desc': recent });
+    expect(none.body).toEqual({ invoice: null });
   });
 });

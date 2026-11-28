@@ -109,19 +109,26 @@ Chosen: **Cloudflare Workers**: the least setup and the least maintenance.
 `vite.config.ts` and `tsconfig.json` include `worker/`). One endpoint: `POST` with JSON `{ action, … }` and the
 Google access token in `Authorization: Bearer`. Actions: `findClient` (`nip`), `createClient` (`name`, `nip`,
 `email`), `createInvoice` (`clientId`, `sellDate`, `issueDate`, `paymentDays`, `positions`: `name`, `quantity`,
-`priceNet` as "112.5", `tax`), `readInvoices` (`ids`, up to 100). Errors come back as `{ error }` (401 sign-in, 403
-not allowed, 400 bad data, 422 Fakturownia's own message, 502 Fakturownia or Google did not answer).
-`worker/wrangler.toml` names it `kraken-fakturownia`; `.github/workflows/worker.yml` publishes it after a merge that
-changes `worker/` (tests first) with Cloudflare's tool `wrangler` (exact version, run only there: not a dependency of
-the app). Its address will be `https://kraken-fakturownia.<the account's workers.dev subdomain>.workers.dev`.
+`priceNet` as "112.5", `tax`, and `orderId`: the sale's id), `findInvoice` (`orderId`), `readInvoices` (`ids`, up to
+100). Every invoice carries the sale's mark (`oid` "KRAKEN-<sale id>" with `oid_unique: yes`, documented in the API
+README), so a retried "Wystaw" never makes a second invoice; `findInvoice` finds the invoice of a sale whose answer
+was lost (among the last 30 days, exact mark only). `readInvoices` passes back only the ids asked for, even if
+Fakturownia answers with more. Errors come back as `{ error }` in Polish (shown as they are): 400 bad data, 401
+sign-in, 403 not allowed or another page, 405 not POST, 413 too much data, 422 Fakturownia's own message, 500 the
+middleman's secrets missing or the Fakturownia address mistyped, 502 Fakturownia or Google did not answer.
+`worker/wrangler.toml` names it `kraken-fakturownia`; `.github/workflows/worker.yml` publishes it (main only, one at a
+time; tests and type check first) after a merge that changes `worker/`, or when run by hand. It uses Cloudflare's tool
+`wrangler`, locked with all its parts in `worker/package.json` / `worker/package-lock.json` (install scripts not run):
+only that workflow uses it, the app does not (owner informed 2026-11-28). Its address will be `https://kraken-fakturownia.<the account's workers.dev subdomain>.workers.dev`.
 
 ## One-time setup (Claude guides the owner step by step)
 
 1. Create a free Cloudflare account (done 2026-11-28; 2-step verification on).
 2. In Cloudflare, choose the account's `workers.dev` subdomain (Workers & Pages, first visit).
 3. Create a Cloudflare API token that can only edit Workers ("Edit Cloudflare Workers" template), and save it with
-   the account ID as the GitHub repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The next
-   merge (or running the workflow by hand) publishes the middleman.
+   the account ID as the GitHub repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (done
+   2026-11-28). A merge that changes `worker/` publishes the middleman; otherwise run it by hand once (Actions →
+   "Publish Fakturownia middleman" → Run workflow).
 4. In the Worker (Settings → Variables and Secrets), add four values of type **Secret**: `FAKTUROWNIA_TOKEN` (from
    Fakturownia: Ustawienia → Ustawienia konta → Integracja → Kod autoryzacyjny API; it cannot be read back),
    `FAKTUROWNIA_DOMAIN` (the account's address without `.fakturownia.pl`), `OWNER_EMAIL` (may also issue invoices)
@@ -129,6 +136,8 @@ the app). Its address will be `https://kraken-fakturownia.<the account's workers
    emails must never be in the public code.
 5. Add the worker's address to Kraken (`src/config.ts`) and to its Content Security Policy (`connect-src` in
    `index.html`).
+6. When the Fakturownia work is finished, remove `http://localhost:5173` from `ALLOWED_ORIGINS` in the middleman
+   (owner, 2026-11-28: only the published Kraken may call it).
 
 ## Cutting off access
 
