@@ -189,7 +189,9 @@ read; a public PDF link is built from the invoice's `token`.
    match is exact is to check) and uses its `client_id`, so the address on the Fakturownia card is used. With no
    such client, Kraken creates one from Klienci: `name` = the CEIDG name (the short name if empty), `tax_no` = NIP,
    `email`, `company: true`, and the owner's defaults **`payment_to_kind: 14`** (14 days) and **`default_tax: 23`**;
-   the owner adds the address in Fakturownia once. A client without a NIP: Kraken asks for one first (Klienci).
+   the owner adds the address in Fakturownia once. **E-mail required (owner, 2026-11-28: the invoice goes to it):**
+   no invoice for a client without an e-mail in Klienci; the middleman never creates a client without one; if the
+   client found in Fakturownia has no e-mail on its card, Kraken stops before creating the invoice and says so. A client without a NIP: Kraken asks for one first (Klienci).
    Every invoice sends `buyer_company: true` (KSeF.md: always send it).
 4. **Invoice details:** payment term **14 days** (`payment_to_kind: 14`), payment by transfer, sell date = the
    sale's date, issue date = today; VAT **23 %** (the VAT in Packaging & discounts). Lines: **"KENIA 1 kg"** (product

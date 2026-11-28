@@ -28,7 +28,7 @@ describe('fakturowniaClient', () => {
 
   it('reads each answer', async () => {
     expect(await fake(200, { role: 'partner' }).api.whoAmI()).toBe('partner');
-    expect(await fake(200, { clients: [{ id: 7, name: 'Nowa Kawa' }] }).api.findClient('9876543210')).toEqual([{ id: 7, name: 'Nowa Kawa' }]);
+    expect(await fake(200, { clients: [{ id: 7, name: 'Nowa Kawa', email: 'k@example.com' }] }).api.findClient('9876543210')).toEqual([{ id: 7, name: 'Nowa Kawa', email: 'k@example.com' }]);
     expect(await fake(200, { id: 12 }).api.createClient({ name: 'N', nip: '9876543210', email: '' })).toBe(12);
     expect(await fake(200, { invoice: null }).api.findInvoice('S1')).toBeNull();
     expect(await fake(200, { invoices: [{ id: 1, number: '1/11/2026', status: 'paid', paidDate: '2026-12-01', ksefStatus: null }] }).api.readInvoices([1])).toHaveLength(1);

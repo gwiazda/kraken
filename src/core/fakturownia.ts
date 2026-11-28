@@ -44,7 +44,8 @@ export interface NewInvoice {
 /** What Kraken can ask Fakturownia (the middleman allows exactly these). */
 export interface Fakturownia {
   whoAmI(): Promise<FakturowniaRole>;
-  findClient(nip: string): Promise<{ id: number; name: string }[]>;
+  /** Fakturownia's clients with exactly this NIP, with the e-mail on their card ('' when none). */
+  findClient(nip: string): Promise<{ id: number; name: string; email: string }[]>;
   createClient(client: { name: string; nip: string; email: string }): Promise<number>;
   createInvoice(invoice: NewInvoice): Promise<IssuedInvoice>;
   /** The invoice Kraken made for a sale, if Fakturownia has it (after an answer that was lost). */
@@ -82,7 +83,7 @@ export function fakturowniaClient(client: SheetsClient, url = FAKTUROWNIA_PROXY_
   }
   return {
     whoAmI: async () => (await call<{ role: FakturowniaRole }>('whoAmI')).role,
-    findClient: async (nip) => (await call<{ clients: { id: number; name: string }[] }>('findClient', { nip })).clients,
+    findClient: async (nip) => (await call<{ clients: { id: number; name: string; email: string }[] }>('findClient', { nip })).clients,
     createClient: async (c) => (await call<{ id: number }>('createClient', { name: c.name, nip: c.nip, email: c.email })).id,
     createInvoice: (invoice) => call<IssuedInvoice>('createInvoice', { ...invoice }),
     findInvoice: async (orderId) => (await call<{ invoice: IssuedInvoice | null }>('findInvoice', { orderId })).invoice,

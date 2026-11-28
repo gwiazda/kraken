@@ -112,7 +112,7 @@ describe('the actions', () => {
     const r = await call({ action: 'findClient', nip: '9876543210' }, {}, {
       'GET /clients.json?tax_no=9876543210': [200, [{ id: 7, name: 'Nowa Kawa Sp. z o.o.', tax_no: '987-654-32-10', email: 'x@example.com' }, { id: 8, name: 'Other', tax_no: '98765432101' }]],
     });
-    expect(r).toMatchObject({ status: 200, body: { clients: [{ id: 7, name: 'Nowa Kawa Sp. z o.o.' }] } });
+    expect(r).toMatchObject({ status: 200, body: { clients: [{ id: 7, name: 'Nowa Kawa Sp. z o.o.', email: 'x@example.com' }] } });
     const toFakturownia = r.calls.find((c) => c.url.includes('fakturownia'));
     expect(toFakturownia?.url).not.toContain('secret-token-123');
     expect((toFakturownia?.init?.headers as Record<string, string>)['Authorization']).toBe('Bearer secret-token-123');
@@ -124,6 +124,14 @@ describe('the actions', () => {
     expect(r).toMatchObject({ status: 200, body: { id: 12 } });
     const sent = JSON.parse(String(r.calls.find((c) => c.url.endsWith('/clients.json'))?.init?.body));
     expect(sent).toEqual({ client: { name: 'Nowa Kawa Sp. z o.o.', tax_no: '9876543210', email: 'kawa@example.com', company: true, payment_to_kind: 14, default_tax: 23 } });
+  });
+
+  it('never creates a client without an e-mail (the invoice goes to it)', async () => {
+    for (const email of ['', 'not-an-email', undefined]) {
+      const r = await call({ action: 'createClient', name: 'Nowa Kawa', nip: '9876543210', email }, {}, { 'POST /clients.json': [201, { id: 12 }] });
+      expect(r).toMatchObject({ status: 400, body: { error: 'Nieprawidłowe dane: e-mail.' } });
+      expect(r.calls.some((c) => c.url.includes('/clients.json'))).toBe(false);
+    }
   });
 
   const invoice = {

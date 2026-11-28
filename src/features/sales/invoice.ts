@@ -43,6 +43,8 @@ export function invoiceDraft(
   if (!client || client.deletedAt !== '') problems.push('Tej sprzedaży nie da się przypisać do klienta z zakładki Klienci.');
   const nip = (client?.nip ?? '').replace(/\D/g, '');
   if (client && nip.length !== 10) problems.push(`${client.name} nie ma NIP-u: uzupełnij go w zakładce Klienci.`);
+  // The invoice goes to the client by e-mail (owner, 2026-11-28): none, no invoice.
+  if (client && client.email.trim() === '') problems.push(`${client.name} nie ma adresu e-mail (faktura trafia na niego): uzupełnij go w zakładce Klienci.`);
   const paid = lines.filter((l) => !l.free);
   if (lines.length === 0) problems.push('Ta sprzedaż nie ma produktów.');
   else if (paid.length === 0) problems.push('Na fakturze nie byłoby nic do zapłaty (same gratisy).');
@@ -81,6 +83,17 @@ export function pricesUpToDate(pricing: SalePricing, sale: Sale, lines: readonly
     const l = lines[i];
     return l !== undefined && c['unit_price_net_pln'] === (l.source['unit_price_net_pln'] ?? '').trim() && c['price_kind'] === (l.source['price_kind'] ?? '').trim();
   });
+}
+
+/**
+ * Which Fakturownia client to invoice (owner, 2026-11-28): the first with this NIP, or none (then Kraken adds it, with
+ * its e-mail). A card there without an e-mail stops the invoice: the invoice goes to that e-mail.
+ */
+export function chooseClient(found: readonly { id: number; name: string; email: string }[]): { ok: true; id: number | null } | { ok: false; problem: string } {
+  const client = found[0];
+  if (!client) return { ok: true, id: null };
+  if (client.email.trim() === '') return { ok: false, problem: `Klient „${client.name}” w Fakturowni nie ma adresu e-mail: dodaj go na karcie klienta w Fakturowni, a potem wystaw fakturę.` };
+  return { ok: true, id: client.id };
 }
 
 /** The sale's cells once its invoice is issued: "Faktura wystawiona" today, with the number, id and link. */

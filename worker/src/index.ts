@@ -156,15 +156,15 @@ async function run(action: string, body: Record<string, unknown>, env: Env, fetc
       return {
         clients: list
           .filter((c) => typeof c['tax_no'] === 'string' && c['tax_no'].replace(/\D/g, '') === wanted)
-          .map((c) => ({ id: c['id'], name: c['name'] })),
+          .map((c) => ({ id: c['id'], name: c['name'], email: typeof c['email'] === 'string' ? c['email'] : '' })),
       };
     }
     case 'createClient': {
-      // The owner's defaults (2026-11-28): 14 days to pay, VAT 23 %.
+      // The owner's defaults (2026-11-28): 14 days to pay, VAT 23 %; always with an e-mail (the invoice goes to it).
       const client = {
         name: str(body['name'], 'nazwa', 200),
         tax_no: nip(body['nip']),
-        email: body['email'] === '' || body['email'] === undefined ? '' : str(body['email'], 'e-mail', 200),
+        email: typeof body['email'] === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body['email'].trim()) && body['email'].length <= 200 ? body['email'].trim() : fail('e-mail'),
         company: true,
         payment_to_kind: 14,
         default_tax: 23,

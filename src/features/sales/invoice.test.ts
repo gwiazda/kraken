@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../clients';
-import { invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds } from './invoice';
+import { chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds } from './invoice';
 import { lineFromFields, saleFromFields } from './model';
 import { priceSale, type PricingData } from './pricing';
 
@@ -52,6 +52,7 @@ describe('invoiceDraft (owner, 2026-11-28)', () => {
     expect(why(sale(2, { invoice_status: 'issued' }))).toEqual(['Faktura za tę sprzedaż jest już wystawiona.']);
     expect(why(sale(2, { fakturownia_id: '345' }))).toEqual(['Faktura za tę sprzedaż jest już wystawiona.']);
     expect(why(sale(2), [line(2)], client({ nip: '' }))).toEqual(['Café Nowa nie ma NIP-u: uzupełnij go w zakładce Klienci.']);
+    expect(why(sale(2), [line(2)], client({ email: ' ' }))).toEqual(['Café Nowa nie ma adresu e-mail (faktura trafia na niego): uzupełnij go w zakładce Klienci.']);
     expect(why(sale(2), [line(2)], 'none')).toEqual(['Tej sprzedaży nie da się przypisać do klienta z zakładki Klienci.']);
     expect(why(sale(2), [line(2)], client({ deletedAt: 'x' }))).toEqual(['Tej sprzedaży nie da się przypisać do klienta z zakładki Klienci.']);
     expect(why(sale(2), [line(2, { free: 'yes' })])).toEqual(['Na fakturze nie byłoby nic do zapłaty (same gratisy).']);
@@ -104,5 +105,16 @@ describe('after issuing, and paid', () => {
       { id: 999, number: '9', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok' },
     ];
     expect(paidUpdates(sales, states)).toEqual([{ sale: sales[0], fields: { invoice_status: 'paid', invoice_date: '2026-11-28' } }]);
+  });
+});
+
+describe('chooseClient (owner, 2026-11-28)', () => {
+  it('uses the Fakturownia client with this NIP, or none (Kraken adds it); a card without an e-mail stops the invoice', () => {
+    expect(chooseClient([{ id: 7, name: 'Nowa Kawa', email: 'k@example.com' }, { id: 8, name: 'Other', email: 'o@example.com' }])).toEqual({ ok: true, id: 7 });
+    expect(chooseClient([])).toEqual({ ok: true, id: null });
+    expect(chooseClient([{ id: 7, name: 'Nowa Kawa', email: '' }])).toEqual({
+      ok: false,
+      problem: 'Klient „Nowa Kawa” w Fakturowni nie ma adresu e-mail: dodaj go na karcie klienta w Fakturowni, a potem wystaw fakturę.',
+    });
   });
 });

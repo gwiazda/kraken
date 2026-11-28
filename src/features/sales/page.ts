@@ -47,7 +47,7 @@ import {
 } from './model';
 import { FILTERS, bagsText, clientFacts, deletedEntryText, priceView, saleFacts, saleRows, type ClientInfo, type SaleRow, type SalesFilter } from './present';
 import { linesToPrice, priceCells, priceEntry, pricingDataFrom } from './pricing';
-import { invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds, type InvoiceDraft } from './invoice';
+import { chooseClient, invoiceDraft, issuedFields, paidUpdates, pricesUpToDate, unpaidInvoiceIds, type InvoiceDraft } from './invoice';
 import { lastNotes, type SaleNote } from './modelNotes';
 import { notesSection } from './notesSection';
 import type { SalesRepository } from './repo';
@@ -897,7 +897,9 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
       deps
         .withGoogle(async (): Promise<IssuedInvoice> => {
           const f = deps.fakturownia;
-          const clientId = (await f.findClient(draft.buyer.nip))[0]?.id ?? (await f.createClient(draft.buyer));
+          const chosen = chooseClient(await f.findClient(draft.buyer.nip));
+          if (!chosen.ok) throw new InvoiceStopped(chosen.problem);
+          const clientId = chosen.id ?? (await f.createClient(draft.buyer));
           let invoice: IssuedInvoice;
           try {
             invoice = await f.createInvoice({ ...draft.request, clientId });
@@ -919,6 +921,8 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
           issue.disabled = false;
           cancel.disabled = false;
           if (deps.isIgnorable(error)) return status.replaceChildren();
+          // Stopped before anything was made or saved: just say why.
+          if (error instanceof InvoiceStopped) return status.replaceChildren(message(error.message, 'error'));
           const show = (e: unknown) => status.replaceChildren(...errorNodes(e, () => send(draft, issue, cancel, status), 'Zaloguj się i wystaw fakturę', show, true, 'Odśwież sprzedaż'));
           show(error);
         });
@@ -930,3 +934,6 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
 
   load(note, fromClick);
 }
+
+/** Issuing stopped on purpose before anything was created or saved (e.g. the client's card has no e-mail). */
+class InvoiceStopped extends Error {}
