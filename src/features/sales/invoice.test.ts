@@ -166,8 +166,21 @@ describe('ksefState (owner, 2026-11-28)', () => {
     }
   });
 
+  it('has a short badge for the list (the full text on hover)', () => {
+    expect([null, 'ok', 'processing', 'offline', 'send_error', 'not_connected', 'demo_ok', 'not_applicable'].map((x) => ksefState(x).badge)).toEqual([
+      'KSeF ✗',
+      'KSeF ✓',
+      'KSeF ⏳',
+      'KSeF ⏳',
+      'KSeF ⚠',
+      'KSeF ⚠',
+      'KSeF test',
+      'KSeF –',
+    ]);
+  });
+
   it('only in KSeF test mode is not really in KSeF: shown as such and still to send', () => {
-    expect(ksefState('demo_ok')).toEqual({ kind: 'test', text: 'w KSeF (tryb testowy)', warn: true });
+    expect(ksefState('demo_ok')).toEqual({ kind: 'test', text: 'w KSeF (tryb testowy)', badge: 'KSeF test', warn: true });
     expect(ksefState('demo_processing')).toMatchObject({ kind: 'pending', text: 'wysyłana do KSeF (tryb testowy)' });
   });
 });

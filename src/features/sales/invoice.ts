@@ -150,11 +150,14 @@ export type KsefKind = 'sent' | 'test' | 'not_sent' | 'pending' | 'error' | 'oth
  * What Fakturownia's KSeF state (`gov_status`, KSeF.md) means, in Polish for the screen. Kraken never sends to KSeF: the
  * owner does, in Fakturownia; this only shows which invoices still need it. Demo states ("demo_ok") are the test mode.
  */
-export function ksefState(status: string | null): { kind: KsefKind; text: string; warn: boolean } {
+/** The short badge of each state in the Sales list (owner, 2026-11-28: short, with icons; the full text on hover). */
+const KSEF_BADGES: Readonly<Record<KsefKind, string>> = { sent: 'KSeF ✓', test: 'KSeF test', not_sent: 'KSeF ✗', pending: 'KSeF ⏳', error: 'KSeF ⚠', other: 'KSeF –' };
+
+export function ksefState(status: string | null): { kind: KsefKind; text: string; badge: string; warn: boolean } {
   const demo = status?.startsWith('demo_') ?? false;
   const s = demo ? (status ?? '').slice(5) : (status ?? '');
   const test = demo ? ' (tryb testowy)' : '';
-  const state = (kind: KsefKind, text: string) => ({ kind, text, warn: kind === 'not_sent' || kind === 'error' || kind === 'test' });
+  const state = (kind: KsefKind, text: string) => ({ kind, text, badge: KSEF_BADGES[kind], warn: kind === 'not_sent' || kind === 'error' || kind === 'test' });
   if (s === '') return state('not_sent', 'nie wysłana do KSeF');
   // Only KSeF's test mode: not really in KSeF, so it still needs sending (owner, 2026-11-28: see what is left to send).
   if (demo && s === 'ok') return state('test', 'w KSeF (tryb testowy)');

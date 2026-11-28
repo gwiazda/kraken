@@ -297,10 +297,11 @@ export function showSalesPage(root: HTMLElement, deps: SalesPageDeps, note?: str
   };
   /** A small mark after the invoice date in the list: "w KSeF", or "nie wysłana do KSeF" (and errors) in yellow. */
   const ksefBadge = (sale: Sale): (Node | string)[] => {
-    if (sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)) return [' ', el('span', { class: 'badge badge-warn' }, 'nie ma jej w Fakturowni')];
+    // Short (owner, 2026-11-28); the full words on hover and for screen readers, and written out on the sale's page.
+    const badge = (short: string, full: string, warn: boolean) => [' ', el('span', { class: `badge ${warn ? 'badge-warn' : 'badge-muted'}`, title: full, 'aria-label': full }, short)];
+    if (sale.fakturowniaId !== null && missingInvoices.has(sale.fakturowniaId)) return badge('usunięta?', 'Nie ma jej w Fakturowni (usunięta?)', true);
     const k = ksefOf(sale);
-    if (!k) return [];
-    return [' ', el('span', { class: `badge ${k.warn ? 'badge-warn' : 'badge-muted'}` }, k.kind === 'sent' ? 'KSeF ✓' : k.text)];
+    return k ? badge(k.badge, k.text, k.warn) : [];
   };
   const findClient = (id: string) => clients.find((c) => c.id === id);
   const clientName = (id: string) => findClient(id)?.name;

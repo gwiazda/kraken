@@ -178,7 +178,9 @@ only that workflow uses it, the app does not (owner informed 2026-11-28). Its ad
   out until next time). Paid invoices with no invoice date are asked too; one paid more than 60 days ago that never
   reached KSeF drops out of the reminder (kept small on purpose). Those Fakturownia shows as `paid` become "Opłacona" (keeping the issue date). The KSeF
   state (owner, 2026-11-28; `ksefState`) is shown, not stored (owner, 2026-11-28: just the status, no note at the top): a
-  badge after each invoice date ("KSeF ✓", "nie wysłana do KSeF", "błąd KSeF: sprawdź w
+  short badge after each invoice date (owner, 2026-11-28: "KSeF ✓" sent, "KSeF ✗" not sent, "KSeF ⏳" on its way,
+  "KSeF ⚠" error, "KSeF test", and "usunięta?" when not in Fakturownia; the full words on hover and on the sale's page:
+  "nie wysłana do KSeF", "błąd KSeF: sprawdź w
   Fakturowni"; only KSeF's test mode, "w KSeF (tryb testowy)", is yellow like those still to send), and on the sale's page
   with its KSeF number. Redrawing for it keeps the note shown and an open "Usunięte wpisy". An invoice Kraken issued that Fakturownia no longer has
   (a 404; the middleman lists it in `missing`) gets a yellow "nie ma jej w Fakturowni" badge, and on its page no
