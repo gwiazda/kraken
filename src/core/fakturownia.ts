@@ -54,7 +54,8 @@ export interface Fakturownia {
   createInvoice(invoice: NewInvoice): Promise<IssuedInvoice>;
   /** The invoice Kraken made for a sale, if Fakturownia has it (after an answer that was lost). */
   findInvoice(orderId: string): Promise<IssuedInvoice | null>;
-  readInvoices(ids: readonly number[]): Promise<InvoiceState[]>;
+  /** The invoices' states, and the ids Fakturownia no longer has (deleted there). */
+  readInvoices(ids: readonly number[]): Promise<{ states: InvoiceState[]; missing: number[] }>;
 }
 
 /** A refusal or error from the middleman or Fakturownia, with the words to show. */
@@ -92,6 +93,9 @@ export function fakturowniaClient(client: SheetsClient, url = FAKTUROWNIA_PROXY_
     createClient: async (c) => (await call<{ id: number }>('createClient', { name: c.name, nip: c.nip, email: c.email })).id,
     createInvoice: (invoice) => call<IssuedInvoice>('createInvoice', { ...invoice }),
     findInvoice: async (orderId) => (await call<{ invoice: IssuedInvoice | null }>('findInvoice', { orderId })).invoice,
-    readInvoices: async (ids) => (await call<{ invoices: InvoiceState[] }>('readInvoices', { ids })).invoices,
+    readInvoices: async (ids) => {
+      const answer = await call<{ invoices: InvoiceState[]; missing?: number[] }>('readInvoices', { ids });
+      return { states: answer.invoices, missing: answer.missing ?? [] };
+    },
   };
 }

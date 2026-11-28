@@ -203,6 +203,7 @@ describe('the actions', () => {
       [one(346)]: [200, { id: 346, number: '13/11/2026', status: 'issued', gov_status: null }],
     });
     expect(r.body).toEqual({
+      missing: [],
       invoices: [
         { id: 345, number: '12/11/2026', status: 'paid', paidDate: '2026-12-05', ksefStatus: 'ok', ksefNumber: 'X-1' },
         { id: 346, number: '13/11/2026', status: 'issued', paidDate: null, ksefStatus: null, ksefNumber: null },
@@ -219,7 +220,7 @@ describe('the actions', () => {
       [one(345)]: [429, { error: 'too many' }],
       [one(346)]: [200, { id: 346, number: '13/11/2026', status: 'paid', gov_status: 'ok' }],
     });
-    expect(r).toMatchObject({ status: 200, body: { invoices: [{ id: 346, status: 'paid' }] } });
+    expect(r).toMatchObject({ status: 200, body: { missing: [], invoices: [{ id: 346, status: 'paid' }] } }); // 345 failed: not "missing"
     expect((await call({ action: 'readInvoices', ids: [345] }, {}, { [one(345)]: [401, {}] })).status).toBe(502);
   });
 
@@ -241,12 +242,12 @@ describe('the actions', () => {
     expect(most).toBe(4);
   });
 
-  it('leaves out an invoice deleted in Fakturownia, and never one it was not asked about', async () => {
+  it('says which invoices Fakturownia no longer has (deleted there), and never passes back one it was not asked about', async () => {
     const r = await call({ action: 'readInvoices', ids: [345, 347] }, {}, {
       [one(345)]: [200, { id: 999, number: 'odd', status: 'issued' }], // an answer about another invoice: dropped
       [one(347)]: [404, { error: 'not found' }],
     });
-    expect(r).toMatchObject({ status: 200, body: { invoices: [] } });
+    expect(r).toMatchObject({ status: 200, body: { missing: [347], invoices: [] } });
   });
 
   it('finds the invoice Kraken made for a sale (after a lost answer), only by its exact mark', async () => {

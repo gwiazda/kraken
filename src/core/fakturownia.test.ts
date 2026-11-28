@@ -31,7 +31,10 @@ describe('fakturowniaClient', () => {
     expect(await fake(200, { clients: [{ id: 7, name: 'Nowa Kawa', email: 'k@example.com' }] }).api.findClient('9876543210')).toEqual([{ id: 7, name: 'Nowa Kawa', email: 'k@example.com' }]);
     expect(await fake(200, { id: 12 }).api.createClient({ name: 'N', nip: '9876543210', email: '' })).toBe(12);
     expect(await fake(200, { invoice: null }).api.findInvoice('S1')).toBeNull();
-    expect(await fake(200, { invoices: [{ id: 1, number: '1/11/2026', status: 'paid', paidDate: '2026-12-01', ksefStatus: null, ksefNumber: null }] }).api.readInvoices([1])).toHaveLength(1);
+    expect(await fake(200, { invoices: [{ id: 1, number: '1/11/2026', status: 'paid', paidDate: '2026-12-01', ksefStatus: null, ksefNumber: null }], missing: [2] }).api.readInvoices([1, 2])).toEqual({
+      states: [{ id: 1, number: '1/11/2026', status: 'paid', paidDate: '2026-12-01', ksefStatus: null, ksefNumber: null }],
+      missing: [2],
+    });
   });
 
   it("shows the middleman's own words when it refuses, and asks to sign in again on 401", async () => {
